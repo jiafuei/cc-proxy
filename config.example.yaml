@@ -1,0 +1,14 @@
+# Example configuration file for cc-proxy
+# Copy this file to config.yaml and modify as needed
+
+# CORS settings
+cors_allow_origins:
+  - "http://localhost:3000"
+  - "https://yourdomain.com"
+
+# Server settings
+host: "127.0.0.1"
+port: 8000
+
+# Development mode
+dev: false
