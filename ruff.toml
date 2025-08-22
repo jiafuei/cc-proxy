@@ -2,6 +2,7 @@ line-length = 180
 
 [lint]
 ignore = ["E712"]
+extend-select = ["F401", "I"]
 
 [format]
 quote-style = "single"

@@ -1,12 +1,13 @@
-from fastapi import FastAPI, Request, HTTPException
-from fastapi.responses import JSONResponse
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import ORJSONResponse
+
+from app.config import get_config
 from app.middlewares.security_headers import SecurityHeadersMiddleware
-from app.config import Config
 from app.routers.health import router as health_router
 from app.routers.messages import router as messages_router
 
-config = Config.load()
+config = get_config()
 
 app = FastAPI(title='cc-proxy', version='0.1.0')
 
@@ -26,13 +27,12 @@ app.add_middleware(SecurityHeadersMiddleware)
 
 @app.exception_handler(HTTPException)
 async def http_exception_handler(request: Request, exc: HTTPException):
-    return JSONResponse(status_code=exc.status_code, content={'detail': exc.detail})
+    return ORJSONResponse(status_code=exc.status_code, content={'detail': exc.detail})
 
 
 if __name__ == '__main__':
     import uvicorn
 
-    config = Config.load()
     uvicorn.run(
         'main:app',
         host=config.host,

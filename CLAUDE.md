@@ -13,8 +13,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
   - app/{component}/tests/ - Unit tests
 
 ## Commands
-- `uvx ruff check --fix`: Run linter and fix
-- `uvx ruff format path/to/code/`: Run formatter for styling
+- `uvx ruff check --fix && uvx ruff format path/to/code`: Run linter, fix styles and formatter
 - `python -m pytest path/to/test -v`: Run tests for directory or file
 
 ## Configuration Files
@@ -28,4 +27,4 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - Design clear interfaces for component interactions
 - Dependency injection must be used extensively when creating components and services.
 - Components should be composible to allow for injecting mocks for tests
-- Do not lint or format tests
+- Lint guidelines: Do not lint or format tests, run linter and formatter together, use '&&' when executing the Bash tool

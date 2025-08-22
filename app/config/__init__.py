@@ -1,6 +1,9 @@
 from dataclasses import dataclass
 from typing import List
+from functools import lru_cache
+
 import yaml
+
 
 @dataclass
 class Config:
@@ -28,3 +31,15 @@ class Config:
             port=data.get('port', 8000),
             dev=data.get('dev', False),
         )
+
+# might need lock
+_config : Config | None = None
+
+def reload_config() -> Config:
+    _config = Config.load()
+    return _config
+
+def get_config() -> Config:
+    if not _config:
+        return reload_config()
+    return _config
