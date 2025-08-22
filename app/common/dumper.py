@@ -89,10 +89,12 @@ class Dumper:
         if not f or not chunk:
             return
         try:
+            if isinstance(chunk, str):
+                chunk = bytes(chunk, encoding='utf-8')
             f.write(chunk)
             f.flush()
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"exception dumping chunk: {e}")
 
     def close(self, handles: DumpHandles) -> None:
         f = handles.response_file

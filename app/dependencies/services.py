@@ -10,7 +10,7 @@ from app.services.anthropic.client import AnthropicStreamingService
 class Services:
     def __init__(self):
         self.config = get_config()
-        self.httpx_client = httpx.AsyncClient(timeout=60 * 5)
+        self.httpx_client = httpx.AsyncClient(timeout=60 * 5, http2=True)
         self.populate_services()
 
     def populate_services(self):

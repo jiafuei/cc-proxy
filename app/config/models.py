@@ -52,7 +52,6 @@ class ConfigModel(BaseModel):
                     file_data = yaml.safe_load(f) or {}
                     # Merge with existing data (later files override earlier ones)
                     data.update(file_data)
-                break  # Successfully loaded a config file
             except FileNotFoundError:
                 continue  # Try next config path
             except yaml.YAMLError as e:

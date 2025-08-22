@@ -206,3 +206,5 @@ __marimo__/
 .claude/**/*.local.*
 
 dumps/
+config.yaml
+config.yml

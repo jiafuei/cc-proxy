@@ -1,5 +1,7 @@
 from typing import AsyncGenerator, Mapping
 
+from fastapi import Request
+from urllib.parse import urlparse
 import httpx
 
 from ...config.models import ConfigModel
@@ -11,12 +13,18 @@ class AnthropicStreamingService:
         self._client = client
         self._api_url = config.anthropic_api_url
         self._api_key = config.anthropic_api_key
+        self.hostname = urlparse(self._api_url).hostname
 
-    async def stream_response(self, request: MessagesRequest, headers_orig: Mapping[str, str]) -> AsyncGenerator[bytes, None]:
-        headers = {k:v for k,v in headers_orig.items()} if headers_orig else {}
+    async def stream_response(self, payload: MessagesRequest, request: Request) -> AsyncGenerator[bytes, None]:
+        headers = {k:v for k,v in request.headers.items()} if request.headers else {}
+        del headers['content-length']
+        del headers['accept']
+        del headers['connection']
+        headers['host'] = self.hostname
         if self._api_key:
-            headers['Authorization'] = f'Bearer {self._api_key}'
-        async with self._client.stream('POST', self._api_url, headers=headers, json=request.model_dump()) as resp:
+            headers['authorization'] = f'Bearer {self._api_key}'
+        # async with self._client.stream('POST', self._api_url, headers=headers, json=request.model_dump()) as resp:
+        async with self._client.stream('POST', self._api_url, headers=headers, json=payload, params=request.query_params) as resp:
             resp.raise_for_status()
             async for chunk in resp.aiter_bytes():
                 if not chunk:
