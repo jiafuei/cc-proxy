@@ -17,11 +17,12 @@ class AnthropicStreamingService:
 
     async def stream_response(self, request: MessagesRequest) -> AsyncGenerator[bytes, None]:
         headers = {
-            'Authorization': f'Bearer {self._api_key}',
             'Accept': 'text/event-stream',
             'Content-Type': 'application/json',
         }
-        async with self._client.stream('POST', self._api_url, headers=headers, json=request.dict()) as resp:
+        if self._api_key:
+            headers['Authorization'] = f'Bearer {self._api_key}'
+        async with self._client.stream('POST', self._api_url, headers=headers, json=request.model_dump()) as resp:
             resp.raise_for_status()
             async for chunk in resp.aiter_bytes():
                 if not chunk:

@@ -12,3 +12,14 @@ port: 8000
 
 # Development mode
 dev: false
+
+# Dump settings
+dump_requests: false
+dump_responses: false
+dump_headers: false
+dump_dir: "./dumps"
+redact_headers:
+  - authorization
+  - x-api-key
+  - cookie
+  - set-cookie
