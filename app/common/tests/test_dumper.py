@@ -1,7 +1,7 @@
 import os
 
 from app.common.dumper import Dumper
-from app.config import Config
+from app.config import ConfigModel
 
 
 class DummyRequest:
@@ -10,7 +10,7 @@ class DummyRequest:
 
 
 def test_dumper_writes_files(tmp_path):
-    cfg = Config(cors_allow_origins=[], dump_requests=True, dump_responses=True, dump_headers=True, dump_dir=str(tmp_path), redact_headers=['authorization', 'cookie'])
+    cfg = ConfigModel(cors_allow_origins=[], dump_requests=True, dump_responses=True, dump_headers=True, dump_dir=str(tmp_path), redact_headers=['authorization', 'cookie'])
     d = Dumper(cfg)
     req = DummyRequest({'Authorization': 'secret', 'X-Other': 'ok'})
     handles = d.begin(req, {'a': 1})
@@ -26,7 +26,7 @@ def test_dumper_writes_files(tmp_path):
 
 
 def test_dumper_redaction(tmp_path):
-    cfg = Config(cors_allow_origins=[], dump_headers=True, dump_dir=str(tmp_path), redact_headers=['authorization'])
+    cfg = ConfigModel(cors_allow_origins=[], dump_headers=True, dump_dir=str(tmp_path), redact_headers=['authorization'])
     d = Dumper(cfg)
     req = DummyRequest({'Authorization': 'secret', 'Cookie': 'abc', 'X-Key': 'keep'})
     h = d.begin(req, {})

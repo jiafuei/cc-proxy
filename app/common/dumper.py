@@ -7,7 +7,7 @@ from typing import BinaryIO, Dict, Optional
 
 from fastapi import Request
 
-from app.config import Config
+from app.config import ConfigModel
 
 
 @dataclass
@@ -19,7 +19,7 @@ class DumpHandles:
 
 
 class Dumper:
-    def __init__(self, cfg: Config):
+    def __init__(self, cfg: ConfigModel):
         self.cfg = cfg
 
     def _ensure_dir(self) -> Optional[str]:
