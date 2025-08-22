@@ -10,7 +10,7 @@ router = APIRouter()
 
 
 @router.post('/v1/messages')
-async def messages(payload: MessagesRequest, services: Annotated[Services, Depends(lambda: get_services())], request: Request):
+async def messages(payload: MessagesRequest, services: Annotated[Services, Depends(get_services)], request: Request):
     service = services.anthropic
     dumper = services.dumper
 
