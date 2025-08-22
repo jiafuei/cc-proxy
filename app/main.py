@@ -4,12 +4,14 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.middlewares.security_headers import SecurityHeadersMiddleware
 from app.config import Config
 from app.routers.health import router as health_router
+from app.routers.messages import router as messages_router
 
 config = Config.load()
 
 app = FastAPI(title='cc-proxy', version='0.1.0')
 
 app.include_router(health_router)
+app.include_router(messages_router)
 
 app.add_middleware(
     CORSMiddleware,
