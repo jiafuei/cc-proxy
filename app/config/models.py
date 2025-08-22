@@ -1,4 +1,3 @@
-import os
 from pathlib import Path
 from typing import List
 
@@ -8,7 +7,8 @@ from pydantic import BaseModel, Field
 
 class ConfigModel(BaseModel):
     """Configuration model with validation."""
-    version: str = Field(default='1', description="Config version")
+
+    version: str = Field(default='1', description='Config version')
     host: str = Field(default='127.0.0.1')
     port: int = Field(default=8000, ge=1, le=65535)
     dev: bool = Field(default=False)

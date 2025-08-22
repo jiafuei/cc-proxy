@@ -6,6 +6,7 @@ from fastapi.testclient import TestClient
 from app.common.dumper import DumpHandles
 from app.dependencies.services import get_services
 from app.routers.messages import router
+from app.services.pipeline.error_handler import ErrorHandlingService
 
 
 def test_messages_endpoint():
@@ -14,12 +15,12 @@ def test_messages_endpoint():
     app.include_router(router)
     client = TestClient(app)
 
-    class DummyStream:
-        async def stream_response(self, payload, request):
+    class DummyPipeline:
+        async def process_request(self, payload, request):
             yield b'data: ok\n\n'
 
     class DummyDumper:
-        def begin(self, request, payload):
+        def begin(self, request, payload, correlation_id=None):
             return DumpHandles(headers_path=None, request_path=None, response_path=None, response_file=None)
 
         def write_chunk(self, handles, chunk):
@@ -32,8 +33,9 @@ def test_messages_endpoint():
         # Create a completely mock services object without initializing real components
         class DummyServices:
             def __init__(self):
-                self.anthropic = DummyStream()
+                self.messages_pipeline = DummyPipeline()
                 self.dumper = DummyDumper()
+                self.error_handler = ErrorHandlingService()
 
                 # Create a simple config mock
                 class Cfg:
@@ -63,8 +65,8 @@ def test_dump_files(tmp_path):
 
     client = TestClient(app)
 
-    class DummyStream:
-        async def stream_response(self, payload, request):
+    class DummyPipeline:
+        async def process_request(self, payload, request):
             yield b'data: hello\n\n'
             yield b'data: world\n\n'
 
@@ -73,7 +75,7 @@ def test_dump_files(tmp_path):
             self.tmp_dir = str(tmp_path)
             self.files = []
 
-        def begin(self, request, payload):
+        def begin(self, request, payload, correlation_id=None):
             os.makedirs(self.tmp_dir, exist_ok=True)
             open(os.path.join(self.tmp_dir, 'ts_corr_headers.json'), 'w').write('{}')
             open(os.path.join(self.tmp_dir, 'ts_corr_request.json'), 'w').write('{}')
@@ -97,8 +99,9 @@ def test_dump_files(tmp_path):
         # Create a completely mock services object without initializing real components
         class DummyServices:
             def __init__(self):
-                self.anthropic = DummyStream()
+                self.messages_pipeline = DummyPipeline()
                 self.dumper = DummyDumper()
+                self.error_handler = ErrorHandlingService()
 
                 class Cfg:
                     dump_requests = True

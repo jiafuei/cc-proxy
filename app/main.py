@@ -1,4 +1,5 @@
 from pprint import pprint
+
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import ORJSONResponse
@@ -30,7 +31,6 @@ app.add_middleware(
 app.add_middleware(SecurityHeadersMiddleware)
 
 
-
 @app.exception_handler(HTTPException)
 async def http_exception_handler(request: Request, exc: HTTPException):
     return ORJSONResponse(status_code=exc.status_code, content={'detail': exc.detail})
@@ -38,6 +38,7 @@ async def http_exception_handler(request: Request, exc: HTTPException):
 
 if __name__ == '__main__':
     import uvicorn
+
     uvicorn.run(
         'main:app',
         host=config.host,

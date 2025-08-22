@@ -1,55 +1,71 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status as Status
-from fastapi.responses import ORJSONResponse, StreamingResponse
 import httpx
+from fastapi import APIRouter, Depends, Request
+from fastapi.responses import StreamingResponse
 
+from app.common.models import ClaudeRequest
 from app.dependencies.services import Services, get_services
-from app.services.anthropic.models import MessagesRequest
+from app.services.pipeline.exceptions import PipelineException
 
 router = APIRouter()
 
 
 @router.post('/v1/messages')
-async def messages(services: Annotated[Services, Depends(get_services)], request: Request, beta: bool | None = None,):
-    service = services.anthropic
+async def messages(
+    claude_request: ClaudeRequest,
+    services: Annotated[Services, Depends(get_services)],
+    request: Request,
+):
+    pipeline_service = services.messages_pipeline
     dumper = services.dumper
+    error_handler = services.error_handler
 
-    payload = await request.json()
+    # Generate correlation ID for request tracing
+    correlation_id = error_handler.generate_correlation_id()
 
-    # handles = dumper.begin(request, payload.model_dump())
-    handles = dumper.begin(request, payload)
+    # Convert ClaudeRequest to dict for compatibility with current pipeline
+    payload = claude_request.model_dump()
+
+    handles = dumper.begin(request, payload, correlation_id)
 
     async def generator():
         try:
-            async for chunk in service.stream_response(payload, request):
-                dumper.write_chunk(handles, chunk)
-                yield chunk
-        except httpx.HTTPError as e:
-            err = str(e)
-            dumper.write_chunk(handles, err)
-            yield 'event: error\ndata: {"type": "error", "error": {"type": "invalid_request_error", "message":"' + err +'"}}'
+            if claude_request.stream:
+                # Use streaming processing
+                async for chunk in pipeline_service.process_stream(claude_request, request, correlation_id):
+                    dumper.write_chunk(handles, chunk.data)
+                    yield chunk.data
+            else:
+                # Use non-streaming processing
+                response = await pipeline_service.process_request(claude_request, request, correlation_id)
+                response_bytes = response.to_bytes()
+                dumper.write_chunk(handles, response_bytes)
+                yield response_bytes
         except httpx.HTTPStatusError as e:
-            err = e.response.text
-            err_type = "invalid_request_error"
-            match e.response.status_code:
-                case Status.HTTP_401_UNAUTHORIZED:
-                    err_type = "authentication_error"
-                case Status.HTTP_403_FORBIDDEN:
-                    err_type = "permission_error"
-                case Status.HTTP_404_NOT_FOUND:
-                    err_type = "not_found_error"
-                case Status.HTTP_413_REQUEST_ENTITY_TOO_LARGE:
-                    err_type = "request_too_large"
-                case Status.HTTP_429_TOO_MANY_REQUESTS:
-                    err_type = "rate_limit_error"
-                case Status.HTTP_500_INTERNAL_SERVER_ERROR:
-                    err_type = "api_error"
-                case 529:
-                    err_type = "overloaded_error"
-
-            dumper.write_chunk(handles, err)
-            yield f'event: error\ndata: {{"type": "error", "error": {{"type": "{err_type}", "message":"{err}"}} }}'
+            # Handle HTTP status errors (most specific first)
+            domain_exception = error_handler.convert_httpx_exception(e, correlation_id)
+            error_data, sse_event = error_handler.get_error_response_data(domain_exception)
+            dumper.write_chunk(handles, sse_event.encode('utf-8'))
+            yield sse_event
+        except httpx.HTTPError as e:
+            # Handle other HTTP errors (general case)
+            domain_exception = error_handler.convert_httpx_exception(e, correlation_id)
+            error_data, sse_event = error_handler.get_error_response_data(domain_exception)
+            dumper.write_chunk(handles, sse_event.encode('utf-8'))
+            yield sse_event
+        except PipelineException as e:
+            # Handle domain exceptions
+            error_data, sse_event = error_handler.get_error_response_data(e)
+            dumper.write_chunk(handles, sse_event.encode('utf-8'))
+            yield sse_event
+        except Exception:
+            # Handle unexpected errors
+            error_message = (
+                f'event: error\ndata: {{"type": "error", "error": {{"type": "internal_error", "message": "Internal server error", "correlation_id": "{correlation_id}"}}}}'
+            )
+            dumper.write_chunk(handles, error_message.encode('utf-8'))
+            yield error_message
         finally:
             dumper.close(handles)
 

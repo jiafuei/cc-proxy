@@ -44,9 +44,9 @@ class Dumper:
                 result[orig] = headers[orig]
         return result
 
-    def begin(self, request: Request, payload: object) -> DumpHandles:
+    def begin(self, request: Request, payload: object, correlation_id: Optional[str] = None) -> DumpHandles:
         dump_dir = self._ensure_dir()
-        corr_id = uuid.uuid4().hex
+        corr_id = correlation_id or uuid.uuid4().hex
         ts = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H-%M-%S.%fZ')
 
         headers_path = request_path = response_path = None
@@ -94,7 +94,7 @@ class Dumper:
             f.write(chunk)
             f.flush()
         except Exception as e:
-            print(f"exception dumping chunk: {e}")
+            print(f'exception dumping chunk: {e}')
 
     def close(self, handles: DumpHandles) -> None:
         f = handles.response_file
