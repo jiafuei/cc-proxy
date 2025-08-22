@@ -8,7 +8,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
   - app/middlewares/ - Custom middlewares
   - app/dependencies/ - App dependency injection
   - app/services/{service}/ - Business logics
-  - app/services/{service}/models.py - Pydantic models, abstract classes
+  - app/services/{service}/models.py - package-level pydantic models, abstract classes
+  - app/common/models.py - Common models used across multiple packages
   - app/{component}/tests/ - Unit tests
 
 ## Commands
@@ -25,5 +26,6 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Developer notes
 - Design clear interfaces for component interactions
+- Dependency injection must be used extensively when creating components and services.
 - Components should be composible to allow for injecting mocks for tests
 - Do not lint or format tests
