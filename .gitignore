@@ -204,3 +204,5 @@ __marimo__/
 
 # Claude local settings
 .claude/**/*.local.*
+
+dumps/
