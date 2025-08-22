@@ -1,13 +1,14 @@
 import os
 import tempfile
 
-from app.config import Config
+from app.config import get_config, reload_config
+from app.config.models import ConfigModel
 
 
 def test_config_defaults():
-    """Test that Config loads with default values when no file is present."""
+    """Test that ConfigModel loads with default values when no file is present."""
     # Create a config with a non-existent file path
-    config = Config.load('non-existent-config.yaml')
+    config = ConfigModel.load('non-existent-config.yaml')
 
     # Check default values
     assert config.cors_allow_origins == []
@@ -17,7 +18,7 @@ def test_config_defaults():
 
 
 def test_config_from_yaml():
-    """Test that Config loads values from a YAML file."""
+    """Test that ConfigModel loads values from a YAML file."""
     # Create a temporary YAML file with test configuration
     config_data = {
         'cors_allow_origins': ['http://test.com', 'https://test.com'],
@@ -34,13 +35,91 @@ def test_config_from_yaml():
 
     try:
         # Load config from the temporary file
-        config = Config.load(temp_path)
+        config = ConfigModel.load(temp_path)
 
         # Check that values match what's in the YAML file
         assert config.cors_allow_origins == config_data['cors_allow_origins']
         assert config.host == config_data['host']
         assert config.port == config_data['port']
         assert config.dev == config_data['dev']
+    finally:
+        # Clean up the temporary file
+        os.unlink(temp_path)
+
+
+def test_config_invalid_yaml():
+    """Test that ConfigModel raises ValueError for invalid YAML."""
+    # Create a temporary file with invalid YAML
+    with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as f:
+        f.write('{ invalid yaml')
+        temp_path = f.name
+
+    try:
+        # Attempt to load config from the invalid YAML file
+        try:
+            ConfigModel.load(temp_path)
+            assert False, 'Expected ValueError to be raised'
+        except ValueError as e:
+            assert 'Invalid YAML' in str(e)
+    finally:
+        # Clean up the temporary file
+        os.unlink(temp_path)
+
+
+def test_config_validation():
+    """Test that ConfigModel validates fields correctly."""
+    # Test valid config
+    valid_config = ConfigModel(port=8080, host='localhost')
+    assert valid_config.port == 8080
+    assert valid_config.host == 'localhost'
+
+    # Test port validation (should be between 1 and 65535)
+    try:
+        ConfigModel(port=0)
+        assert False, 'Expected validation error for port=0'
+    except Exception:
+        pass
+
+    try:
+        ConfigModel(port=65536)
+        assert False, 'Expected validation error for port=65536'
+    except Exception:
+        pass
+
+
+def test_get_config():
+    """Test that get_config returns a ConfigModel instance."""
+    config = get_config()
+    assert isinstance(config, ConfigModel)
+
+
+def test_reload_config():
+    """Test that reload_config returns a ConfigModel instance."""
+    config = reload_config()
+    assert isinstance(config, ConfigModel)
+
+
+def test_config_multifile_loading():
+    """Test that ConfigModel tries multiple file locations."""
+    # Create a temporary YAML file with test configuration
+    config_data = {
+        'port': 9000,
+    }
+
+    with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as f:
+        import yaml
+
+        yaml.dump(config_data, f)
+        temp_path = f.name
+
+    try:
+        # Test with explicit config path
+        config = ConfigModel.load(temp_path)
+        assert config.port == 9000
+
+        # Test with default config path (file doesn't exist)
+        config = ConfigModel.load()
+        assert config.port == 8000
     finally:
         # Clean up the temporary file
         os.unlink(temp_path)

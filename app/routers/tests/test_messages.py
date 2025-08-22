@@ -3,9 +3,9 @@ import os
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from app.dependencies.services import Services, get_services
-from app.routers.messages import router
 from app.common.dumper import DumpHandles
+from app.dependencies.services import get_services
+from app.routers.messages import router
 
 
 def test_messages_endpoint():
@@ -13,18 +13,14 @@ def test_messages_endpoint():
     app = FastAPI()
     app.include_router(router)
     client = TestClient(app)
+
     class DummyStream:
         async def stream_response(self, request):
             yield b'data: ok\n\n'
 
     class DummyDumper:
         def begin(self, request, payload):
-            return DumpHandles(
-                headers_path=None,
-                request_path=None,
-                response_path=None,
-                response_file=None
-            )
+            return DumpHandles(headers_path=None, request_path=None, response_path=None, response_file=None)
 
         def write_chunk(self, handles, chunk):
             pass
@@ -38,7 +34,7 @@ def test_messages_endpoint():
             def __init__(self):
                 self.anthropic = DummyStream()
                 self.dumper = DummyDumper()
-                
+
                 # Create a simple config mock
                 class Cfg:
                     dump_requests = False
@@ -46,9 +42,9 @@ def test_messages_endpoint():
                     dump_headers = False
                     dump_dir = None
                     redact_headers = ['authorization', 'cookie', 'set-cookie']
-                
+
                 self.config = Cfg()
-        
+
         return DummyServices()
 
     # Override dependencies
@@ -64,7 +60,7 @@ def test_messages_endpoint():
 def test_dump_files(tmp_path):
     from app.dependencies.services import get_services
     from app.main import app
-    
+
     client = TestClient(app)
 
     class DummyStream:
@@ -112,7 +108,7 @@ def test_dump_files(tmp_path):
                     redact_headers = ['authorization', 'cookie', 'set-cookie']
 
                 self.config = Cfg()
-        
+
         return DummyServices()
 
     # Override dependencies

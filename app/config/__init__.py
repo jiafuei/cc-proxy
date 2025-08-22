@@ -1,57 +1,43 @@
-from dataclasses import dataclass
-from typing import List
+# Thread-safe lock for config reloading
+import threading
+from pathlib import Path
 
-import yaml
+from app.config.models import ConfigModel
 
+_config_lock = threading.Lock()
 
-@dataclass
-class Config:
-    """Configuration class that loads settings from YAML file."""
-
-    cors_allow_origins: List[str]
-    host: str = '127.0.0.1'
-    port: int = 8000
-    dev: bool = False
-    dump_requests: bool = False
-    dump_responses: bool = False
-    dump_headers: bool = False
-    dump_dir: str | None = None
-    redact_headers: List[str] | None = None
-
-    @classmethod
-    def load(cls, config_path: str = 'config.yaml') -> 'Config':
-        """Load configuration from YAML file."""
-        try:
-            with open(config_path, 'r') as f:
-                data = yaml.safe_load(f) or {}
-        except FileNotFoundError:
-            # Return default config if file doesn't exist
-            data = {}
-
-        # Use default values for missing keys
-        return cls(
-            cors_allow_origins=data.get('cors_allow_origins', []),
-            host=data.get('host', '127.0.0.1'),
-            port=data.get('port', 8000),
-            dev=data.get('dev', False),
-            dump_requests=data.get('dump_requests', False),
-            dump_responses=data.get('dump_responses', False),
-            dump_headers=data.get('dump_headers', False),
-            dump_dir=data.get('dump_dir', None),
-            redact_headers=data.get('redact_headers', ['authorization', 'x-api-key', 'cookie', 'set-cookie']),
-        )
+# Global config instance
+_config: ConfigModel | None = None
 
 
-# might need lock
-_config: Config | None = None
+def reload_config() -> ConfigModel:
+    """Reload the global configuration from file in a thread-safe manner."""
+    global _config
+    with _config_lock:
+        _config = ConfigModel.load()
+        return _config
 
 
-def reload_config() -> Config:
-    _config = Config.load()
-    return _config
-
-
-def get_config() -> Config:
+def get_config() -> ConfigModel:
+    """Get the global configuration instance, loading it if not already loaded."""
+    global _config
     if not _config:
         return reload_config()
     return _config
+
+
+def setup_user_config() -> None:
+    """Create .cc-proxy directory and config.yaml in user's home directory if they don't exist."""
+    # Get user's home directory
+    home_dir = Path.home()
+
+    # Create .cc-proxy directory if it doesn't exist
+    cc_proxy_dir = home_dir / '.cc-proxy'
+    cc_proxy_dir.mkdir(exist_ok=True)
+
+    # Create config.yaml if it doesn't exist
+    config_file = cc_proxy_dir / 'config.yaml'
+    if not config_file.exists():
+        # Create default config using ConfigModel
+        config = ConfigModel()
+        config.save(str(config_file))
