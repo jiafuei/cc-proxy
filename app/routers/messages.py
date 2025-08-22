@@ -18,7 +18,7 @@ async def messages(payload: MessagesRequest, services: Annotated[Services, Depen
 
     async def generator():
         try:
-            async for chunk in service.stream_response(payload):
+            async for chunk in service.stream_response(payload, request.headers):
                 dumper.write_chunk(handles, chunk)
                 yield chunk
         finally:

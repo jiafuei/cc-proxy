@@ -9,12 +9,16 @@ from app.services.anthropic.client import AnthropicStreamingService
 
 class Services:
     def __init__(self):
-        self.httpx_client = httpx.AsyncClient(timeout=60 * 5)
-        self.anthropic = AnthropicStreamingService(self.httpx_client)
         self.config = get_config()
+        self.httpx_client = httpx.AsyncClient(timeout=60 * 5)
+        self.populate_services()
+
+    def populate_services(self):
+        self.anthropic = AnthropicStreamingService(self.httpx_client, self.config)
         self.dumper = Dumper(self.config)
 
 
 @lru_cache(maxsize=1)
 def get_services():
-    return Services()
+    services =  Services()
+    return services

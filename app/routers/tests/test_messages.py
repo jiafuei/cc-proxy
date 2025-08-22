@@ -15,7 +15,7 @@ def test_messages_endpoint():
     client = TestClient(app)
 
     class DummyStream:
-        async def stream_response(self, request):
+        async def stream_response(self, request, headers):
             yield b'data: ok\n\n'
 
     class DummyDumper:
@@ -64,7 +64,7 @@ def test_dump_files(tmp_path):
     client = TestClient(app)
 
     class DummyStream:
-        async def stream_response(self, request):
+        async def stream_response(self, request, headers):
             yield b'data: hello\n\n'
             yield b'data: world\n\n'
 

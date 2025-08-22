@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 from typing import List
 
@@ -7,7 +8,7 @@ from pydantic import BaseModel, Field
 
 class ConfigModel(BaseModel):
     """Configuration model with validation."""
-
+    version: str = Field(default='1', description="Config version")
     host: str = Field(default='127.0.0.1')
     port: int = Field(default=8000, ge=1, le=65535)
     dev: bool = Field(default=False)
@@ -17,6 +18,8 @@ class ConfigModel(BaseModel):
     dump_dir: str | None = Field(default=None)
     cors_allow_origins: List[str] = Field(default_factory=list)
     redact_headers: List[str] | None = Field(default_factory=lambda: ['authorization', 'x-api-key', 'cookie', 'set-cookie'])
+    anthropic_api_url: str | None = Field(default='https://api.anthropic.com/v1/messages')
+    anthropic_api_key: str | None = Field(default=None)
 
     @classmethod
     def load(cls, config_path: str | None = None) -> 'ConfigModel':
