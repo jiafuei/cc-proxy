@@ -10,7 +10,7 @@ from app.services.config.simple_user_config_manager import get_user_config_manag
 from app.services.error_handling.error_formatter import ApiErrorFormatter
 from app.services.error_handling.exception_mapper import HttpExceptionMapper
 from app.services.lifecycle.service_builder import DynamicServiceBuilder
-from app.services.lifecycle.service_provider import DynamicServiceProvider
+from app.services.lifecycle.simple_service_provider import SimpleServiceProvider
 from app.services.pipeline.http_client import HttpClientService
 from app.services.pipeline.messages_service import MessagesPipelineService
 from app.services.pipeline.request_pipeline import RequestPipeline
@@ -60,51 +60,51 @@ class Services:
         self.dumper = Dumper(self.config)
 
 
-# Global dynamic service provider
-_dynamic_service_provider: Optional[DynamicServiceProvider] = None
+# Global simple service provider
+_simple_service_provider: Optional[SimpleServiceProvider] = None
 _fallback_services: Optional[Services] = None
 
 
-def get_dynamic_service_provider() -> DynamicServiceProvider:
-    """Get the global dynamic service provider."""
-    global _dynamic_service_provider
+def get_dynamic_service_provider() -> SimpleServiceProvider:
+    """Get the global simple service provider."""
+    global _simple_service_provider
 
-    if _dynamic_service_provider is None:
-        logger.info('Initializing dynamic service provider')
+    if _simple_service_provider is None:
+        logger.info('Initializing simple service provider')
 
         # Get configuration
         app_config = get_config()
         service_builder = DynamicServiceBuilder(app_config)
 
         # Create service provider
-        _dynamic_service_provider = DynamicServiceProvider(app_config, service_builder)
+        _simple_service_provider = SimpleServiceProvider(app_config, service_builder)
 
         # Load initial user configuration and build services
         config_manager = get_user_config_manager()
         try:
             user_config = config_manager.load_config()
-            _dynamic_service_provider.rebuild_services(user_config)
+            _simple_service_provider.rebuild_services(user_config)
 
             # Register callback for manual config changes
             config_manager.on_config_change(_on_user_config_change)
 
-            logger.info('Dynamic service provider initialized successfully')
+            logger.info('Simple service provider initialized successfully')
 
         except Exception as e:
             logger.error(f'Failed to initialize user configuration: {e}', exc_info=True)
             # Service provider will fall back to empty config
 
-    return _dynamic_service_provider
+    return _simple_service_provider
 
 
 def _on_user_config_change(user_config):
     """Callback for user configuration changes."""
-    global _dynamic_service_provider
+    global _simple_service_provider
 
-    if _dynamic_service_provider:
+    if _simple_service_provider:
         try:
             logger.info('User configuration changed, rebuilding services')
-            _dynamic_service_provider.rebuild_services(user_config)
+            _simple_service_provider.rebuild_services(user_config)
             logger.info('Services rebuilt successfully')
         except Exception as e:
             logger.error(f'Failed to rebuild services after config change: {e}', exc_info=True)
@@ -123,27 +123,22 @@ def get_fallback_services() -> Services:
 def get_services(request: Optional[Request] = None):
     """Get services for the current request.
 
-    This function supports both the new dynamic service system and
+    This function supports both the new simple service system and
     falls back to the legacy static services for backward compatibility.
 
     Args:
-        request: Optional FastAPI request object
+        request: Optional FastAPI request object (no longer used)
 
     Returns:
         Services instance (either dynamic or static)
     """
-    # Try to get services from request state (set by middleware)
-    if request and hasattr(request.state, 'services') and request.state.services:
-        logger.debug('Using services from request state')
-        return request.state.services
-
-    # Try to get current services from dynamic provider
+    # Try to get current services from simple provider
     try:
         service_provider = get_dynamic_service_provider()
-        generation_id, services = service_provider.get_current_services()
-        logger.debug(f'Using dynamic services (generation: {generation_id})')
+        _, services = service_provider.get_current_services()
+        logger.debug('Using simple services')
         return services
 
     except Exception as e:
-        logger.warning(f'Failed to get dynamic services, falling back to static: {e}')
+        logger.warning(f'Failed to get simple services, falling back to static: {e}')
         return get_fallback_services()

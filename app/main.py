@@ -13,7 +13,6 @@ from app.dependencies.services import get_dynamic_service_provider
 from app.middlewares.context import ContextMiddleware
 from app.middlewares.correlation_id import CorrelationIdMiddleware
 from app.middlewares.security_headers import SecurityHeadersMiddleware
-from app.middlewares.service_capture import ServiceCaptureMiddleware
 from app.routers.config import router as config_router
 from app.routers.health import router as health_router
 from app.routers.messages import router as messages_router
@@ -49,7 +48,6 @@ app.add_middleware(
 )
 app.add_middleware(SecurityHeadersMiddleware)
 app.add_middleware(CorrelationIdMiddleware)
-app.add_middleware(ServiceCaptureMiddleware, service_provider=service_provider)
 app.add_middleware(ContextMiddleware)
 
 

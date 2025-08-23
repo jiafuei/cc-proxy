@@ -66,7 +66,7 @@ def test_messages_endpoint():
 
 
 def test_dump_files(tmp_path):
-    # Create a separate test app without ServiceCaptureMiddleware for this test
+    # Create a separate test app for this test
     test_app = FastAPI()
     test_app.include_router(router)
 

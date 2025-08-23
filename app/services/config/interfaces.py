@@ -71,58 +71,15 @@ class UserConfigManager(ABC):
         pass
 
 
-class ServiceGeneration:
-    """Represents a generation of services with reference counting."""
-
-    def __init__(self, generation_id: str, services: Any):
-        self.generation_id = generation_id
-        self.services = services
-        self.ref_count = 0
-        self.shutdown_requested = False
-
-    def acquire(self) -> None:
-        """Increment reference count."""
-        self.ref_count += 1
-
-    def release(self) -> None:
-        """Decrement reference count."""
-        self.ref_count = max(0, self.ref_count - 1)
-
-    def can_shutdown(self) -> bool:
-        """Check if this generation can be shut down."""
-        return self.shutdown_requested and self.ref_count == 0
-
-
 class ServiceProvider(ABC):
-    """Interface for providing services with hot-swapping support."""
+    """Interface for providing services."""
 
     @abstractmethod
     def get_current_services(self) -> tuple[str, Any]:
-        """Get current services with generation ID.
+        """Get current services.
 
         Returns:
-            Tuple of (generation_id, services)
-        """
-        pass
-
-    @abstractmethod
-    def acquire_services(self, generation_id: str) -> Optional[Any]:
-        """Acquire services for a specific generation.
-
-        Args:
-            generation_id: ID of the service generation to acquire
-
-        Returns:
-            Services instance or None if generation not found
-        """
-        pass
-
-    @abstractmethod
-    def release_services(self, generation_id: str) -> None:
-        """Release services for a specific generation.
-
-        Args:
-            generation_id: ID of the service generation to release
+            Tuple of (empty_string, services) for compatibility
         """
         pass
 
@@ -134,7 +91,7 @@ class ServiceProvider(ABC):
             config: New user configuration
 
         Returns:
-            New generation ID
+            Empty string for compatibility
         """
         pass
 

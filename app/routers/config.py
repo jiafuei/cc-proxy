@@ -30,15 +30,6 @@ async def reload_configuration() -> Dict[str, Any]:
         if not reload_result['success']:
             raise HTTPException(status_code=400, detail=reload_result)
 
-        # Get service provider statistics after reload
-        try:
-            service_provider = get_dynamic_service_provider()
-            generation_stats = service_provider.get_generation_stats()
-            reload_result['service_generations'] = generation_stats
-        except Exception as e:
-            logger.warning(f'Could not get service generation stats: {e}')
-            reload_result['service_generations'] = {'error': str(e)}
-
         logger.info('Configuration reloaded successfully via API')
         return reload_result
 
@@ -63,21 +54,17 @@ async def get_configuration_status() -> Dict[str, Any]:
         # Add service provider information
         try:
             service_provider = get_dynamic_service_provider()
-            generation_stats = service_provider.get_generation_stats()
-            status['service_provider'] = generation_stats
+            _, services = service_provider.get_current_services()
 
-            # If we have dynamic services, add routing information
-            if generation_stats.get('current_generation'):
-                generation_id, services = service_provider.get_current_services()
-                from app.services.lifecycle.service_builder import DynamicServices
+            from app.services.lifecycle.service_builder import DynamicServices
 
-                if isinstance(services, DynamicServices):
-                    routing_summary = services.get_routing_summary()
-                    status['routing'] = routing_summary
+            if isinstance(services, DynamicServices):
+                routing_summary = services.get_routing_summary()
+                status['routing'] = routing_summary
 
-                    # Validate configuration
-                    validation_errors = services.validate_configuration()
-                    status['validation'] = {'valid': len(validation_errors) == 0, 'errors': validation_errors}
+                # Validate configuration
+                validation_errors = services.validate_configuration()
+                status['validation'] = {'valid': len(validation_errors) == 0, 'errors': validation_errors}
 
         except Exception as e:
             logger.warning(f'Could not get service provider status: {e}')
@@ -116,7 +103,7 @@ async def validate_configuration() -> Dict[str, Any]:
         # Get service validation if available
         try:
             service_provider = get_dynamic_service_provider()
-            generation_id, services = service_provider.get_current_services()
+            _, services = service_provider.get_current_services()
             from app.services.lifecycle.service_builder import DynamicServices
 
             if isinstance(services, DynamicServices):
