@@ -4,9 +4,13 @@ from pprint import pprint
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import ORJSONResponse
 
 from app.config import get_config, setup_user_config
+from app.config.log import configure_structlog
+from app.middlewares.context import ContextMiddleware
+from app.middlewares.correlation_id import CorrelationIdMiddleware
 from app.middlewares.security_headers import SecurityHeadersMiddleware
 from app.routers.health import router as health_router
 from app.routers.messages import router as messages_router
@@ -20,9 +24,15 @@ app.include_router(messages_router)
 # Set up user config directory and file on startup
 setup_user_config()
 config = get_config()
+
+# Configure structured logging
+configure_structlog()
+
 if config.dev:
     pprint(config.model_dump())
 
+# Middlewares are executed LIFO
+app.add_middleware(GZipMiddleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=config.cors_allow_origins,
@@ -31,6 +41,8 @@ app.add_middleware(
     allow_headers=['*'],
 )
 app.add_middleware(SecurityHeadersMiddleware)
+app.add_middleware(CorrelationIdMiddleware)
+app.add_middleware(ContextMiddleware)
 
 
 @app.exception_handler(HTTPException)
