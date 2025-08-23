@@ -33,17 +33,11 @@ async def messages(
 
     async def generator():
         try:
-            if claude_request.stream:
-                # Use streaming processing
-                async for chunk in pipeline_service.process_stream(claude_request, request, correlation_id):
-                    dumper.write_chunk(handles, chunk.data)
-                    yield chunk.data
-            else:
-                # Use non-streaming processing
-                response = await pipeline_service.process_request(claude_request, request, correlation_id)
-                response_bytes = response.to_bytes()
-                dumper.write_chunk(handles, response_bytes)
-                yield response_bytes
+            # Use unified processing that always returns SSE-formatted chunks
+            # Stream decision is made AFTER transformations inside the pipeline
+            async for chunk in pipeline_service.process_unified(claude_request, request, correlation_id):
+                dumper.write_chunk(handles, chunk.data)
+                yield chunk.data
         except httpx.HTTPStatusError as e:
             # Handle HTTP status errors (most specific first)
             print('http request err', e)
@@ -78,4 +72,4 @@ async def messages(
         finally:
             dumper.close(handles)
 
-    return StreamingResponse(generator(), media_type='application/x-ndjson')
+    return StreamingResponse(generator(), media_type='text/event-stream')

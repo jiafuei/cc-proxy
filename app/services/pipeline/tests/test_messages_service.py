@@ -1,6 +1,7 @@
 from unittest.mock import AsyncMock, Mock
 
 import httpx
+import orjson
 import pytest
 from fastapi import Request
 
@@ -8,7 +9,6 @@ from app.common.models import ClaudeRequest
 from app.config.models import ConfigModel
 from app.services.pipeline.http_client import HttpClientService
 from app.services.pipeline.messages_service import MessagesPipelineService
-from app.services.pipeline.models import ProxyResponse
 from app.services.pipeline.request_pipeline import RequestPipeline
 from app.services.pipeline.response_pipeline import ResponsePipeline
 from app.services.pipeline.transformers.anthropic import AnthropicRequestTransformer, AnthropicResponseTransformer, AnthropicStreamTransformer
@@ -50,38 +50,6 @@ class TestMessagesPipelineService:
         return MessagesPipelineService(request_pipeline, response_pipeline, mock_http_client)
 
     @pytest.mark.asyncio
-    async def test_streaming_request(self, pipeline_service, mock_request, mock_http_client, sample_claude_request):
-        mock_chunks = [b'chunk1', b'chunk2', b'chunk3']
-
-        async def mock_stream_generator(prepared_request):
-            for chunk in mock_chunks:
-                yield chunk
-
-        mock_http_client.stream_request = mock_stream_generator
-
-        chunks = []
-        async for chunk in pipeline_service.process_stream(sample_claude_request, mock_request, 'test-correlation-id'):
-            chunks.append(chunk.data)
-
-        assert chunks == mock_chunks
-
-    @pytest.mark.asyncio
-    async def test_non_streaming_request(self, pipeline_service, mock_request, mock_http_client, non_streaming_claude_request):
-        mock_response = Mock()
-        mock_response.content = b'{"response": "Hello there!"}'
-        mock_response.headers = {'content-type': 'application/json'}
-        mock_response.status_code = 200
-        mock_http_client.post_request = AsyncMock(return_value=mock_response)
-
-        result = await pipeline_service.process_request(non_streaming_claude_request, mock_request, 'test-correlation-id')
-
-        assert isinstance(result, ProxyResponse)
-        assert result.content == b'{"response": "Hello there!"}'
-        assert result.status_code == 200
-        assert result.headers == {'content-type': 'application/json'}
-        mock_http_client.post_request.assert_called_once()
-
-    @pytest.mark.asyncio
     async def test_integration_with_real_transformers(self, config, mock_request, sample_claude_request):
         mock_httpx_client = Mock(spec=httpx.AsyncClient)
         http_client = HttpClientService(mock_httpx_client)
@@ -112,7 +80,7 @@ class TestMessagesPipelineService:
         mock_httpx_client.stream = Mock(return_value=mock_stream_context)
 
         chunks = []
-        async for chunk in pipeline_service.process_stream(sample_claude_request, mock_request, 'test-correlation-id'):
+        async for chunk in pipeline_service.process_unified(sample_claude_request, mock_request, 'test-correlation-id'):
             chunks.append(chunk.data)
 
         assert chunks == [b'chunk1', b'chunk2']
@@ -125,11 +93,14 @@ class TestMessagesPipelineService:
         assert call_args[1]['json']['model'] == 'claude-3-sonnet'
 
     @pytest.mark.asyncio
-    async def test_legacy_method_streaming(self, pipeline_service, mock_request, mock_http_client):
-        """Test the legacy method for backward compatibility"""
-        request_data = {'model': 'claude-3-sonnet', 'messages': [], 'stream': True, 'max_tokens': 1000}
-
-        mock_chunks = [b'chunk1', b'chunk2', b'chunk3']
+    async def test_unified_processing_streaming(self, pipeline_service, mock_request, mock_http_client, sample_claude_request):
+        """Test unified processing with streaming upstream"""
+        # Mock SSE-formatted chunks from upstream
+        mock_chunks = [
+            b'event: message_start\ndata: {"type": "message_start"}\n\n',
+            b'event: content_block_delta\ndata: {"type": "content_block_delta"}\n\n',
+            b'event: message_stop\ndata: {"type": "message_stop"}\n\n',
+        ]
 
         async def mock_stream_generator(prepared_request):
             for chunk in mock_chunks:
@@ -138,26 +109,104 @@ class TestMessagesPipelineService:
         mock_http_client.stream_request = mock_stream_generator
 
         chunks = []
-        async for chunk in pipeline_service.process_request_legacy(request_data, mock_request):
-            chunks.append(chunk)
+        async for chunk in pipeline_service.process_unified(sample_claude_request, mock_request, 'test-correlation-id'):
+            chunks.append(chunk.data)
 
+        # Should pass through SSE chunks as-is
         assert chunks == mock_chunks
 
     @pytest.mark.asyncio
-    async def test_legacy_method_non_streaming(self, pipeline_service, mock_request, mock_http_client):
-        """Test the legacy method for backward compatibility"""
-        request_data = {'model': 'claude-3-sonnet', 'messages': [], 'stream': False, 'max_tokens': 1000}
+    async def test_unified_processing_non_streaming(self, pipeline_service, mock_request, mock_http_client, non_streaming_claude_request):
+        """Test unified processing with non-streaming upstream"""
+        # Mock non-streaming JSON response from upstream
+        mock_response_data = {
+            'id': 'msg_123',
+            'type': 'message',
+            'role': 'assistant',
+            'model': 'claude-3-sonnet',
+            'content': [{'type': 'text', 'text': 'Hello there!'}],
+            'stop_reason': 'end_turn',
+            'stop_sequence': None,
+            'usage': {'input_tokens': 10, 'output_tokens': 5},
+        }
 
         mock_response = Mock()
-        mock_response.content = b'{"response": "Hello there!"}'
+        mock_response.content = orjson.dumps(mock_response_data)
         mock_response.headers = {'content-type': 'application/json'}
         mock_response.status_code = 200
         mock_http_client.post_request = AsyncMock(return_value=mock_response)
 
         chunks = []
-        async for chunk in pipeline_service.process_request_legacy(request_data, mock_request):
-            chunks.append(chunk)
+        async for chunk in pipeline_service.process_unified(non_streaming_claude_request, mock_request, 'test-correlation-id'):
+            chunks.append(chunk.data)
 
-        assert len(chunks) == 1
-        assert chunks[0] == b'{"response": "Hello there!"}'
+        # Should convert to SSE format
+        assert len(chunks) > 0
+
+        # Verify SSE events are generated
+        all_data = b''.join(chunks).decode()
+        assert 'event: message_start' in all_data
+        assert 'event: content_block_start' in all_data
+        assert 'event: content_block_delta' in all_data
+        assert 'event: content_block_stop' in all_data
+        assert 'event: message_delta' in all_data
+        assert 'event: message_stop' in all_data
+        assert 'Hello there!' in all_data
+
+    @pytest.mark.asyncio
+    async def test_unified_processing_transform_changes_stream_flag(self, config, mock_request, mock_http_client):
+        """Test that stream decision is made after transformations"""
+
+        # Create a custom transformer that changes stream flag
+        class StreamToggleTransformer:
+            async def transform(self, proxy_request):
+                # Toggle the stream flag
+                proxy_request.claude_request.stream = not proxy_request.claude_request.stream
+                return proxy_request
+
+        # Start with stream=True
+        claude_request = ClaudeRequest(model='claude-3-sonnet', messages=[], max_tokens=1000, stream=True)
+
+        # Setup pipeline with stream toggle transformer
+        request_pipeline = RequestPipeline([StreamToggleTransformer(), AnthropicRequestTransformer(config)])
+        response_pipeline = ResponsePipeline([AnthropicResponseTransformer()], [AnthropicStreamTransformer()])
+        pipeline_service = MessagesPipelineService(request_pipeline, response_pipeline, mock_http_client)
+
+        # Mock non-streaming response (because transformer will change stream=True to stream=False)
+        mock_response = Mock()
+        mock_response.content = b'{"content": [{"type": "text", "text": "Response"}]}'
+        mock_response.headers = {}
+        mock_response.status_code = 200
+        mock_http_client.post_request = AsyncMock(return_value=mock_response)
+        mock_http_client.stream_request = AsyncMock()  # Should NOT be called
+
+        chunks = []
+        async for chunk in pipeline_service.process_unified(claude_request, mock_request, 'test-correlation-id'):
+            chunks.append(chunk.data)
+
+        # Verify non-streaming path was taken (post_request called, not stream_request)
         mock_http_client.post_request.assert_called_once()
+        mock_http_client.stream_request.assert_not_called()
+
+        # Verify SSE conversion happened
+        all_data = b''.join(chunks).decode()
+        assert 'event: message_start' in all_data
+
+    @pytest.mark.asyncio
+    async def test_unified_processing_error_response(self, pipeline_service, mock_request, mock_http_client, non_streaming_claude_request):
+        """Test unified processing with error response"""
+        # Mock error response
+        mock_response = Mock()
+        mock_response.content = b'event: error\ndata: {"type": "error", "error": {"type": "api_error", "message": "Something went wrong"}}\n\n'
+        mock_response.headers = {}
+        mock_response.status_code = 500
+        mock_http_client.post_request = AsyncMock(return_value=mock_response)
+
+        chunks = []
+        async for chunk in pipeline_service.process_unified(non_streaming_claude_request, mock_request, 'test-correlation-id'):
+            chunks.append(chunk.data)
+
+        # Should pass through error SSE event
+        assert len(chunks) == 1
+        assert b'event: error' in chunks[0]
+        assert b'Something went wrong' in chunks[0]

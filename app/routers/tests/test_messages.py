@@ -7,6 +7,7 @@ from app.common.dumper import DumpHandles
 from app.dependencies.services import get_services
 from app.routers.messages import router
 from app.services.pipeline.error_handler import ErrorHandlingService
+from app.services.pipeline.models import StreamChunk
 
 
 def test_messages_endpoint():
@@ -16,8 +17,10 @@ def test_messages_endpoint():
     client = TestClient(app)
 
     class DummyPipeline:
-        async def process_request(self, payload, request):
-            yield b'data: ok\n\n'
+        async def process_unified(self, claude_request, original_request, correlation_id):
+            # Return SSE-formatted stream chunks
+            yield StreamChunk(data=b'event: message_start\ndata: {"type": "message_start"}\n\n')
+            yield StreamChunk(data=b'event: message_stop\ndata: {"type": "message_stop"}\n\n')
 
     class DummyDumper:
         def begin(self, request, payload, correlation_id=None):
@@ -66,9 +69,12 @@ def test_dump_files(tmp_path):
     client = TestClient(app)
 
     class DummyPipeline:
-        async def process_request(self, payload, request):
-            yield b'data: hello\n\n'
-            yield b'data: world\n\n'
+        async def process_unified(self, claude_request, original_request, correlation_id):
+            # Return SSE-formatted stream chunks
+            yield StreamChunk(data=b'event: message_start\ndata: {"type": "message_start"}\n\n')
+            yield StreamChunk(data=b'event: content_block_delta\ndata: {"type": "content_block_delta", "delta": {"text": "hello"}}\n\n')
+            yield StreamChunk(data=b'event: content_block_delta\ndata: {"type": "content_block_delta", "delta": {"text": "world"}}\n\n')
+            yield StreamChunk(data=b'event: message_stop\ndata: {"type": "message_stop"}\n\n')
 
     class DummyDumper:
         def __init__(self):
