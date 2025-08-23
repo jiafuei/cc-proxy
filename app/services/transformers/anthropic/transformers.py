@@ -1,18 +1,22 @@
+"""Anthropic transformer implementations."""
+
 from urllib.parse import urlparse
 
-from ....config.models import ConfigModel
-from ..interfaces import RequestTransformer, ResponseTransformer, StreamTransformer
-from ..models import ProxyRequest, ProxyResponse, StreamChunk
+from app.config.models import ConfigModel
+from app.services.pipeline.interfaces import RequestTransformer, ResponseTransformer, StreamTransformer
+from app.services.pipeline.models import ProxyRequest, ProxyResponse, StreamChunk
 
 
 class AnthropicRequestTransformer(RequestTransformer):
+    """Transforms requests for Anthropic API."""
+
     def __init__(self, config: ConfigModel):
         self._api_url = config.anthropic_api_url
         self._api_key = config.anthropic_api_key
         self.hostname = urlparse(self._api_url).hostname if self._api_url else None
 
     async def transform(self, proxy_request: ProxyRequest) -> ProxyRequest:
-        """Prepare request for Anthropic API"""
+        """Prepare request for Anthropic API."""
         headers = proxy_request.headers.copy()
 
         # Remove headers that should not be forwarded
@@ -33,12 +37,16 @@ class AnthropicRequestTransformer(RequestTransformer):
 
 
 class AnthropicResponseTransformer(ResponseTransformer):
+    """Transforms responses from Anthropic API."""
+
     async def transform(self, proxy_response: ProxyResponse, proxy_request: ProxyRequest) -> ProxyResponse:
-        """Transform Anthropic response (pass-through for now)"""
+        """Transform Anthropic response (pass-through for now)."""
         return proxy_response
 
 
 class AnthropicStreamTransformer(StreamTransformer):
+    """Transforms streaming responses from Anthropic API."""
+
     async def transform_chunk(self, chunk: StreamChunk, proxy_request: ProxyRequest) -> StreamChunk:
-        """Transform Anthropic stream chunks (pass-through for now)"""
+        """Transform Anthropic stream chunks (pass-through for now)."""
         return chunk

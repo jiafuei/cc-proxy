@@ -6,7 +6,8 @@ from fastapi.testclient import TestClient
 from app.common.dumper import DumpHandles
 from app.dependencies.services import get_services
 from app.routers.messages import router
-from app.services.pipeline.error_handler import ErrorHandlingService
+from app.services.error_handling.error_formatter import ApiErrorFormatter
+from app.services.error_handling.exception_mapper import HttpExceptionMapper
 from app.services.pipeline.models import StreamChunk
 
 
@@ -38,7 +39,8 @@ def test_messages_endpoint():
             def __init__(self):
                 self.messages_pipeline = DummyPipeline()
                 self.dumper = DummyDumper()
-                self.error_handler = ErrorHandlingService()
+                self.exception_mapper = HttpExceptionMapper()
+                self.error_formatter = ApiErrorFormatter()
 
                 # Create a simple config mock
                 class Cfg:
@@ -107,7 +109,8 @@ def test_dump_files(tmp_path):
             def __init__(self):
                 self.messages_pipeline = DummyPipeline()
                 self.dumper = DummyDumper()
-                self.error_handler = ErrorHandlingService()
+                self.exception_mapper = HttpExceptionMapper()
+                self.error_formatter = ApiErrorFormatter()
 
                 class Cfg:
                     dump_requests = True

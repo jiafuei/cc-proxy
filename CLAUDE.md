@@ -19,12 +19,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Configuration Files
 - `config.example.yaml`: The example config
 
-## Testing-first implementation
-- When writing code, always start by adding empty unit test, and incrementally build up tests for code implementation
-- Do not make large changes immediately, always create small tests, then the implementation to make the test pass, and keep repeating this until the feature is finished
 
 ## Developer notes
-- Design clear interfaces for component interactions
+- Design clear interfaces for component interactions and dependency injection
 - Dependency injection must be used extensively when creating components and services.
 - Components should be composible to allow for injecting mocks for tests
-- Lint guidelines: Do not lint or format tests, run linter and formatter together, use '&&' when executing the Bash tool
+- Lint guidelines: Do not lint or format tests. Run linter and formatter together using &&
+- Each package should be focused and only handle one or two concerns
+- Each method and component should be easily mockable and unit testable
+- Design and write tests first before implementation, each test must be focused

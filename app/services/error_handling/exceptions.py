@@ -1,4 +1,4 @@
-"""Pipeline service domain exceptions."""
+"""Domain exceptions for the application."""
 
 from typing import Optional
 

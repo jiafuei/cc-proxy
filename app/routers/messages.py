@@ -5,10 +5,11 @@ import httpx
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import StreamingResponse
 
+from app.common.utils import generate_correlation_id
 from app.common.models import ClaudeRequest
 from app.dependencies.services import Services, get_services
-from app.services.pipeline.exceptions import PipelineException
-from app.services.pipeline.models import ClaudeError, ClaudeErrorDetail
+from app.services.error_handling.exceptions import PipelineException
+from app.services.error_handling.models import ClaudeError, ClaudeErrorDetail
 
 router = APIRouter()
 
@@ -21,13 +22,14 @@ async def messages(
 ):
     pipeline_service = services.messages_pipeline
     dumper = services.dumper
-    error_handler = services.error_handler
+    exception_mapper = services.exception_mapper
+    error_formatter = services.error_formatter
 
     # Generate correlation ID for request tracing
-    correlation_id = error_handler.generate_correlation_id()
+    correlation_id = generate_correlation_id()
 
     # Convert ClaudeRequest to dict for compatibility with current pipeline
-    payload = claude_request.model_dump()
+    payload = claude_request.to_dict()
 
     handles = dumper.begin(request, payload, correlation_id)
 
@@ -41,21 +43,21 @@ async def messages(
         except httpx.HTTPStatusError as e:
             # Handle HTTP status errors (most specific first)
             print('http request err', e)
-            domain_exception = error_handler.convert_httpx_exception(e, correlation_id)
-            error_data, sse_event = error_handler.get_error_response_data(domain_exception)
+            domain_exception = exception_mapper.map_httpx_exception(e, correlation_id)
+            error_data, sse_event = error_formatter.format_for_sse(domain_exception)
             dumper.write_chunk(handles, sse_event.encode('utf-8'))
             yield sse_event
         except httpx.HTTPError as e:
             # Handle other HTTP errors (general case)
             print('proxy request err', e)
-            domain_exception = error_handler.convert_httpx_exception(e, correlation_id)
-            error_data, sse_event = error_handler.get_error_response_data(domain_exception)
+            domain_exception = exception_mapper.map_httpx_exception(e, correlation_id)
+            error_data, sse_event = error_formatter.format_for_sse(domain_exception)
             dumper.write_chunk(handles, sse_event.encode('utf-8'))
             yield sse_event
         except PipelineException as e:
             # Handle domain exceptions
             print('pipeline exception', e)
-            error_data, sse_event = error_handler.get_error_response_data(e)
+            error_data, sse_event = error_formatter.format_for_sse(e)
             dumper.write_chunk(handles, sse_event.encode('utf-8'))
             yield sse_event
         except Exception as e:
@@ -64,9 +66,6 @@ async def messages(
             print('unknown exception', err_message)
             err = ClaudeError(error=ClaudeErrorDetail(type='api_error', message=err_message))
             error = err.model_dump_json()
-            # error_message = (
-            #     f'event: error\ndata: {{"type": "error", "error": {{"type": "internal_error", "message": "Internal server error", "correlation_id": "{correlation_id}"}}}}'
-            # )
             dumper.write_chunk(handles, error)
             yield error
         finally:

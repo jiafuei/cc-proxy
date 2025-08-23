@@ -11,7 +11,8 @@ from app.services.pipeline.http_client import HttpClientService
 from app.services.pipeline.messages_service import MessagesPipelineService
 from app.services.pipeline.request_pipeline import RequestPipeline
 from app.services.pipeline.response_pipeline import ResponsePipeline
-from app.services.pipeline.transformers.anthropic import AnthropicRequestTransformer, AnthropicResponseTransformer, AnthropicStreamTransformer
+from app.services.sse_formatter.anthropic_formatter import AnthropicSseFormatter
+from app.services.transformers.anthropic.transformers import AnthropicRequestTransformer, AnthropicResponseTransformer, AnthropicStreamTransformer
 
 
 class TestMessagesPipelineService:
@@ -47,7 +48,10 @@ class TestMessagesPipelineService:
         request_pipeline = RequestPipeline([request_transformer])
         response_pipeline = ResponsePipeline([response_transformer], [stream_transformer])
 
-        return MessagesPipelineService(request_pipeline, response_pipeline, mock_http_client)
+        # Add SSE formatter to the service
+        sse_formatter = AnthropicSseFormatter()
+
+        return MessagesPipelineService(request_pipeline, response_pipeline, mock_http_client, sse_formatter)
 
     @pytest.mark.asyncio
     async def test_integration_with_real_transformers(self, config, mock_request, sample_claude_request):
@@ -170,7 +174,8 @@ class TestMessagesPipelineService:
         # Setup pipeline with stream toggle transformer
         request_pipeline = RequestPipeline([StreamToggleTransformer(), AnthropicRequestTransformer(config)])
         response_pipeline = ResponsePipeline([AnthropicResponseTransformer()], [AnthropicStreamTransformer()])
-        pipeline_service = MessagesPipelineService(request_pipeline, response_pipeline, mock_http_client)
+        sse_formatter = AnthropicSseFormatter()
+        pipeline_service = MessagesPipelineService(request_pipeline, response_pipeline, mock_http_client, sse_formatter)
 
         # Mock non-streaming response (because transformer will change stream=True to stream=False)
         mock_response = Mock()

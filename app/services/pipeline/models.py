@@ -5,7 +5,6 @@ from typing import Any, Dict, Optional, Union
 
 import orjson
 from fastapi import Request
-from pydantic import BaseModel, Field
 
 from app.common.models import ClaudeRequest
 
@@ -43,7 +42,7 @@ class ProxyRequest:
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for HTTP client."""
-        return {'url': self.url, 'headers': self.headers, 'json': self.claude_request.model_dump(), 'params': self.params}
+        return {'url': self.url, 'headers': self.headers, 'json': self.claude_request.model_dump(mode='json', exclude_none=True, by_alias=True), 'params': self.params}
 
 
 @dataclass
@@ -73,14 +72,3 @@ class ProxyResponse:
         else:
             # Assume it's a dict/JSON-serializable object
             return orjson.dumps(self.content)
-
-
-class ClaudeErrorDetail(BaseModel):
-    type: str
-    message: str
-
-
-class ClaudeError(BaseModel):
-    type: str = Field(default='error')
-    error: ClaudeErrorDetail
-    request_id: Optional[str] = None

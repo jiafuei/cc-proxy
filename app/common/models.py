@@ -1,6 +1,6 @@
 from typing import Any, Dict, List, Literal, Optional, Union
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class ContentBlock(BaseModel):
@@ -93,15 +93,13 @@ class ToolProperty(BaseModel):
 
 class ToolInputSchema(BaseModel):
     """Tool input schema model."""
+    model_config = ConfigDict(validate_by_alias=True)
 
     type: str
     properties: Dict[str, ToolProperty]
     required: Optional[List[str]] = None
     additionalProperties: bool = False
-    schema_: str = Field(alias='$schema', default='http://json-schema.org/draft-07/schema#')
-
-    class Config:
-        validate_by_name = True
+    schema_: str = Field(alias='$schema', serialization_alias='$schema', default='http://json-schema.org/draft-07/schema#')
 
 
 class Tool(BaseModel):
@@ -137,3 +135,6 @@ class ClaudeRequest(BaseModel):
     max_tokens: int = Field(default=32000)
     thinking: Optional[ThinkingConfig] = None
     stream: Optional[bool] = True
+
+    def to_dict(self):
+        return self.model_dump(mode='json', by_alias=True, exclude_none=True)
