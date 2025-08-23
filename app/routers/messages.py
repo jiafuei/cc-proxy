@@ -1,15 +1,14 @@
 import traceback
 
 import httpx
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import StreamingResponse
 
 from app.common.models import ClaudeRequest
 from app.config.log import get_logger
-from app.dependencies.services import get_core_services, get_message_pipeline_service, get_services
+from app.dependencies.services import get_core_services, get_routing_service, get_service_container
 from app.services.error_handling.exceptions import PipelineException
 from app.services.error_handling.models import ClaudeError, ClaudeErrorDetail
-from app.services.lifecycle.service_builder import DynamicServices
 
 router = APIRouter()
 logger = get_logger(__name__)
@@ -22,36 +21,35 @@ async def messages(
 ):
     """Handle Claude API messages with dynamic routing support."""
 
-    # Get services with dynamic routing support
+    # Get routing service
+    routing_service = get_routing_service()
+    if not routing_service:
+        logger.error('Routing service not available - check user configuration')
+        raise HTTPException(status_code=500, detail={'error': {'type': 'configuration_error', 'message': 'Service configuration failed - no routing available'}})
+
+    # Use dynamic routing to determine the appropriate pipeline
     try:
-        services = get_services()
-    except Exception as e:
-        logger.warning(f'Failed to get dynamic services, using fallback: {e}')
-        services = get_core_services()
+        routing_key, model_id, pipeline_service = routing_service.process_request(claude_request)
 
-    # Try to use dynamic routing if available
-    pipeline_service = None
-    routing_info = None
-
-    if isinstance(services, DynamicServices):
-        try:
-            # Use dynamic routing to determine the appropriate pipeline
-            routing_key, model_id, dynamic_pipeline_service = services.process_request_with_routing(claude_request)
-
-            if dynamic_pipeline_service:
-                pipeline_service = dynamic_pipeline_service
-                routing_info = {'routing_key': routing_key, 'model_id': model_id, 'provider': services.model_registry.get_provider_for_model(model_id)}
-                logger.info(f'Using dynamic routing: {routing_key} -> {model_id} -> {routing_info["provider"]}')
+        if not pipeline_service:
+            if model_id:
+                error_msg = f'Model "{model_id}" is not available or not configured properly'
             else:
-                logger.warning(f'Dynamic routing failed for {routing_key} -> {model_id}, falling back to default pipeline')
-        except Exception as e:
-            logger.error(f'Error in dynamic routing: {e}', exc_info=True)
+                error_msg = f'No model configured for routing key "{routing_key}"'
 
-    # Fall back to default pipeline if dynamic routing failed or not available
-    if pipeline_service is None:
-        pipeline_service = get_message_pipeline_service()
-        routing_info = {'routing_key': 'fallback', 'model_id': 'default', 'provider': 'anthropic'}
-        logger.debug('Using fallback pipeline service')
+            logger.error(f'Routing failed: {error_msg}')
+            raise HTTPException(status_code=400, detail={'error': {'type': 'model_not_found', 'message': error_msg}})
+
+        # Get provider info for logging
+        service_container = get_service_container()
+        provider_name = service_container.model_registry.get_provider_for_model(model_id) if model_id else 'unknown'
+        routing_info = {'routing_key': routing_key, 'model_id': model_id, 'provider': provider_name}
+
+        logger.info(f'Request routed: {routing_key} -> {model_id} -> {provider_name}')
+
+    except Exception as e:
+        logger.error(f'Error in request routing: {e}', exc_info=True)
+        raise HTTPException(status_code=500, detail={'error': {'type': 'routing_error', 'message': f'Request routing failed: {str(e)}'}})
 
     # Get core services
     core_services = get_core_services()
@@ -63,8 +61,7 @@ async def messages(
     payload = claude_request.to_dict()
 
     # Add routing information to payload for logging/debugging
-    if routing_info:
-        payload['_routing'] = routing_info
+    payload['_routing'] = routing_info
 
     handles = dumper.begin(request, payload)
 

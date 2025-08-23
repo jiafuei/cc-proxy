@@ -127,9 +127,9 @@ class DynamicServiceBuilder(ServiceBuilder):
     def _create_builtin_transformers(self) -> Dict[str, any]:
         """Create built-in transformers."""
         return {
-            'anthropic-request': AnthropicRequestTransformer(self.app_config),
-            'anthropic-response': AnthropicResponseTransformer(),
-            'anthropic-stream': AnthropicStreamTransformer(),
+            'anthropic-request-transformer': AnthropicRequestTransformer(self.app_config),
+            'anthropic-response-transformer': AnthropicResponseTransformer(),
+            'anthropic-stream-response-transformer': AnthropicStreamTransformer(),
         }
 
     def _create_http_client_for_provider(self, provider_config) -> HttpClientService:

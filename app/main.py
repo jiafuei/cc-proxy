@@ -9,7 +9,7 @@ from fastapi.responses import ORJSONResponse
 
 from app.config import get_config, setup_user_config
 from app.config.log import configure_structlog
-from app.dependencies.services import get_dynamic_service_provider
+from app.dependencies.services import get_service_container
 from app.middlewares.context import ContextMiddleware
 from app.middlewares.correlation_id import CorrelationIdMiddleware
 from app.middlewares.security_headers import SecurityHeadersMiddleware
@@ -31,8 +31,8 @@ config = get_config()
 # Configure structured logging
 configure_structlog()
 
-# Initialize dynamic service provider
-service_provider = get_dynamic_service_provider()
+# Initialize service container
+service_container = get_service_container()
 
 if config.dev:
     pprint(config.model_dump())
