@@ -1,31 +1,65 @@
 import traceback
-from typing import Annotated
 
 import httpx
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Request
 from fastapi.responses import StreamingResponse
 
 from app.common.models import ClaudeRequest
-from app.dependencies.services import Services, get_services
+from app.config.log import get_logger
+from app.dependencies.services import get_services
 from app.services.error_handling.exceptions import PipelineException
 from app.services.error_handling.models import ClaudeError, ClaudeErrorDetail
+from app.services.lifecycle.service_builder import DynamicServices
 
 router = APIRouter()
+logger = get_logger(__name__)
 
 
 @router.post('/v1/messages')
 async def messages(
     claude_request: ClaudeRequest,
-    services: Annotated[Services, Depends(get_services)],
     request: Request,
 ):
-    pipeline_service = services.messages_pipeline
+    """Handle Claude API messages with dynamic routing support."""
+
+    # Get services with request context for dynamic service support
+    services = get_services(request)
+
+    # Try to use dynamic routing if available
+    pipeline_service = None
+    routing_info = None
+
+    if isinstance(services, DynamicServices):
+        try:
+            # Use dynamic routing to determine the appropriate pipeline
+            routing_key, model_id, dynamic_pipeline_service = services.process_request_with_routing(claude_request)
+
+            if dynamic_pipeline_service:
+                pipeline_service = dynamic_pipeline_service
+                routing_info = {'routing_key': routing_key, 'model_id': model_id, 'provider': services.model_registry.get_provider_for_model(model_id)}
+                logger.info(f'Using dynamic routing: {routing_key} -> {model_id} -> {routing_info["provider"]}')
+            else:
+                logger.warning(f'Dynamic routing failed for {routing_key} -> {model_id}, falling back to default pipeline')
+        except Exception as e:
+            logger.error(f'Error in dynamic routing: {e}', exc_info=True)
+
+    # Fall back to default pipeline if dynamic routing failed or not available
+    if pipeline_service is None:
+        pipeline_service = services.messages_pipeline
+        routing_info = {'routing_key': 'fallback', 'model_id': 'default', 'provider': 'anthropic'}
+        logger.debug('Using fallback pipeline service')
+
+    # Get other services
     dumper = services.dumper
     exception_mapper = services.exception_mapper
     error_formatter = services.error_formatter
 
     # Convert ClaudeRequest to dict for compatibility with current pipeline
     payload = claude_request.to_dict()
+
+    # Add routing information to payload for logging/debugging
+    if routing_info:
+        payload['_routing'] = routing_info
 
     handles = dumper.begin(request, payload)
 

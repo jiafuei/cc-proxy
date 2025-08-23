@@ -1,0 +1,35 @@
+transformers:
+  - name: 'custom-transformer-1'
+    path: '/path/to/transformer-1.py'
+    args: 
+      - key: 'default-key-1'
+        value: 'default-value-1'
+  - name: 'custom-transformer-2'
+    path: '/path/to/transformer-2.py'
+    args: []
+
+providers:
+  - name: 'example-provider'
+    api_key: 'api-key-here'
+    url: 'https://example.com/v1'
+    request_pipeline: 
+      - name: 'custom-transformer-1'
+        args:
+          - key: 'key-1'
+            value: 'value-1'
+      - name: 'builtin-transformer'
+    response_pipeline:
+      - name: 'custom-transformer-2'
+
+models:
+  - id: 'gpt-5-nano'
+    provider: 'example-provider'
+  - id: 'opus-4-1'
+    provider: 'example-provider'
+  - id: 'sonnet-4'
+    provider: 'example-provider'
+
+routing:
+  default: 'sonnet-4'
+  planning: 'opus-4-1'
+  background: 'gpt-5-nano'

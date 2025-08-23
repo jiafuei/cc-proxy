@@ -1,3 +1,4 @@
+import json
 import os
 
 from fastapi import FastAPI
@@ -65,13 +66,14 @@ def test_messages_endpoint():
 
 
 def test_dump_files(tmp_path):
-    from app.dependencies.services import get_services
-    from app.main import app
+    # Create a separate test app without ServiceCaptureMiddleware for this test
+    test_app = FastAPI()
+    test_app.include_router(router)
 
-    client = TestClient(app)
+    client = TestClient(test_app)
 
     class DummyPipeline:
-        async def process_unified(self, claude_request, original_request, correlation_id):
+        async def process_unified(self, claude_request, original_request):
             # Return SSE-formatted stream chunks
             yield StreamChunk(data=b'event: message_start\ndata: {"type": "message_start"}\n\n')
             yield StreamChunk(data=b'event: content_block_delta\ndata: {"type": "content_block_delta", "delta": {"text": "hello"}}\n\n')
@@ -84,15 +86,32 @@ def test_dump_files(tmp_path):
             self.files = []
 
         def begin(self, request, payload, correlation_id=None):
-            os.makedirs(self.tmp_dir, exist_ok=True)
-            open(os.path.join(self.tmp_dir, 'ts_corr_headers.json'), 'w').write('{}')
-            open(os.path.join(self.tmp_dir, 'ts_corr_request.json'), 'w').write('{}')
+            from datetime import datetime, timezone
 
-            class H:
-                def __init__(self, base):
-                    self.response_file = open(os.path.join(base, 'ts_corr_response.sse'), 'wb')
+            from app.common.dumper import DumpHandles
+            from app.common.utils import get_correlation_id
 
-            return H(self.tmp_dir)
+            dump_dir = self.tmp_dir
+            corr_id = correlation_id or get_correlation_id()
+            ts = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H-%M-%S.%fZ')
+
+            os.makedirs(dump_dir, exist_ok=True)
+
+            # Create headers file
+            headers_path = os.path.join(dump_dir, f'{ts}_{corr_id}_headers.json')
+            with open(headers_path, 'w') as f:
+                json.dump({'test': 'headers'}, f)
+
+            # Create request file
+            request_path = os.path.join(dump_dir, f'{ts}_{corr_id}_request.json')
+            with open(request_path, 'w') as f:
+                json.dump({'test': 'request'}, f)
+
+            # Create response file
+            response_path = os.path.join(dump_dir, f'{ts}_{corr_id}_response.sse')
+            response_file = open(response_path, 'wb')
+
+            return DumpHandles(headers_path=headers_path, request_path=request_path, response_path=response_path, response_file=response_file)
 
         def write_chunk(self, handles, chunk):
             if handles.response_file:
@@ -103,8 +122,13 @@ def test_dump_files(tmp_path):
             if handles.response_file:
                 handles.response_file.close()
 
-    def override_get_services():
-        # Create a completely mock services object without initializing real components
+    # Mock the get_services function at module level since it's imported directly
+    import app.dependencies.services as services_module
+    import app.routers.messages as messages_module
+
+    original_get_services = services_module.get_services
+
+    def mock_get_services(request=None):
         class DummyServices:
             def __init__(self):
                 self.messages_pipeline = DummyPipeline()
@@ -123,8 +147,9 @@ def test_dump_files(tmp_path):
 
         return DummyServices()
 
-    # Override dependencies
-    app.dependency_overrides[get_services] = override_get_services
+    services_module.get_services = mock_get_services
+    messages_module.get_services = mock_get_services
+
     try:
         resp = client.post('/v1/messages', json={'model': 'x', 'messages': []})
         assert resp.status_code == 200
@@ -138,5 +163,6 @@ def test_dump_files(tmp_path):
             content = f.read()
             assert b'hello' in content and b'world' in content
     finally:
-        # Reset overrides after test
-        app.dependency_overrides = {}
+        # Restore original function
+        services_module.get_services = original_get_services
+        messages_module.get_services = original_get_services

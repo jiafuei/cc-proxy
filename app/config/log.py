@@ -120,7 +120,12 @@ def _create_log_handlers(log_config, log_dir: Path) -> list:
 
     if log_config.file_enabled:
         log_file = log_dir / 'app.log'
-        formatter = structlog.stdlib.ProcessorFormatter(processors=[structlog.stdlib.ProcessorFormatter.remove_processors_meta, structlog.processors.JSONRenderer(serializer=lambda *x, **y: orjson.dumps(*x, **y).decode('utf-8'))])
+        formatter = structlog.stdlib.ProcessorFormatter(
+            processors=[
+                structlog.stdlib.ProcessorFormatter.remove_processors_meta,
+                structlog.processors.JSONRenderer(serializer=lambda *x, **y: orjson.dumps(*x, **y).decode('utf-8')),
+            ]
+        )
 
         # Parse file size (e.g., "10MB" -> 10 * 1024 * 1024)
         size_match = re.match(r'(\d+)\s*([KMGT]?B?)', log_config.max_file_size.upper())
@@ -146,6 +151,7 @@ def _create_log_handlers(log_config, log_dir: Path) -> list:
         #     handlers.append(timed_handler)
 
     return handlers
+
 
 def _correlation_id_processor(logger, method_name, event_dict):
     """Add correlation ID to log events if available in context."""
