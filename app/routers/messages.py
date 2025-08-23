@@ -6,7 +6,7 @@ from fastapi.responses import StreamingResponse
 
 from app.common.models import ClaudeRequest
 from app.config.log import get_logger
-from app.dependencies.services import get_services
+from app.dependencies.services import get_core_services, get_message_pipeline_service, get_services
 from app.services.error_handling.exceptions import PipelineException
 from app.services.error_handling.models import ClaudeError, ClaudeErrorDetail
 from app.services.lifecycle.service_builder import DynamicServices
@@ -22,8 +22,12 @@ async def messages(
 ):
     """Handle Claude API messages with dynamic routing support."""
 
-    # Get services with request context for dynamic service support
-    services = get_services(request)
+    # Get services with dynamic routing support
+    try:
+        services = get_services()
+    except Exception as e:
+        logger.warning(f'Failed to get dynamic services, using fallback: {e}')
+        services = get_core_services()
 
     # Try to use dynamic routing if available
     pipeline_service = None
@@ -45,14 +49,15 @@ async def messages(
 
     # Fall back to default pipeline if dynamic routing failed or not available
     if pipeline_service is None:
-        pipeline_service = services.messages_pipeline
+        pipeline_service = get_message_pipeline_service()
         routing_info = {'routing_key': 'fallback', 'model_id': 'default', 'provider': 'anthropic'}
         logger.debug('Using fallback pipeline service')
 
-    # Get other services
-    dumper = services.dumper
-    exception_mapper = services.exception_mapper
-    error_formatter = services.error_formatter
+    # Get core services
+    core_services = get_core_services()
+    dumper = core_services.dumper
+    exception_mapper = core_services.exception_mapper
+    error_formatter = core_services.error_formatter
 
     # Convert ClaudeRequest to dict for compatibility with current pipeline
     payload = claude_request.to_dict()

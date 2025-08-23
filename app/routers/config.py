@@ -54,7 +54,7 @@ async def get_configuration_status() -> Dict[str, Any]:
         # Add service provider information
         try:
             service_provider = get_dynamic_service_provider()
-            _, services = service_provider.get_current_services()
+            services = service_provider.get_services()
 
             from app.services.lifecycle.service_builder import DynamicServices
 
@@ -103,7 +103,7 @@ async def validate_configuration() -> Dict[str, Any]:
         # Get service validation if available
         try:
             service_provider = get_dynamic_service_provider()
-            _, services = service_provider.get_current_services()
+            services = service_provider.get_services()
             from app.services.lifecycle.service_builder import DynamicServices
 
             if isinstance(services, DynamicServices):

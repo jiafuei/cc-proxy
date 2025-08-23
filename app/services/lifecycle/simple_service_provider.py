@@ -1,7 +1,7 @@
 """Simple service provider without generation complexity."""
 
 import logging
-from typing import Optional, Tuple
+from typing import Optional
 
 from app.config.models import ConfigModel
 from app.config.user_models import UserConfig
@@ -26,25 +26,22 @@ class SimpleServiceProvider(ServiceProvider):
 
         logger.info('Initialized simple service provider')
 
-    def get_current_services(self) -> Tuple[str, any]:
+    def get_services(self) -> any:
         """Get current services.
 
         Returns:
-            Tuple of (empty_string, services) for compatibility
+            Current services instance
         """
         if self._current_services is None:
             raise RuntimeError('No services available - call rebuild_services first')
 
-        return '', self._current_services
+        return self._current_services
 
-    def rebuild_services(self, config: UserConfig) -> str:
+    def rebuild_services(self, config: UserConfig) -> None:
         """Rebuild services from new configuration.
 
         Args:
             config: New user configuration
-
-        Returns:
-            Empty string for compatibility
         """
         logger.info('Rebuilding services from new configuration')
 
@@ -56,7 +53,6 @@ class SimpleServiceProvider(ServiceProvider):
             self._current_services = new_services
 
             logger.info('Services rebuilt successfully')
-            return ''
 
         except Exception as e:
             logger.error(f'Failed to rebuild services: {e}', exc_info=True)

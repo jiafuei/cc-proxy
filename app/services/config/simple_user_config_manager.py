@@ -1,9 +1,8 @@
 """Simple user configuration manager with manual reload support."""
 
 import logging
-import threading
 from pathlib import Path
-from typing import Callable, List, Optional
+from typing import Callable, Optional
 
 from app.common.utils import get_app_dir
 from app.config.user_models import UserConfig
@@ -24,65 +23,60 @@ class SimpleUserConfigManager(UserConfigManager):
         """
         self._config_path = config_path or (get_app_dir() / 'user.yaml')
         self._current_config: Optional[UserConfig] = None
-        self._callbacks: List[Callable[[UserConfig], None]] = []
-        self._lock = threading.RLock()
+        self._callback: Optional[Callable[[UserConfig], None]] = None
 
         logger.info(f'Initialized user config manager for: {self._config_path}')
 
     def load_config(self) -> UserConfig:
         """Load the current user configuration."""
-        with self._lock:
-            try:
-                config = UserConfig.load(self._config_path)
+        try:
+            config = UserConfig.load(self._config_path)
 
-                # Validate configuration references
-                config.validate_references()
+            # Validate configuration references
+            config.validate_references()
 
-                self._current_config = config
-                logger.info('Successfully loaded user configuration')
-                logger.debug(f'Config: {len(config.transformers)} transformers, {len(config.providers)} providers, {len(config.models)} models')
+            self._current_config = config
+            logger.info('Successfully loaded user configuration')
+            logger.debug(f'Config: {len(config.transformers)} transformers, {len(config.providers)} providers, {len(config.models)} models')
 
-                return config
+            return config
 
-            except Exception as e:
-                logger.error(f'Failed to load user configuration: {e}')
-                # If we have a previous config, keep using it
-                if self._current_config is not None:
-                    logger.info('Keeping previous configuration due to load error')
-                    return self._current_config
-                # Otherwise return empty config
-                logger.info('Using empty configuration due to load error')
-                empty_config = UserConfig()
-                self._current_config = empty_config
-                return empty_config
+        except Exception as e:
+            logger.error(f'Failed to load user configuration: {e}')
+            # If we have a previous config, keep using it
+            if self._current_config is not None:
+                logger.info('Keeping previous configuration due to load error')
+                return self._current_config
+            # Otherwise return empty config
+            logger.info('Using empty configuration due to load error')
+            empty_config = UserConfig()
+            self._current_config = empty_config
+            return empty_config
 
     def get_current_config(self) -> Optional[UserConfig]:
         """Get the currently loaded configuration."""
-        with self._lock:
-            return self._current_config
+        return self._current_config
 
     def reload_config(self) -> UserConfig:
         """Reload configuration from file."""
         logger.info('Manually reloading user configuration')
 
-        with self._lock:
-            old_config = self._current_config
-            new_config = self.load_config()
+        old_config = self._current_config
+        new_config = self.load_config()
 
-            # Only notify callbacks if config actually changed
-            if self._config_changed(old_config, new_config):
-                logger.info('Configuration changed, notifying callbacks')
-                self._notify_callbacks(new_config)
-            else:
-                logger.debug('Configuration unchanged after reload')
+        # Only notify callback if config actually changed
+        if self._config_changed(old_config, new_config):
+            logger.info('Configuration changed, notifying callback')
+            self._notify_callback(new_config)
+        else:
+            logger.debug('Configuration unchanged after reload')
 
-            return new_config
+        return new_config
 
     def on_config_change(self, callback: Callable[[UserConfig], None]) -> None:
         """Register a callback for configuration changes."""
-        with self._lock:
-            self._callbacks.append(callback)
-            logger.debug(f'Registered config change callback: {callback.__name__ if hasattr(callback, "__name__") else "anonymous"}')
+        self._callback = callback
+        logger.debug(f'Registered config change callback: {callback.__name__ if hasattr(callback, "__name__") else "anonymous"}')
 
     def trigger_reload(self) -> dict:
         """Manually trigger configuration reload via API.
@@ -134,13 +128,13 @@ class SimpleUserConfigManager(UserConfigManager):
             'model_ids': [m.id for m in config.models],
         }
 
-    def _notify_callbacks(self, config: UserConfig) -> None:
-        """Notify all registered callbacks of config change."""
-        for callback in self._callbacks:
+    def _notify_callback(self, config: UserConfig) -> None:
+        """Notify the registered callback of config change."""
+        if self._callback:
             try:
-                callback(config)
+                self._callback(config)
             except Exception as e:
-                logger.error(f'Error in config change callback {callback}: {e}', exc_info=True)
+                logger.error(f'Error in config change callback {self._callback}: {e}', exc_info=True)
 
     def _config_changed(self, old_config: Optional[UserConfig], new_config: UserConfig) -> bool:
         """Check if configuration actually changed."""
@@ -157,23 +151,20 @@ class SimpleUserConfigManager(UserConfigManager):
 
 # Global instance for easy access
 _global_config_manager: Optional[SimpleUserConfigManager] = None
-_global_lock = threading.Lock()
 
 
 def get_user_config_manager() -> SimpleUserConfigManager:
     """Get the global user configuration manager instance."""
     global _global_config_manager
 
-    with _global_lock:
-        if _global_config_manager is None:
-            _global_config_manager = SimpleUserConfigManager()
+    if _global_config_manager is None:
+        _global_config_manager = SimpleUserConfigManager()
 
-        return _global_config_manager
+    return _global_config_manager
 
 
 def set_user_config_manager(manager: SimpleUserConfigManager) -> None:
     """Set a custom user configuration manager (primarily for testing)."""
     global _global_config_manager
 
-    with _global_lock:
-        _global_config_manager = manager
+    _global_config_manager = manager

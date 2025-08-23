@@ -75,23 +75,20 @@ class ServiceProvider(ABC):
     """Interface for providing services."""
 
     @abstractmethod
-    def get_current_services(self) -> tuple[str, Any]:
+    def get_services(self) -> Any:
         """Get current services.
 
         Returns:
-            Tuple of (empty_string, services) for compatibility
+            Current services instance
         """
         pass
 
     @abstractmethod
-    def rebuild_services(self, config: UserConfig) -> str:
+    def rebuild_services(self, config: UserConfig) -> None:
         """Rebuild services from new configuration.
 
         Args:
             config: New user configuration
-
-        Returns:
-            Empty string for compatibility
         """
         pass
 
