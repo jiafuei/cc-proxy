@@ -18,9 +18,9 @@ class Services:
     def __init__(self):
         self.config = get_config()
         self.httpx_client = httpx.AsyncClient(timeout=60 * 5, http2=True)
-        self.populate_services()
+        self.create_services()
 
-    def populate_services(self):
+    def create_services(self):
         # Initialize transformers
         anthropic_request_transformer = AnthropicRequestTransformer(self.config)
         anthropic_response_transformer = AnthropicResponseTransformer()
