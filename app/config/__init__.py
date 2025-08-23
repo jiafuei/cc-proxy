@@ -2,6 +2,7 @@
 import threading
 from pathlib import Path
 
+from app.common.utils import get_app_dir
 from app.config.models import ConfigModel
 
 _config_lock = threading.Lock()
@@ -28,11 +29,9 @@ def get_config() -> ConfigModel:
 
 def setup_user_config() -> None:
     """Create .cc-proxy directory and config.yaml in user's home directory if they don't exist."""
-    # Get user's home directory
-    home_dir = Path.home()
 
     # Create .cc-proxy directory if it doesn't exist
-    cc_proxy_dir = home_dir / '.cc-proxy'
+    cc_proxy_dir = get_app_dir()
     cc_proxy_dir.mkdir(exist_ok=True)
 
     # Create config.yaml if it doesn't exist

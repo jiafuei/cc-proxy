@@ -4,6 +4,8 @@ from typing import List
 import yaml
 from pydantic import BaseModel, Field
 
+from app.common.utils import get_app_dir
+
 
 class ConfigModel(BaseModel):
     """Configuration model with validation."""
@@ -37,7 +39,7 @@ class ConfigModel(BaseModel):
             config_paths.append(config_path)
         else:
             # Try user home directory first
-            home_config = Path.home() / '.cc-proxy' / 'config.yaml'
+            home_config = get_app_dir() / 'config.yaml'
             if home_config.exists():
                 config_paths.append(str(home_config))
 
