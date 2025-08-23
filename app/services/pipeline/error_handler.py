@@ -76,7 +76,7 @@ class ErrorHandlingService:
             error_data.request_id = exc.correlation_id
 
         # Format as SSE event with proper JSON encoding
-        json_data = orjson.dumps(error_data.model_dump())
+        json_data = orjson.dumps(error_data.model_dump()).decode('utf-8')
         sse_event = f'event: error\ndata: {json_data}'
 
         return error_data, sse_event
@@ -100,13 +100,13 @@ class ErrorHandlingService:
             case ExternalApiOverloadedException():
                 return 'overloaded_error'
             case TransformerException():
-                return 'transformation_error'
+                return 'invalid_request_error'
             case HttpClientException():
-                return 'connection_error'
+                return 'api_error'
             case ExternalApiException():
-                return 'external_api_error'
+                return 'api_error'
             case _:
-                return 'pipeline_error'
+                return 'api_error'
 
     def generate_correlation_id(self) -> str:
         """Generate a new correlation ID for request tracing."""

@@ -1,9 +1,9 @@
 """Domain models for the pipeline service."""
 
-import orjson
 from dataclasses import dataclass
 from typing import Any, Dict, Optional, Union
 
+import orjson
 from fastapi import Request
 from pydantic import BaseModel, Field
 

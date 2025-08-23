@@ -15,7 +15,7 @@ class HttpClientService:
             'POST',
             prepared_request.url,
             headers=prepared_request.headers,
-            json=prepared_request.claude_request.model_dump(mode='json', exclude_none=True),
+            json=prepared_request.claude_request.model_dump(mode='json', exclude_none=True, by_alias=True),
             params=prepared_request.params,
         ) as resp:
             resp.raise_for_status()
@@ -26,5 +26,8 @@ class HttpClientService:
     async def post_request(self, prepared_request: ProxyRequest) -> httpx.Response:
         """Execute non-streaming HTTP request"""
         return await self._client.post(
-            prepared_request.url, headers=prepared_request.headers, json=prepared_request.claude_request.model_dump(mode='json', exclude_none=True), params=prepared_request.params
+            prepared_request.url,
+            headers=prepared_request.headers,
+            json=prepared_request.claude_request.model_dump(mode='json', exclude_none=True, by_alias=True),
+            params=prepared_request.params,
         )

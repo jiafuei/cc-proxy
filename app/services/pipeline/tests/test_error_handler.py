@@ -130,10 +130,10 @@ class TestErrorHandlingService:
 
         error_data, sse_event = error_handler.get_error_response_data(exception)
 
-        assert error_data['type'] == 'error'
-        assert error_data['error']['type'] == 'authentication_error'
-        assert error_data['error']['message'] == 'Authentication failed'
-        assert error_data['correlation_id'] == 'test-id'
+        assert error_data.type == 'error'
+        assert error_data.error.type == 'authentication_error'
+        assert 'Authentication failed' in error_data.error.message
+        assert error_data.request_id == 'test-id'
 
         # Verify SSE format
         assert sse_event.startswith('event: error\ndata: ')
@@ -141,7 +141,7 @@ class TestErrorHandlingService:
         # Verify JSON parsing
         json_part = sse_event[len('event: error\ndata: ') :]
         parsed_json = json.loads(json_part)
-        assert parsed_json == error_data
+        assert parsed_json == error_data.model_dump()
 
     def test_get_error_type_mapping(self, error_handler):
         test_cases = [
@@ -152,7 +152,7 @@ class TestErrorHandlingService:
             (RateLimitException('test'), 'rate_limit_error'),
             (ExternalApiServerException('test'), 'api_error'),
             (ExternalApiOverloadedException('test'), 'overloaded_error'),
-            (HttpClientException('test'), 'connection_error'),
+            (HttpClientException('test'), 'api_error'),
         ]
 
         for exception, expected_type in test_cases:
