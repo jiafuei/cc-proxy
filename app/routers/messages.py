@@ -1,3 +1,4 @@
+import traceback
 from typing import Annotated
 
 import httpx
@@ -7,6 +8,7 @@ from fastapi.responses import StreamingResponse
 from app.common.models import ClaudeRequest
 from app.dependencies.services import Services, get_services
 from app.services.pipeline.exceptions import PipelineException
+from app.services.pipeline.models import ClaudeError, ClaudeErrorDetail
 
 router = APIRouter()
 
@@ -44,28 +46,35 @@ async def messages(
                 yield response_bytes
         except httpx.HTTPStatusError as e:
             # Handle HTTP status errors (most specific first)
+            print('http request err', e)
             domain_exception = error_handler.convert_httpx_exception(e, correlation_id)
             error_data, sse_event = error_handler.get_error_response_data(domain_exception)
             dumper.write_chunk(handles, sse_event.encode('utf-8'))
             yield sse_event
         except httpx.HTTPError as e:
             # Handle other HTTP errors (general case)
+            print('proxy request err', e)
             domain_exception = error_handler.convert_httpx_exception(e, correlation_id)
             error_data, sse_event = error_handler.get_error_response_data(domain_exception)
             dumper.write_chunk(handles, sse_event.encode('utf-8'))
             yield sse_event
         except PipelineException as e:
             # Handle domain exceptions
+            print('pipeline exception', e)
             error_data, sse_event = error_handler.get_error_response_data(e)
             dumper.write_chunk(handles, sse_event.encode('utf-8'))
             yield sse_event
-        except Exception:
+        except Exception as e:
             # Handle unexpected errors
-            error_message = (
-                f'event: error\ndata: {{"type": "error", "error": {{"type": "internal_error", "message": "Internal server error", "correlation_id": "{correlation_id}"}}}}'
-            )
-            dumper.write_chunk(handles, error_message.encode('utf-8'))
-            yield error_message
+            err_message = '\n'.join(traceback.format_exception(e))
+            print('unknown exception', err_message)
+            err = ClaudeError(error=ClaudeErrorDetail(type='api_error', message=err_message))
+            error = err.model_dump_json()
+            # error_message = (
+            #     f'event: error\ndata: {{"type": "error", "error": {{"type": "internal_error", "message": "Internal server error", "correlation_id": "{correlation_id}"}}}}'
+            # )
+            dumper.write_chunk(handles, error)
+            yield error
         finally:
             dumper.close(handles)
 
