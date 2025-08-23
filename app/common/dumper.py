@@ -1,12 +1,12 @@
 import json
 import os
-import uuid
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import BinaryIO, Dict, Optional
 
 from fastapi import Request
 
+from app.common.utils import get_correlation_id
 from app.config import ConfigModel
 
 
@@ -46,7 +46,7 @@ class Dumper:
 
     def begin(self, request: Request, payload: object, correlation_id: Optional[str] = None) -> DumpHandles:
         dump_dir = self._ensure_dir()
-        corr_id = correlation_id or uuid.uuid4().hex
+        corr_id = correlation_id or get_correlation_id()
         ts = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H-%M-%S.%fZ')
 
         headers_path = request_path = response_path = None

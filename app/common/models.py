@@ -93,6 +93,7 @@ class ToolProperty(BaseModel):
 
 class ToolInputSchema(BaseModel):
     """Tool input schema model."""
+
     model_config = ConfigDict(validate_by_alias=True)
 
     type: str

@@ -1,10 +1,21 @@
-from pathlib import Path
 from typing import List
 
 import yaml
 from pydantic import BaseModel, Field
 
 from app.common.utils import get_app_dir
+
+
+class LoggingConfig(BaseModel):
+    """Logging configuration model."""
+
+    level: str = Field(default='INFO', description='Log level (DEBUG, INFO, WARNING, ERROR, CRITICAL)')
+    console_enabled: bool = Field(default=True, description='Enable console logging')
+    file_enabled: bool = Field(default=True, description='Enable file logging')
+    log_file_dir: str = Field(default=get_app_dir() / 'logs', description='Log directory (defaults to ~/.cc-proxy/logs)')
+    max_file_size: str = Field(default='10MB', description='Maximum log file size before rotation')
+    backup_count: int = Field(default=4, description='Number of backup files to keep')
+    rotation_when: str = Field(default='midnight', description='Time-based rotation interval')
 
 
 class ConfigModel(BaseModel):
@@ -22,6 +33,7 @@ class ConfigModel(BaseModel):
     redact_headers: List[str] | None = Field(default_factory=lambda: ['authorization', 'x-api-key', 'cookie', 'set-cookie'])
     anthropic_api_url: str | None = Field(default='https://api.anthropic.com/v1/messages')
     anthropic_api_key: str | None = Field(default=None)
+    logging: LoggingConfig = Field(default_factory=LoggingConfig, description='Logging configuration')
 
     @classmethod
     def load(cls, config_path: str | None = None) -> 'ConfigModel':

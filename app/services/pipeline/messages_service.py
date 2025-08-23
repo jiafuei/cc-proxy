@@ -18,7 +18,7 @@ class MessagesPipelineService:
         self._http_client = http_client
         self._sse_formatter = sse_formatter
 
-    async def process_unified(self, claude_request: ClaudeRequest, original_request: Request, correlation_id: str) -> AsyncIterator[StreamChunk]:
+    async def process_unified(self, claude_request: ClaudeRequest, original_request: Request, correlation_id: str | None = None) -> AsyncIterator[StreamChunk]:
         """Unified processing that always returns SSE-formatted stream chunks.
 
         The stream decision is made AFTER transformations are applied.

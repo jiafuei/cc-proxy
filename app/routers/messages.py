@@ -5,7 +5,6 @@ import httpx
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import StreamingResponse
 
-from app.common.utils import generate_correlation_id
 from app.common.models import ClaudeRequest
 from app.dependencies.services import Services, get_services
 from app.services.error_handling.exceptions import PipelineException
@@ -25,32 +24,29 @@ async def messages(
     exception_mapper = services.exception_mapper
     error_formatter = services.error_formatter
 
-    # Generate correlation ID for request tracing
-    correlation_id = generate_correlation_id()
-
     # Convert ClaudeRequest to dict for compatibility with current pipeline
     payload = claude_request.to_dict()
 
-    handles = dumper.begin(request, payload, correlation_id)
+    handles = dumper.begin(request, payload)
 
     async def generator():
         try:
             # Use unified processing that always returns SSE-formatted chunks
             # Stream decision is made AFTER transformations inside the pipeline
-            async for chunk in pipeline_service.process_unified(claude_request, request, correlation_id):
+            async for chunk in pipeline_service.process_unified(claude_request, request):
                 dumper.write_chunk(handles, chunk.data)
                 yield chunk.data
         except httpx.HTTPStatusError as e:
             # Handle HTTP status errors (most specific first)
             print('http request err', e)
-            domain_exception = exception_mapper.map_httpx_exception(e, correlation_id)
+            domain_exception = exception_mapper.map_httpx_exception(e)
             error_data, sse_event = error_formatter.format_for_sse(domain_exception)
             dumper.write_chunk(handles, sse_event.encode('utf-8'))
             yield sse_event
         except httpx.HTTPError as e:
             # Handle other HTTP errors (general case)
             print('proxy request err', e)
-            domain_exception = exception_mapper.map_httpx_exception(e, correlation_id)
+            domain_exception = exception_mapper.map_httpx_exception(e)
             error_data, sse_event = error_formatter.format_for_sse(domain_exception)
             dumper.write_chunk(handles, sse_event.encode('utf-8'))
             yield sse_event

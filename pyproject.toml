@@ -5,11 +5,13 @@ description = "Proxy to make Claude Code more configurable"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
+    "colorama>=0.4.6",
     "fastapi[standard]>=0.116.1",
     "httpx[http2]>=0.28.1",
     "orjson>=3.11.2",
     "python-multipart>=0.0.20",
     "pyyaml>=6.0.2",
+    "structlog>=25.4.0",
 ]
 
 [dependency-groups]

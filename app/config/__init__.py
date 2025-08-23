@@ -1,6 +1,4 @@
-# Thread-safe lock for config reloading
 import threading
-from pathlib import Path
 
 from app.common.utils import get_app_dir
 from app.config.models import ConfigModel

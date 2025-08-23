@@ -5,6 +5,8 @@ from typing import Optional
 import httpx
 from fastapi import status as Status
 
+from app.common.utils import get_correlation_id
+
 from .exceptions import (
     AuthenticationException,
     AuthorizationException,
@@ -25,6 +27,9 @@ class HttpExceptionMapper(ExceptionMapper):
 
     def map_httpx_exception(self, exc: httpx.HTTPError, correlation_id: Optional[str] = None) -> PipelineException:
         """Convert httpx exceptions to domain exceptions."""
+        if not correlation_id:
+            correlation_id = get_correlation_id()
+
         if isinstance(exc, httpx.HTTPStatusError):
             return self._map_status_error(exc, correlation_id)
         elif isinstance(exc, httpx.RequestError):

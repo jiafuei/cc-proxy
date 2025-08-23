@@ -1,10 +1,9 @@
 """Error formatter implementation for formatting exceptions."""
 
 import traceback
-import orjson
-from typing import Optional, Tuple
+from typing import Tuple
 
-from app.services.sse_formatter.interfaces import SseFormatter
+import orjson
 
 from .exceptions import (
     AuthenticationException,

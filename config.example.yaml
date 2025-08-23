@@ -1,9 +1,9 @@
 # Example configuration file for cc-proxy
-# Copy this file to config.yaml and modify as needed
+# Copy this file to ~/.cc-proxy/config.yaml and modify as needed
 
 # CORS settings
 cors_allow_origins:
-  - "http://localhost:3000"
+  - "http://localhost:8000"
   - "https://yourdomain.com"
 
 # Server settings
@@ -17,9 +17,22 @@ dev: false
 dump_requests: false
 dump_responses: false
 dump_headers: false
-dump_dir: "./dumps"
+dump_dir: "~/.cc-proxy/dumps"
 redact_headers:
   - authorization
   - x-api-key
   - cookie
   - set-cookie
+
+anthropic_api_url: null
+anthropic_api_key: null
+
+# Logging configuration
+logging:
+  level: "INFO" # (DEBUG, INFO, WARNING, ERROR, CRITICAL)
+  console_enabled: true
+  file_enabled: true
+  log_file_dir: ''  # defaults to ~/.cc-proxy/logs/
+  max_file_size: "10MB"
+  backup_count: 5
+  rotation_when: "midnight"

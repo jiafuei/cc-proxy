@@ -4,6 +4,7 @@ from typing import AsyncIterator
 
 import orjson
 
+from app.common.utils import get_correlation_id
 from app.services.pipeline.models import ProxyResponse, StreamChunk
 
 from .interfaces import SseFormatter
@@ -79,6 +80,9 @@ class AnthropicSseFormatter(SseFormatter):
 
     async def format_error(self, error_data: dict, correlation_id: str = None) -> StreamChunk:
         """Format error data as an SSE error event."""
+        if not correlation_id:
+            correlation_id = get_correlation_id()
+
         if correlation_id and 'request_id' not in error_data:
             error_data['request_id'] = correlation_id
 
