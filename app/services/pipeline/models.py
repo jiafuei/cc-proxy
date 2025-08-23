@@ -1,9 +1,11 @@
 """Domain models for the pipeline service."""
 
+import orjson
 from dataclasses import dataclass
 from typing import Any, Dict, Optional, Union
 
 from fastapi import Request
+from pydantic import BaseModel, Field
 
 from app.common.models import ClaudeRequest
 
@@ -70,6 +72,15 @@ class ProxyResponse:
             return self.content.encode('utf-8')
         else:
             # Assume it's a dict/JSON-serializable object
-            import json
+            return orjson.dumps(self.content)
 
-            return json.dumps(self.content).encode('utf-8')
+
+class ClaudeErrorDetail(BaseModel):
+    type: str
+    message: str
+
+
+class ClaudeError(BaseModel):
+    type: str = Field(default='error')
+    error: ClaudeErrorDetail
+    request_id: Optional[str] = None

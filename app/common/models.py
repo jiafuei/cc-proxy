@@ -5,26 +5,30 @@ from pydantic import BaseModel, Field
 
 class ContentBlock(BaseModel):
     """Base content block model."""
+
     type: str
 
 
 class TextContent(ContentBlock):
     """Text content block."""
-    type: Literal["text"]
+
+    type: Literal['text']
     text: str
     cache_control: Optional[Dict[str, Any]] = None
 
 
 class ThinkingContent(ContentBlock):
     """Thinking content block."""
-    type: Literal["thinking"]
+
+    type: Literal['thinking']
     thinking: str
     signature: str
 
 
 class ToolUseContent(ContentBlock):
     """Tool use content block."""
-    type: Literal["tool_use"]
+
+    type: Literal['tool_use']
     id: str
     name: str
     input: Dict[str, Any]
@@ -32,7 +36,8 @@ class ToolUseContent(ContentBlock):
 
 class ToolResultContent(ContentBlock):
     """Tool result content block."""
-    type: Literal["tool_result"]
+
+    type: Literal['tool_result']
     tool_use_id: str
     content: Union[str, List[Dict[str, Any]]]
     is_error: Optional[bool] = None
@@ -40,41 +45,40 @@ class ToolResultContent(ContentBlock):
 
 class ImageSource(BaseModel):
     """Image source model."""
-    type: Literal["base64"]
+
+    type: Literal['base64']
     data: str
     media_type: str
 
 
 class ImageContent(ContentBlock):
     """Image content block."""
-    type: Literal["image"]
+
+    type: Literal['image']
     source: ImageSource
 
 
-ContentBlockType = Union[
-    TextContent,
-    ThinkingContent,
-    ToolUseContent,
-    ToolResultContent,
-    ImageContent
-]
+ContentBlockType = Union[TextContent, ThinkingContent, ToolUseContent, ToolResultContent, ImageContent]
 
 
 class SystemMessage(BaseModel):
     """System message model."""
-    type: Literal["text"]
+
+    type: Literal['text']
     text: str
     cache_control: Optional[Dict[str, Any]] = None
 
 
 class Message(BaseModel):
     """Message model."""
-    role: Literal["user", "assistant"]
-    content: List[ContentBlockType]
+
+    role: Literal['user', 'assistant']
+    content: Union[List[ContentBlockType], str]
 
 
 class ToolProperty(BaseModel):
     """Tool property schema."""
+
     type: str
     description: Optional[str] = None
     default: Optional[Any] = None
@@ -89,18 +93,20 @@ class ToolProperty(BaseModel):
 
 class ToolInputSchema(BaseModel):
     """Tool input schema model."""
+
     type: str
     properties: Dict[str, ToolProperty]
-    required: List[str]
+    required: Optional[List[str]] = None
     additionalProperties: bool = False
-    schema: str = Field(alias="$schema", default="http://json-schema.org/draft-07/schema#")
+    schema_: str = Field(alias='$schema', default='http://json-schema.org/draft-07/schema#')
 
     class Config:
-        allow_population_by_field_name = True
+        validate_by_name = True
 
 
 class Tool(BaseModel):
     """Tool definition model."""
+
     name: str
     description: str
     input_schema: ToolInputSchema
@@ -108,17 +114,20 @@ class Tool(BaseModel):
 
 class ThinkingConfig(BaseModel):
     """Thinking configuration model."""
+
     budget_tokens: int
-    type: Literal["enabled"]
+    type: Literal['enabled']
 
 
 class Metadata(BaseModel):
     """Request metadata model."""
+
     user_id: str
 
 
 class ClaudeRequest(BaseModel):
     """Main Claude API request model."""
+
     model: str
     messages: List[Message]
     temperature: Optional[float] = None

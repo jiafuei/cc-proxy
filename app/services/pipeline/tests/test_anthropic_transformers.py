@@ -5,7 +5,7 @@ from fastapi import Request
 
 from app.common.models import ClaudeRequest
 from app.config.models import ConfigModel
-from app.services.pipeline.models import ProxyRequest, ProxyResponse, StreamChunk, TransformationContext
+from app.services.pipeline.models import ProxyRequest, ProxyResponse, StreamChunk
 from app.services.pipeline.transformers.anthropic import AnthropicRequestTransformer, AnthropicResponseTransformer, AnthropicStreamTransformer
 
 

@@ -23,7 +23,7 @@ class MessagesPipelineService:
         prepared_request = await self._request_pipeline.execute(proxy_request)
 
         # Get raw response from HTTP client
-        raw_response = await self._http_client.post_request(prepared_request.to_dict())
+        raw_response = await self._http_client.post_request(prepared_request)
 
         # Create ProxyResponse from raw response
         proxy_response = ProxyResponse(content=raw_response.content, headers=dict(raw_response.headers), status_code=raw_response.status_code)
@@ -40,7 +40,7 @@ class MessagesPipelineService:
         prepared_request = await self._request_pipeline.execute(proxy_request)
 
         # Stream from HTTP client and convert to StreamChunk objects
-        async for raw_chunk in self._http_client.stream_request(prepared_request.to_dict()):
+        async for raw_chunk in self._http_client.stream_request(prepared_request):
             chunk = StreamChunk(data=raw_chunk)
 
             # Apply response transformations to each chunk

@@ -1,11 +1,14 @@
 """Error handling service for mapping exceptions to HTTP responses."""
 
-import json
+import traceback
 import uuid
-from typing import Dict, Optional, Tuple
+from typing import Optional, Tuple
 
 import httpx
+import orjson
 from fastapi import status as Status
+
+from app.services.pipeline.models import ClaudeError, ClaudeErrorDetail
 
 from .exceptions import (
     AuthenticationException,
@@ -38,7 +41,7 @@ class ErrorHandlingService:
     def _map_status_error(self, exc: httpx.HTTPStatusError, correlation_id: Optional[str] = None) -> ExternalApiException:
         """Map HTTP status errors to specific domain exceptions."""
 
-        response_text = exc.response.text if exc.response else ''
+        response_text = exc.response.text if exc.response and exc.response.is_stream_consumed else 'server error'
         status_code = exc.response.status_code if exc.response else 0
 
         error_message = f'External API error: {response_text}' if response_text else str(exc)
@@ -61,19 +64,19 @@ class ErrorHandlingService:
             case _:
                 return ExternalApiException(error_message, status_code=status_code, response_body=response_text, correlation_id=correlation_id)
 
-    def get_error_response_data(self, exc: PipelineException) -> Tuple[Dict[str, str], str]:
+    def get_error_response_data(self, exc: PipelineException) -> Tuple[ClaudeError, str]:
         """Get structured error response data for SSE streams."""
 
         error_type = self._get_error_type(exc)
 
         # Create structured error data
-        error_data = {'type': 'error', 'error': {'type': error_type, 'message': exc.message}}
+        error_data = ClaudeError(error=ClaudeErrorDetail(type=error_type, message='\n'.join(traceback.format_exception(exc))))
 
         if exc.correlation_id:
-            error_data['correlation_id'] = exc.correlation_id
+            error_data.request_id = exc.correlation_id
 
         # Format as SSE event with proper JSON encoding
-        json_data = json.dumps(error_data, ensure_ascii=False)
+        json_data = orjson.dumps(error_data.model_dump())
         sse_event = f'event: error\ndata: {json_data}'
 
         return error_data, sse_event

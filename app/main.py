@@ -1,6 +1,8 @@
+import traceback
 from pprint import pprint
 
 from fastapi import FastAPI, HTTPException, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import ORJSONResponse
 
@@ -33,7 +35,12 @@ app.add_middleware(SecurityHeadersMiddleware)
 
 @app.exception_handler(HTTPException)
 async def http_exception_handler(request: Request, exc: HTTPException):
-    return ORJSONResponse(status_code=exc.status_code, content={'detail': exc.detail})
+    return ORJSONResponse(status_code=exc.status_code, content={'type': 'error', 'error': {'type': 'invalid_request_error', 'message': traceback.format_exception(exc)}})
+
+
+@app.exception_handler(RequestValidationError)
+async def request_validation_error_handler(request: Request, exc: RequestValidationError):
+    return ORJSONResponse(status_code=400, content={'type': 'error', 'error': {'type': 'invalid_request_error', 'message': str(exc.errors())}})
 
 
 if __name__ == '__main__':
