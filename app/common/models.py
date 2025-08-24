@@ -5,14 +5,16 @@ from pydantic import BaseModel, ConfigDict, Field
 
 class ContentBlock(BaseModel):
     """Base content block model."""
-    model_config = ConfigDict(extra=True)
+
+    model_config = ConfigDict(extra='allow')
 
     type: str
 
 
 class TextContent(ContentBlock):
     """Text content block."""
-    model_config = ConfigDict(extra=True)
+
+    model_config = ConfigDict(extra='allow')
 
     type: Literal['text']
     text: str
@@ -29,8 +31,8 @@ class ThinkingContent(ContentBlock):
 
 class ToolUseContent(ContentBlock):
     """Tool use content block."""
-    model_config = ConfigDict(extra=True)
 
+    model_config = ConfigDict(extra='allow')
 
     type: Literal['tool_use']
     id: str
@@ -40,7 +42,8 @@ class ToolUseContent(ContentBlock):
 
 class ToolResultContent(ContentBlock):
     """Tool result content block."""
-    model_config = ConfigDict(extra=True)
+
+    model_config = ConfigDict(extra='allow')
 
     type: Literal['tool_result']
     tool_use_id: str
@@ -50,7 +53,8 @@ class ToolResultContent(ContentBlock):
 
 class ImageSource(BaseModel):
     """Image source model."""
-    model_config = ConfigDict(extra=True)
+
+    model_config = ConfigDict(extra='allow')
 
     type: Literal['base64']
     data: str
@@ -59,7 +63,8 @@ class ImageSource(BaseModel):
 
 class ImageContent(ContentBlock):
     """Image content block."""
-    model_config = ConfigDict(extra=True)
+
+    model_config = ConfigDict(extra='allow')
 
     type: Literal['image']
     source: ImageSource
@@ -70,7 +75,8 @@ ContentBlockType = Union[TextContent, ThinkingContent, ToolUseContent, ToolResul
 
 class SystemMessage(BaseModel):
     """System message model."""
-    model_config = ConfigDict(extra=True)
+
+    model_config = ConfigDict(extra='allow')
 
     type: Literal['text']
     text: str
@@ -79,7 +85,8 @@ class SystemMessage(BaseModel):
 
 class Message(BaseModel):
     """Message model."""
-    model_config = ConfigDict(extra=True)
+
+    model_config = ConfigDict(extra='allow')
 
     role: Literal['user', 'assistant']
     content: Union[List[ContentBlockType], str]
@@ -87,7 +94,8 @@ class Message(BaseModel):
 
 class ToolProperty(BaseModel):
     """Tool property schema."""
-    model_config = ConfigDict(extra=True)
+
+    model_config = ConfigDict(extra='allow')
 
     type: str
     description: Optional[str] = None
@@ -104,7 +112,7 @@ class ToolProperty(BaseModel):
 class ToolInputSchema(BaseModel):
     """Tool input schema model."""
 
-    model_config = ConfigDict(validate_by_alias=True, extra=True)
+    model_config = ConfigDict(validate_by_alias=True, extra='allow')
 
     type: str
     properties: Dict[str, ToolProperty]
@@ -115,7 +123,8 @@ class ToolInputSchema(BaseModel):
 
 class Tool(BaseModel):
     """Tool definition model."""
-    model_config = ConfigDict(extra=True)
+
+    model_config = ConfigDict(extra='allow')
 
     name: str
     description: str
@@ -124,7 +133,8 @@ class Tool(BaseModel):
 
 class ThinkingConfig(BaseModel):
     """Thinking configuration model."""
-    model_config = ConfigDict(extra=True)
+
+    model_config = ConfigDict(extra='allow')
 
     budget_tokens: int
     type: Literal['enabled']
@@ -132,14 +142,16 @@ class ThinkingConfig(BaseModel):
 
 class Metadata(BaseModel):
     """Request metadata model."""
-    model_config = ConfigDict(extra=True)
+
+    model_config = ConfigDict(extra='allow')
 
     user_id: str
 
 
 class ClaudeRequest(BaseModel):
     """Main Claude API request model."""
-    model_config = ConfigDict(extra=True)
+
+    model_config = ConfigDict(extra='allow')
 
     model: str
     messages: List[Message]

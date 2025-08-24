@@ -9,7 +9,7 @@ from fastapi.responses import ORJSONResponse
 
 from app.config import get_config, setup_config
 from app.config.log import configure_structlog
-from app.dependencies.services import get_service_container
+from app.dependencies.service_container import get_service_container
 from app.middlewares.context import ContextMiddleware
 from app.middlewares.correlation_id import CorrelationIdMiddleware
 from app.middlewares.security_headers import SecurityHeadersMiddleware

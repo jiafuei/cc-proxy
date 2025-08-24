@@ -5,8 +5,8 @@ from typing import Any, Dict
 from fastapi import APIRouter, HTTPException
 
 from app.config.log import get_logger
-from app.dependencies.services import get_service_container
 from app.services.config.simple_user_config_manager import get_user_config_manager
+from app.dependencies.service_container import get_service_container
 
 router = APIRouter(prefix='/api', tags=['Configuration'])
 logger = get_logger(__name__)
@@ -51,34 +51,34 @@ async def get_configuration_status() -> Dict[str, Any]:
         config_manager = get_user_config_manager()
         status = config_manager.get_config_status()
 
-        # Add service container information
+        # Add simple system information
         try:
             service_container = get_service_container()
 
             # Create routing summary from the service container
             routing_summary = {}
-            if service_container.model_registry and service_container.provider_registry:
+            if service_container.provider_manager and service_container.router:
                 routing_summary = {
-                    'models': service_container.model_registry.size(),
-                    'providers': service_container.provider_registry.size(),
-                    'transformers': service_container.transformer_registry.size() if service_container.transformer_registry else 0,
+                    'providers': len(service_container.provider_manager.list_providers()),
+                    'models': len(service_container.provider_manager.list_models()),
+                    'transformers': service_container.transformer_loader.get_cache_info()['cached_transformers'] if service_container.transformer_loader else 0,
                 }
             status['routing'] = routing_summary
 
-            # Basic validation - check if core registries are initialized
+            # Basic validation - check if core components are initialized
             validation_errors = []
-            if not service_container.model_registry:
-                validation_errors.append('Model registry not initialized')
-            if not service_container.provider_registry:
-                validation_errors.append('Provider registry not initialized')
-            if not service_container.transformer_registry:
-                validation_errors.append('Transformer registry not initialized')
+            if not service_container.provider_manager:
+                validation_errors.append('Provider manager not initialized')
+            if not service_container.router:
+                validation_errors.append('Router not initialized')
+            if not service_container.transformer_loader:
+                validation_errors.append('Transformer loader not initialized')
 
             status['validation'] = {'valid': len(validation_errors) == 0, 'errors': validation_errors}
 
         except Exception as e:
-            logger.warning(f'Could not get service provider status: {e}')
-            status['service_provider'] = {'error': str(e)}
+            logger.warning(f'Could not get service container status: {e}')
+            status['service_container'] = {'error': str(e)}
 
         return status
 
@@ -110,29 +110,29 @@ async def validate_configuration() -> Dict[str, Any]:
         except ValueError as e:
             errors.append(f'Reference validation failed: {str(e)}')
 
-        # Get service validation if available
+        # Get simple system validation if available
         try:
             service_container = get_service_container()
 
             # Basic validation of service container state
-            if not service_container.model_registry:
-                errors.append('Service validation failed: Model registry not initialized')
-            if not service_container.provider_registry:
-                errors.append('Service validation failed: Provider registry not initialized')
-            if not service_container.transformer_registry:
-                errors.append('Service validation failed: Transformer registry not initialized')
+            if not service_container.provider_manager:
+                errors.append('System validation failed: Provider manager not initialized')
+            if not service_container.router:
+                errors.append('System validation failed: Router not initialized')
+            if not service_container.transformer_loader:
+                errors.append('System validation failed: Transformer loader not initialized')
 
         except Exception as e:
-            errors.append(f'Service validation failed: {str(e)}')
+            errors.append(f'System validation failed: {str(e)}')
 
         return {
             'valid': len(errors) == 0,
             'errors': errors,
             'config_summary': {
-                'transformers': len(current_config.transformers),
                 'providers': len(current_config.providers),
                 'models': len(current_config.models),
                 'routing_configured': current_config.routing is not None,
+                'transformer_paths': len(current_config.transformer_paths) if hasattr(current_config, 'transformer_paths') else 0,
             },
         }
 

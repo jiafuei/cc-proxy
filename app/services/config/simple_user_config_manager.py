@@ -37,7 +37,7 @@ class SimpleUserConfigManager(UserConfigManager):
 
             self._current_config = config
             logger.info('Successfully loaded user configuration')
-            logger.debug(f'Config: {len(config.transformers)} transformers, {len(config.providers)} providers, {len(config.models)} models')
+            logger.debug(f'Config: {len(config.transformer_paths)} transformer paths, {len(config.providers)} providers, {len(config.models)} models')
 
             return config
 
@@ -92,7 +92,7 @@ class SimpleUserConfigManager(UserConfigManager):
                 'success': True,
                 'message': 'Configuration reloaded successfully',
                 'changes': {
-                    'transformers': len(new_config.transformers),
+                    'transformer_paths': len(new_config.transformer_paths),
                     'providers': len(new_config.providers),
                     'models': len(new_config.models),
                     'routing_configured': new_config.routing is not None,
@@ -119,11 +119,11 @@ class SimpleUserConfigManager(UserConfigManager):
             'loaded': True,
             'config_file_exists': self._config_path.exists(),
             'config_path': str(self._config_path),
-            'transformers': len(config.transformers),
+            'transformer_paths': len(config.transformer_paths),
             'providers': len(config.providers),
             'models': len(config.models),
             'routing_configured': config.routing is not None,
-            'transformer_names': [t.name for t in config.transformers],
+            'transformer_paths_list': config.transformer_paths,
             'provider_names': [p.name for p in config.providers],
             'model_ids': [m.id for m in config.models],
         }
