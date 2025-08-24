@@ -7,6 +7,7 @@ import httpx
 from app.common.dumper import Dumper
 from app.config import get_config
 from app.config.log import get_logger
+from app.config.user_models import UserConfig
 from app.services.config.simple_user_config_manager import get_user_config_manager
 from app.services.error_handling.error_formatter import ApiErrorFormatter
 from app.services.error_handling.exception_mapper import HttpExceptionMapper
@@ -71,7 +72,7 @@ class ServiceContainer:
             self.user_config = UserConfig()
             self._build_services(self.user_config)
 
-    def _build_services(self, user_config):
+    def _build_services(self, user_config: UserConfig):
         """Build all services from user configuration."""
         logger.info('Building services from user configuration')
 
@@ -89,7 +90,7 @@ class ServiceContainer:
 
         logger.info(f'Built services: {self.transformer_registry.size()} transformers, {self.provider_registry.size()} providers, {self.model_registry.size()} models')
 
-    def _build_transformer_registry(self, user_config) -> TransformerRegistry:
+    def _build_transformer_registry(self, user_config: UserConfig) -> TransformerRegistry:
         """Build transformer registry with default Anthropic transformers."""
         registry = TransformerRegistry()
 
@@ -99,7 +100,7 @@ class ServiceContainer:
 
         return registry
 
-    def _build_provider_registry(self, user_config) -> ProviderRegistry:
+    def _build_provider_registry(self, user_config: UserConfig) -> ProviderRegistry:
         """Build provider registry with configured providers."""
         # Create built-in default transformers
         builtin_transformers = {
@@ -128,14 +129,14 @@ class ServiceContainer:
         logger.info(f'Registered {success_count}/{len(user_config.providers)} providers successfully')
         return registry
 
-    def _build_model_registry(self, user_config) -> ModelRegistry:
+    def _build_model_registry(self, user_config: UserConfig) -> ModelRegistry:
         """Build model registry with model-to-provider mappings."""
         registry = ModelRegistry()
         success_count = registry.register_models_from_config(user_config.models)
         logger.debug(f'Registered {success_count} models')
         return registry
 
-    def _on_config_change(self, user_config):
+    def _on_config_change(self, user_config: UserConfig):
         """Handle user configuration changes."""
         try:
             logger.info('User configuration changed, rebuilding services')

@@ -20,14 +20,14 @@ async def messages(
     payload: ClaudeRequest,
     request: Request,
     service_container: Annotated[ServiceContainer, Depends(get_service_container)]
-):
+) -> StreamingResponse:
     """Handle Claude API messages with dynamic routing support."""
 
     # Get routing service
     routing_service = get_routing_service()
     if not routing_service:
         logger.error('Routing service not available - check user configuration')
-        raise HTTPException(status_code=500, detail={'error': {'type': 'configuration_error', 'message': 'Service configuration failed - no routing available'}})
+        raise HTTPException(status_code=500, detail={'error': {'type': 'api_error', 'message': 'Service configuration failed - no routing available'}})
 
     # Use dynamic routing to determine the appropriate pipeline
     try:
@@ -51,7 +51,7 @@ async def messages(
 
     except Exception as e:
         logger.error(f'Error in request routing: {e}', exc_info=True)
-        raise HTTPException(status_code=500, detail={'error': {'type': 'routing_error', 'message': f'Request routing failed: {str(e)}'}})
+        raise HTTPException(status_code=500, detail={'error': {'type': 'api_error', 'message': f'Request routing failed: {str(e)}'}})
 
     # Get core services
     dumper = service_container.dumper
