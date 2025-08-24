@@ -4,27 +4,10 @@ from typing import Optional
 
 from app.common.models import ClaudeRequest
 from app.config.log import get_logger
+from app.config.user_models import RoutingConfig
 from app.services.provider import Provider, ProviderManager
 
 logger = get_logger(__name__)
-
-
-class RoutingConfig:
-    """Configuration for routing requests to different models."""
-
-    def __init__(self, config: dict):
-        self.default = config.get('default', '')
-        self.planning = config.get('planning', self.default)
-        self.background = config.get('background', self.default)
-
-    def get_model_for_key(self, routing_key: str) -> str:
-        """Get model ID for a routing key."""
-        if routing_key == 'planning':
-            return self.planning
-        elif routing_key == 'background':
-            return self.background
-        else:
-            return self.default
 
 
 class RequestInspector:
@@ -107,9 +90,9 @@ class RequestInspector:
 class SimpleRouter:
     """Simple router that maps requests to providers based on routing configuration."""
 
-    def __init__(self, provider_manager: ProviderManager, routing_config: dict):
+    def __init__(self, provider_manager: ProviderManager, routing_config: RoutingConfig):
         self.provider_manager = provider_manager
-        self.routing_config = RoutingConfig(routing_config)
+        self.routing_config = routing_config
         self.inspector = RequestInspector()
 
     def get_provider_for_request(self, request: ClaudeRequest) -> Optional[Provider]:
@@ -127,7 +110,7 @@ class SimpleRouter:
             logger.debug(f'Determined routing key: {routing_key}')
 
             # 2. Get model for routing key
-            model_id = self.routing_config.get_model_for_key(routing_key)
+            model_id = self._get_model_for_key(routing_key)
             if not model_id:
                 logger.warning(f"No model configured for routing key '{routing_key}'")
                 return None
@@ -144,6 +127,15 @@ class SimpleRouter:
         except Exception as e:
             logger.error(f'Error in request routing: {e}', exc_info=True)
             return None
+
+    def _get_model_for_key(self, routing_key: str) -> str:
+        """Get model ID for a routing key."""
+        if routing_key == 'planning':
+            return self.routing_config.planning
+        elif routing_key == 'background':
+            return self.routing_config.background
+        else:
+            return self.routing_config.default
 
     def get_provider_for_model(self, model_id: str) -> Optional[Provider]:
         """Get provider that supports a specific model.

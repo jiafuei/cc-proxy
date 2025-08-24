@@ -33,7 +33,7 @@ async def messages(payload: ClaudeRequest, request: Request) -> StreamingRespons
     async def generate():
         try:
             # Process through provider (handles transformers + HTTP + streaming)
-            async for chunk in provider.process_request(payload):
+            async for chunk in provider.process_request(payload, request):
                 service_container.dumper.write_chunk(dumper_handles, chunk)
                 yield chunk
 

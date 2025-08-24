@@ -3,18 +3,17 @@
 from unittest.mock import Mock
 
 from app.common.models import ClaudeRequest
-from app.services.router import RequestInspector, RoutingConfig, SimpleRouter
+from app.config.user_models import RoutingConfig
+from app.services.router import RequestInspector, SimpleRouter
 
 
 def test_routing_config():
     """Test routing configuration."""
-    config_data = {'default': 'claude-3-sonnet', 'planning': 'claude-3-opus', 'background': 'claude-3-haiku'}
+    config = RoutingConfig(default='claude-3-sonnet', planning='claude-3-opus', background='claude-3-haiku')
 
-    config = RoutingConfig(config_data)
-    assert config.get_model_for_key('default') == 'claude-3-sonnet'
-    assert config.get_model_for_key('planning') == 'claude-3-opus'
-    assert config.get_model_for_key('background') == 'claude-3-haiku'
-    assert config.get_model_for_key('unknown') == 'claude-3-sonnet'  # Falls back to default
+    assert config.default == 'claude-3-sonnet'
+    assert config.planning == 'claude-3-opus'
+    assert config.background == 'claude-3-haiku'
 
 
 def test_request_inspector_planning():
@@ -57,7 +56,7 @@ def test_simple_router_success():
     mock_provider = Mock()
     mock_provider_manager.get_provider_for_model.return_value = mock_provider
 
-    routing_config = {'default': 'claude-3-sonnet', 'planning': 'claude-3-opus', 'background': 'claude-3-haiku'}
+    routing_config = RoutingConfig(default='claude-3-sonnet', planning='claude-3-opus', background='claude-3-haiku')
 
     router = SimpleRouter(mock_provider_manager, routing_config)
 
@@ -75,7 +74,7 @@ def test_simple_router_no_provider():
     mock_provider_manager = Mock()
     mock_provider_manager.get_provider_for_model.return_value = None
 
-    routing_config = {'default': 'claude-3-sonnet', 'planning': 'claude-3-opus', 'background': 'claude-3-haiku'}
+    routing_config = RoutingConfig(default='claude-3-sonnet', planning='claude-3-opus', background='claude-3-haiku')
 
     router = SimpleRouter(mock_provider_manager, routing_config)
 
@@ -91,7 +90,7 @@ def test_simple_router_planning_request():
     mock_provider = Mock()
     mock_provider_manager.get_provider_for_model.return_value = mock_provider
 
-    routing_config = {'default': 'claude-3-sonnet', 'planning': 'claude-3-opus', 'background': 'claude-3-haiku'}
+    routing_config = RoutingConfig(default='claude-3-sonnet', planning='claude-3-opus', background='claude-3-haiku')
 
     router = SimpleRouter(mock_provider_manager, routing_config)
 
@@ -110,7 +109,7 @@ def test_simple_router_get_provider_for_model():
     mock_provider = Mock()
     mock_provider_manager.get_provider_for_model.return_value = mock_provider
 
-    router = SimpleRouter(mock_provider_manager, {})
+    router = SimpleRouter(mock_provider_manager, RoutingConfig(default=''))
 
     provider = router.get_provider_for_model('claude-3-sonnet')
     assert provider == mock_provider
@@ -122,7 +121,7 @@ def test_simple_router_list_available_models():
     mock_provider_manager = Mock()
     mock_provider_manager.list_models.return_value = ['claude-3-sonnet', 'claude-3-opus']
 
-    router = SimpleRouter(mock_provider_manager, {})
+    router = SimpleRouter(mock_provider_manager, RoutingConfig(default=''))
 
     models = router.list_available_models()
     assert models == ['claude-3-sonnet', 'claude-3-opus']
@@ -135,7 +134,7 @@ def test_simple_router_get_routing_info():
     mock_provider_manager.list_models.return_value = ['claude-3-sonnet']
     mock_provider_manager.list_providers.return_value = ['anthropic']
 
-    routing_config = {'default': 'claude-3-sonnet', 'planning': 'claude-3-opus', 'background': 'claude-3-haiku'}
+    routing_config = RoutingConfig(default='claude-3-sonnet', planning='claude-3-opus', background='claude-3-haiku')
 
     router = SimpleRouter(mock_provider_manager, routing_config)
 

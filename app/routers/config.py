@@ -5,8 +5,8 @@ from typing import Any, Dict
 from fastapi import APIRouter, HTTPException
 
 from app.config.log import get_logger
-from app.services.config.simple_user_config_manager import get_user_config_manager
 from app.dependencies.service_container import get_service_container
+from app.services.config.simple_user_config_manager import get_user_config_manager
 
 router = APIRouter(prefix='/api', tags=['Configuration'])
 logger = get_logger(__name__)

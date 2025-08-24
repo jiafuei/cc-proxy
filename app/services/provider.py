@@ -2,28 +2,17 @@
 
 from typing import Any, AsyncIterator, Dict, List, Optional
 
+from fastapi import Request
 import httpx
 import orjson
 
 from app.common.models import ClaudeRequest
 from app.config.log import get_logger
+from app.config.user_models import ProviderConfig
 from app.services.transformer_interfaces import RequestTransformer, ResponseTransformer
 from app.services.transformer_loader import TransformerLoader
 
 logger = get_logger(__name__)
-
-
-class ProviderConfig:
-    """Configuration for a provider."""
-
-    def __init__(self, name: str, config: Dict[str, Any]):
-        self.name = name
-        self.url = config['url']
-        self.api_key = config.get('api_key', '')
-        self.models = config.get('models', [])
-        self.request_transformers = config.get('transformers', {}).get('request', [])
-        self.response_transformers = config.get('transformers', {}).get('response', [])
-        self.timeout = config.get('timeout', 300)  # 5 minutes default
 
 
 class Provider:
@@ -42,15 +31,18 @@ class Provider:
     def _load_transformers(self):
         """Load request and response transformers from configuration."""
         try:
-            self.request_transformers = self.transformer_loader.load_transformers(self.config.request_transformers)
-            self.response_transformers = self.transformer_loader.load_transformers(self.config.response_transformers)
+            request_transformers = self.config.transformers.get('request', [])
+            response_transformers = self.config.transformers.get('response', [])
+
+            self.request_transformers = self.transformer_loader.load_transformers(request_transformers)
+            self.response_transformers = self.transformer_loader.load_transformers(response_transformers)
 
             logger.info(f"Provider '{self.config.name}' loaded {len(self.request_transformers)} request transformers and {len(self.response_transformers)} response transformers")
         except Exception as e:
             logger.error(f"Failed to load transformers for provider '{self.config.name}': {e}")
             # Continue with empty transformer lists
 
-    async def process_request(self, request: ClaudeRequest) -> AsyncIterator[bytes]:
+    async def process_request(self, request: ClaudeRequest, original_request: Request) -> AsyncIterator[bytes]:
         """Process a request through the provider with transformer support.
 
         Args:
@@ -61,19 +53,19 @@ class Provider:
         """
         try:
             # 1. Apply request transformers sequentially
-            transformed_request = request
+            transformed_payload = request
             for transformer in self.request_transformers:
-                transformed_request = await transformer.transform(transformed_request)
+                transformed_payload = await transformer.transform(transformed_payload)
 
-            logger.debug(f'Request transformed, stream={transformed_request.stream}')
+            logger.debug(f'Request transformed, stream={transformed_payload.stream}')
 
             # 2. Check final stream flag after transformations
-            should_stream = transformed_request.stream
+            should_stream = transformed_payload.stream
 
             # 3. Route based on stream flag
             if should_stream:
                 # Stream from provider
-                async for chunk in self._stream_request(transformed_request):
+                async for chunk in self._stream_request(transformed_payload, original_request):
                     # Apply response transformers to each chunk
                     transformed_chunk = chunk
                     for transformer in self.response_transformers:
@@ -81,7 +73,7 @@ class Provider:
                     yield transformed_chunk
             else:
                 # Non-streaming request
-                response = await self._send_request(transformed_request)
+                response = await self._send_request(transformed_payload, original_request)
 
                 # Apply response transformers to full response
                 transformed_response = response
@@ -98,13 +90,14 @@ class Provider:
             error_chunk = self._format_error_as_sse(str(e))
             yield error_chunk
 
-    async def _stream_request(self, request: ClaudeRequest) -> AsyncIterator[bytes]:
+    async def _stream_request(self, request: ClaudeRequest, original_request: Request) -> AsyncIterator[bytes]:
         """Make a streaming HTTP request to the provider."""
-        headers = {'Content-Type': 'application/json', 'Authorization': f'Bearer {self.config.api_key}', 'Accept': 'text/event-stream'}
+        # headers = {'Content-Type': 'application/json', 'Authorization': f'Bearer {self.config.api_key}', 'Accept': 'text/event-stream'}
+        headers = original_request.headers | {'authorization': f'Bearer {self.config.api_key}'}
 
-        # Add any provider-specific headers
-        if self.config.name.lower() == 'anthropic':
-            headers['anthropic-version'] = '2023-06-01'
+        # # Add any provider-specific headers
+        # if self.config.name.lower() == 'anthropic':
+        #     headers['anthropic-version'] = '2023-06-01'
 
         request_data = request.to_dict()
 
@@ -117,13 +110,14 @@ class Provider:
                 if chunk:
                     yield chunk
 
-    async def _send_request(self, request: ClaudeRequest) -> Dict[str, Any]:
+    async def _send_request(self, request: ClaudeRequest, original_request: Request) -> Dict[str, Any]:
         """Make a non-streaming HTTP request to the provider."""
-        headers = {'Content-Type': 'application/json', 'Authorization': f'Bearer {self.config.api_key}'}
+        # headers = {'Content-Type': 'application/json', 'Authorization': f'Bearer {self.config.api_key}'}
+        headers = original_request.headers | {'authorization': f'Bearer {self.config.api_key}'}
 
-        # Add any provider-specific headers
-        if self.config.name.lower() == 'anthropic':
-            headers['anthropic-version'] = '2023-06-01'
+        # # Add any provider-specific headers
+        # if self.config.name.lower() == 'anthropic':
+        #     headers['anthropic-version'] = '2023-06-01'
 
         request_data = request.to_dict()
 
@@ -196,27 +190,26 @@ class Provider:
 class ProviderManager:
     """Manages multiple providers."""
 
-    def __init__(self, providers_config: Dict[str, Any], transformer_loader: TransformerLoader):
+    def __init__(self, providers_config: List[ProviderConfig], transformer_loader: TransformerLoader):
         self.providers: Dict[str, Provider] = {}
         self.model_to_provider: Dict[str, str] = {}
         self._load_providers(providers_config, transformer_loader)
 
-    def _load_providers(self, providers_config: Dict[str, Any], transformer_loader: TransformerLoader):
+    def _load_providers(self, providers_config: List[ProviderConfig], transformer_loader: TransformerLoader):
         """Load providers from configuration."""
-        for name, config in providers_config.items():
+        for provider_config in providers_config:
             try:
-                provider_config = ProviderConfig(name, config)
                 provider = Provider(provider_config, transformer_loader)
-                self.providers[name] = provider
+                self.providers[provider_config.name] = provider
 
                 # Build model-to-provider mapping
                 for model in provider_config.models:
-                    self.model_to_provider[model] = name
+                    self.model_to_provider[model] = provider_config.name
 
-                logger.info(f"Loaded provider '{name}' with {len(provider_config.models)} models")
+                logger.info(f"Loaded provider '{provider_config.name}' with {len(provider_config.models)} models")
 
             except Exception as e:
-                logger.error(f"Failed to load provider '{name}': {e}", exc_info=True)
+                logger.error(f"Failed to load provider '{provider_config.name}': {e}", exc_info=True)
 
     def get_provider_for_model(self, model_id: str) -> Optional[Provider]:
         """Get the provider that supports the given model."""
