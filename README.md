@@ -21,6 +21,9 @@ Configuration
 - Request transformation: convert Anthropic requests to provider formats or custom shapes
 - Response transformation: normalize provider responses to Anthropic v1/messages
 
+Misc
+- Inspired by [ccflare](https://github.com/snipeship/ccflare), [claude-code-router](https://github.com/musistudio/claude-code-router)
+
 Roadmap
 - Phase 0: Local MVP
   - POST /v1/messages (stream/non-stream); built-in Anthropic↔OpenAI/Gemini transforms
