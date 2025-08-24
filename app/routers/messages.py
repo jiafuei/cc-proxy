@@ -1,12 +1,13 @@
 import traceback
+from typing import Annotated
 
 import httpx
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
 
 from app.common.models import ClaudeRequest
 from app.config.log import get_logger
-from app.dependencies.services import get_core_services, get_routing_service, get_service_container
+from app.dependencies.services import ServiceContainer, get_core_services, get_routing_service, get_service_container
 from app.services.error_handling.exceptions import PipelineException
 from app.services.error_handling.models import ClaudeError, ClaudeErrorDetail
 
@@ -16,8 +17,9 @@ logger = get_logger(__name__)
 
 @router.post('/v1/messages')
 async def messages(
-    claude_request: ClaudeRequest,
+    payload: ClaudeRequest,
     request: Request,
+    service_container: Annotated[ServiceContainer, Depends(get_service_container)]
 ):
     """Handle Claude API messages with dynamic routing support."""
 
@@ -29,7 +31,7 @@ async def messages(
 
     # Use dynamic routing to determine the appropriate pipeline
     try:
-        routing_key, model_id, pipeline_service = routing_service.process_request(claude_request)
+        routing_key, model_id, pipeline_service = routing_service.process_request(payload)
 
         if not pipeline_service:
             if model_id:
@@ -52,24 +54,23 @@ async def messages(
         raise HTTPException(status_code=500, detail={'error': {'type': 'routing_error', 'message': f'Request routing failed: {str(e)}'}})
 
     # Get core services
-    core_services = get_core_services()
-    dumper = core_services.dumper
-    exception_mapper = core_services.exception_mapper
-    error_formatter = core_services.error_formatter
+    dumper = service_container.dumper
+    exception_mapper = service_container.exception_mapper
+    error_formatter =  service_container.error_formatter
 
     # Convert ClaudeRequest to dict for compatibility with current pipeline
-    payload = claude_request.to_dict()
+    payload_dict = payload.to_dict()
 
     # Add routing information to payload for logging/debugging
-    payload['_routing'] = routing_info
+    payload_dict['_routing'] = routing_info
 
-    handles = dumper.begin(request, payload)
+    handles = dumper.begin(request, payload_dict)
 
     async def generator():
         try:
             # Use unified processing that always returns SSE-formatted chunks
             # Stream decision is made AFTER transformations inside the pipeline
-            async for chunk in pipeline_service.process_unified(claude_request, request):
+            async for chunk in pipeline_service.process_unified(payload, request):
                 dumper.write_chunk(handles, chunk.data)
                 yield chunk.data
         except httpx.HTTPStatusError as e:

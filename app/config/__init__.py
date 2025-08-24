@@ -25,7 +25,7 @@ def get_config() -> ConfigModel:
     return _config
 
 
-def setup_user_config() -> None:
+def setup_config() -> None:
     """Create .cc-proxy directory and config.yaml in user's home directory if they don't exist."""
 
     # Create .cc-proxy directory if it doesn't exist

@@ -7,7 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import ORJSONResponse
 
-from app.config import get_config, setup_user_config
+from app.config import get_config, setup_config
 from app.config.log import configure_structlog
 from app.dependencies.services import get_service_container
 from app.middlewares.context import ContextMiddleware
@@ -25,7 +25,7 @@ app.include_router(health_router)
 app.include_router(messages_router)
 
 # Set up user config directory and file on startup
-setup_user_config()
+setup_config()
 config = get_config()
 
 # Configure structured logging
