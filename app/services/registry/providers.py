@@ -3,6 +3,7 @@
 import logging
 from typing import Dict, List, Optional
 
+from app.config.log import get_logger
 from app.config.user_models import PipelineTransformerConfig, ProviderConfig
 from app.services.config.interfaces import ComponentRegistry
 from app.services.pipeline.http_client import HttpClientService
@@ -12,7 +13,7 @@ from app.services.sse_formatter.interfaces import SseFormatter
 
 from .transformers import TransformerRegistry
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class Provider:

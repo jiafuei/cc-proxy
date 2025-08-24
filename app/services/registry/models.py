@@ -3,10 +3,11 @@
 import logging
 from typing import Dict, List, Optional
 
+from app.config.log import get_logger
 from app.config.user_models import ModelConfig
 from app.services.config.interfaces import ComponentRegistry
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class ModelInfo:

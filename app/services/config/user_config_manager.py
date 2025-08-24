@@ -6,12 +6,13 @@ from pathlib import Path
 from typing import Callable, List, Optional
 
 from app.common.utils import get_app_dir
+from app.config.log import get_logger
 from app.config.user_models import UserConfig
 
 from .interfaces import ConfigWatcher, UserConfigManager
 from .watcher import WatchdogConfigWatcher
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class DynamicUserConfigManager(UserConfigManager):

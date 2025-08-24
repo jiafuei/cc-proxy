@@ -7,6 +7,7 @@ import httpx
 
 from app.common.dumper import Dumper
 from app.config import get_config
+from app.config.log import get_logger
 from app.services.config.simple_user_config_manager import get_user_config_manager
 from app.services.error_handling.error_formatter import ApiErrorFormatter
 from app.services.error_handling.exception_mapper import HttpExceptionMapper
@@ -25,7 +26,7 @@ from app.services.transformers.anthropic.transformers import (
     AnthropicStreamTransformer,
 )
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class ServiceContainer:
@@ -211,19 +212,3 @@ def get_default_pipeline_service():
     """Get default Anthropic pipeline service."""
     container = get_service_container()
     return container.create_default_pipeline()
-
-
-# Legacy compatibility functions
-def get_services():
-    """Get service container for compatibility."""
-    return get_service_container()
-
-
-def get_message_pipeline_service():
-    """Get default pipeline service for compatibility."""
-    return get_default_pipeline_service()
-
-
-def get_dynamic_service_provider():
-    """Get service container for compatibility with legacy code."""
-    return get_service_container()

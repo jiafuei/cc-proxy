@@ -17,7 +17,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `python -m pytest path/to/test -v`: Run tests for directory or file
 
 ## Configuration Files
-- `config.example.yaml`: The example config
+- `config.example.yaml`: The example static server config
+- `user.example.yaml` The example dynamic user config
 
 
 ## Developer notes
@@ -28,3 +29,4 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - Each package should be focused and only handle one or two concerns
 - Each method and component should be easily mockable and unit testable
 - Design and write tests first before implementation, each test must be focused
+- `app.config.log.get_logger` is direct, compatible replacement of `logging.getLogger`. use it to get logger instead

@@ -5,7 +5,7 @@ from typing import Any, Dict
 from fastapi import APIRouter, HTTPException
 
 from app.config.log import get_logger
-from app.dependencies.services import get_dynamic_service_provider
+from app.dependencies.services import get_service_container
 from app.services.config.simple_user_config_manager import get_user_config_manager
 
 router = APIRouter(prefix='/api', tags=['Configuration'])
@@ -51,20 +51,30 @@ async def get_configuration_status() -> Dict[str, Any]:
         config_manager = get_user_config_manager()
         status = config_manager.get_config_status()
 
-        # Add service provider information
+        # Add service container information
         try:
-            service_provider = get_dynamic_service_provider()
-            services = service_provider.get_services()
+            service_container = get_service_container()
 
-            from app.services.lifecycle.service_builder import DynamicServices
+            # Create routing summary from the service container
+            routing_summary = {}
+            if service_container.model_registry and service_container.provider_registry:
+                routing_summary = {
+                    'models': service_container.model_registry.size(),
+                    'providers': service_container.provider_registry.size(),
+                    'transformers': service_container.transformer_registry.size() if service_container.transformer_registry else 0,
+                }
+            status['routing'] = routing_summary
 
-            if isinstance(services, DynamicServices):
-                routing_summary = services.get_routing_summary()
-                status['routing'] = routing_summary
+            # Basic validation - check if core registries are initialized
+            validation_errors = []
+            if not service_container.model_registry:
+                validation_errors.append('Model registry not initialized')
+            if not service_container.provider_registry:
+                validation_errors.append('Provider registry not initialized')
+            if not service_container.transformer_registry:
+                validation_errors.append('Transformer registry not initialized')
 
-                # Validate configuration
-                validation_errors = services.validate_configuration()
-                status['validation'] = {'valid': len(validation_errors) == 0, 'errors': validation_errors}
+            status['validation'] = {'valid': len(validation_errors) == 0, 'errors': validation_errors}
 
         except Exception as e:
             logger.warning(f'Could not get service provider status: {e}')
@@ -102,13 +112,15 @@ async def validate_configuration() -> Dict[str, Any]:
 
         # Get service validation if available
         try:
-            service_provider = get_dynamic_service_provider()
-            services = service_provider.get_services()
-            from app.services.lifecycle.service_builder import DynamicServices
+            service_container = get_service_container()
 
-            if isinstance(services, DynamicServices):
-                service_errors = services.validate_configuration()
-                errors.extend(service_errors)
+            # Basic validation of service container state
+            if not service_container.model_registry:
+                errors.append('Service validation failed: Model registry not initialized')
+            if not service_container.provider_registry:
+                errors.append('Service validation failed: Provider registry not initialized')
+            if not service_container.transformer_registry:
+                errors.append('Service validation failed: Transformer registry not initialized')
 
         except Exception as e:
             errors.append(f'Service validation failed: {str(e)}')

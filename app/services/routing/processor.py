@@ -4,13 +4,14 @@ import logging
 from typing import Optional, Tuple
 
 from app.common.models import ClaudeRequest
+from app.config.log import get_logger
 from app.config.user_models import UserConfig
 from app.services.pipeline.messages_service import MessagesPipelineService
 from app.services.registry.models import ModelRegistry
 from app.services.registry.providers import ProviderRegistry
 from app.services.routing.inspector import RequestInspector
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class RequestProcessor:

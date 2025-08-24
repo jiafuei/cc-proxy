@@ -6,11 +6,12 @@ import logging
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Type
 
+from app.config.log import get_logger
 from app.config.user_models import TransformerArgument, TransformerConfig
 from app.services.config.interfaces import ComponentRegistry
 from app.services.pipeline.interfaces import RequestTransformer, ResponseTransformer, StreamTransformer
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class TransformerFactory:

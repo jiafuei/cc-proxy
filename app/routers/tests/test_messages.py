@@ -6,12 +6,10 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from app.common.dumper import DumpHandles
-from app.dependencies.services import get_core_services, get_routing_service, get_service_container
 from app.routers.messages import router
 from app.services.error_handling.error_formatter import ApiErrorFormatter
 from app.services.error_handling.exception_mapper import HttpExceptionMapper
 from app.services.pipeline.models import StreamChunk
-from app.services.pipeline.messages_service import MessagesPipelineService
 
 
 def test_messages_endpoint():

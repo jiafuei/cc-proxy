@@ -4,8 +4,9 @@ import logging
 from typing import Dict, List, Set
 
 from app.common.models import ClaudeRequest, Message
+from app.config.log import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class RequestInspector:

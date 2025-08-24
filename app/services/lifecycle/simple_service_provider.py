@@ -3,11 +3,12 @@
 import logging
 from typing import Optional
 
+from app.config.log import get_logger
 from app.config.models import ConfigModel
 from app.config.user_models import UserConfig
 from app.services.config.interfaces import ServiceBuilder, ServiceProvider
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class SimpleServiceProvider(ServiceProvider):

@@ -6,6 +6,7 @@ from typing import Dict, List, Optional, Tuple
 import httpx
 
 from app.common.dumper import Dumper
+from app.config.log import get_logger
 from app.config.models import ConfigModel
 from app.config.user_models import UserConfig
 from app.services.config.interfaces import ServiceBuilder
@@ -23,7 +24,7 @@ from app.services.transformers.anthropic.transformers import (
     AnthropicStreamTransformer,
 )
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class DynamicServiceBuilder(ServiceBuilder):
