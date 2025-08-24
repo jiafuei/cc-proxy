@@ -1,6 +1,5 @@
 """Request processor for routing requests to appropriate models and providers."""
 
-import logging
 from typing import Optional, Tuple
 
 from app.common.models import ClaudeRequest

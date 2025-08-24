@@ -1,6 +1,5 @@
 """Simple user configuration manager with manual reload support."""
 
-import logging
 from pathlib import Path
 from typing import Callable, Optional
 

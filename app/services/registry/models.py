@@ -1,6 +1,5 @@
 """Model registry for handling model-to-provider mapping."""
 
-import logging
 from typing import Dict, List, Optional
 
 from app.config.log import get_logger

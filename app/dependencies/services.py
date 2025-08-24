@@ -1,6 +1,5 @@
 """Simplified dependency injection for FastAPI routes."""
 
-import logging
 from typing import Optional
 
 import httpx

@@ -1,19 +1,11 @@
 """Core interfaces for dynamic configuration management."""
 
 from abc import ABC, abstractmethod
-from typing import Any, Callable, Dict, Generic, Optional, Protocol, TypeVar
+from typing import Callable, Dict, Generic, Optional, TypeVar
 
 from app.config.user_models import UserConfig
 
 T = TypeVar('T')
-
-
-class ComponentFactory(Protocol):
-    """Protocol for component factories."""
-
-    def create(self, config: Any) -> Any:
-        """Create a component instance from configuration."""
-        ...
 
 
 class ComponentRegistry(Generic[T]):
@@ -68,42 +60,4 @@ class UserConfigManager(ABC):
     @abstractmethod
     def on_config_change(self, callback: Callable[[UserConfig], None]) -> None:
         """Register a callback for configuration changes."""
-        pass
-
-
-class ServiceProvider(ABC):
-    """Interface for providing services."""
-
-    @abstractmethod
-    def get_services(self) -> Any:
-        """Get current services.
-
-        Returns:
-            Current services instance
-        """
-        pass
-
-    @abstractmethod
-    def rebuild_services(self, config: UserConfig) -> None:
-        """Rebuild services from new configuration.
-
-        Args:
-            config: New user configuration
-        """
-        pass
-
-
-class ServiceBuilder(ABC):
-    """Interface for building services from configuration."""
-
-    @abstractmethod
-    def build_services(self, config: UserConfig) -> Any:
-        """Build services from user configuration.
-
-        Args:
-            config: User configuration to build from
-
-        Returns:
-            Built services instance
-        """
         pass

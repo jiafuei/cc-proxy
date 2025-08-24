@@ -1,6 +1,5 @@
 """Request inspector for analyzing requests and determining routing keys."""
 
-import logging
 from typing import Dict, List, Set
 
 from app.common.models import ClaudeRequest, Message

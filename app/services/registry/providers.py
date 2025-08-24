@@ -1,6 +1,5 @@
 """Provider registry and factory system for managing custom API providers."""
 
-import logging
 from typing import Dict, List, Optional
 
 from app.config.log import get_logger
