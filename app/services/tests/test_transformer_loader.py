@@ -23,7 +23,7 @@ def test_load_built_in_transformer():
     """Test loading a built-in transformer."""
     loader = TransformerLoader()
 
-    config = {'class': 'app.services.transformer_interfaces.AnthropicAuthTransformer', 'params': {'api_key': 'test-key', 'base_url': 'https://api.anthropic.com'}}
+    config = {'class': 'app.services.transformers.anthropic.AnthropicAuthTransformer', 'params': {'api_key': 'test-key', 'base_url': 'https://api.anthropic.com'}}
 
     transformer = loader.load_transformer(config)
     assert transformer is not None
@@ -34,7 +34,7 @@ def test_load_transformer_caching():
     """Test that transformers are cached properly."""
     loader = TransformerLoader()
 
-    config = {'class': 'app.services.transformer_interfaces.AnthropicAuthTransformer', 'params': {'api_key': 'test-key'}}
+    config = {'class': 'app.services.transformers.anthropic.AnthropicAuthTransformer', 'params': {'api_key': 'test-key'}}
 
     # Load transformer twice
     transformer1 = loader.load_transformer(config)
@@ -49,9 +49,9 @@ def test_load_transformer_different_params():
     """Test that transformers with different params are not cached together."""
     loader = TransformerLoader()
 
-    config1 = {'class': 'app.services.transformer_interfaces.AnthropicAuthTransformer', 'params': {'api_key': 'key1'}}
+    config1 = {'class': 'app.services.transformers.anthropic.AnthropicAuthTransformer', 'params': {'api_key': 'key1'}}
 
-    config2 = {'class': 'app.services.transformer_interfaces.AnthropicAuthTransformer', 'params': {'api_key': 'key2'}}
+    config2 = {'class': 'app.services.transformers.anthropic.AnthropicAuthTransformer', 'params': {'api_key': 'key2'}}
 
     transformer1 = loader.load_transformer(config1)
     transformer2 = loader.load_transformer(config2)
@@ -76,8 +76,8 @@ def test_load_multiple_transformers():
     loader = TransformerLoader()
 
     configs = [
-        {'class': 'app.services.transformer_interfaces.AnthropicAuthTransformer', 'params': {'api_key': 'key1'}},
-        {'class': 'app.services.transformer_interfaces.AnthropicResponseTransformer', 'params': {}},
+        {'class': 'app.services.transformers.anthropic.AnthropicAuthTransformer', 'params': {'api_key': 'key1'}},
+        {'class': 'app.services.transformers.anthropic.AnthropicResponseTransformer', 'params': {}},
     ]
 
     transformers = loader.load_transformers(configs)
@@ -90,9 +90,9 @@ def test_load_multiple_transformers_with_failure():
     loader = TransformerLoader()
 
     configs = [
-        {'class': 'app.services.transformer_interfaces.AnthropicAuthTransformer', 'params': {'api_key': 'key1'}},
+        {'class': 'app.services.transformers.anthropic.AnthropicAuthTransformer', 'params': {'api_key': 'key1'}},
         {'class': 'non.existent.Transformer', 'params': {}},
-        {'class': 'app.services.transformer_interfaces.AnthropicResponseTransformer', 'params': {}},
+        {'class': 'app.services.transformers.anthropic.AnthropicResponseTransformer', 'params': {}},
     ]
 
     # Should continue loading even if one fails
@@ -104,7 +104,7 @@ def test_clear_cache():
     """Test clearing the transformer cache."""
     loader = TransformerLoader()
 
-    config = {'class': 'app.services.transformer_interfaces.AnthropicAuthTransformer', 'params': {'api_key': 'test-key'}}
+    config = {'class': 'app.services.transformers.anthropic.AnthropicAuthTransformer', 'params': {'api_key': 'test-key'}}
 
     loader.load_transformer(config)
     assert len(loader._cache) == 1
@@ -121,7 +121,7 @@ def test_get_cache_info():
     assert info['cached_transformers'] == 0
     assert info['cache_keys'] == []
 
-    config = {'class': 'app.services.transformer_interfaces.AnthropicAuthTransformer', 'params': {'api_key': 'test-key'}}
+    config = {'class': 'app.services.transformers.anthropic.AnthropicAuthTransformer', 'params': {'api_key': 'test-key'}}
 
     loader.load_transformer(config)
 

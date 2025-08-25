@@ -15,7 +15,7 @@ providers:
           params:
             api_key: 'custom-key'
             special_header: 'value-1'
-        - class: 'app.services.transformer_interfaces.AnthropicAuthTransformer'
+        - class: 'app.services.transformers.anthropic.AnthropicAuthTransformer'
           params:
             api_key: 'builtin-key'
       response:

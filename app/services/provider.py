@@ -9,8 +9,8 @@ from fastapi import Request
 from app.common.models import ClaudeRequest
 from app.config.log import get_logger
 from app.config.user_models import ProviderConfig
-from app.services.transformer_interfaces import RequestTransformer, ResponseTransformer
 from app.services.transformer_loader import TransformerLoader
+from app.services.transformers import RequestTransformer, ResponseTransformer
 
 logger = get_logger(__name__)
 
@@ -52,20 +52,22 @@ class Provider:
             SSE-formatted response chunks
         """
         try:
-            # 1. Apply request transformers sequentially
-            transformed_payload = request
+            # 1. Convert ClaudeRequest to Dict and apply request transformers sequentially
+            current_request = request.to_dict()  # Use to_dict() method
+            current_headers = dict(original_request.headers)  # Copy headers
+            
             for transformer in self.request_transformers:
-                transformed_payload = await transformer.transform(transformed_payload)
+                current_request, current_headers = await transformer.transform(current_request, current_headers, self.config, original_request)
 
-            logger.debug(f'Request transformed, stream={transformed_payload.stream}')
+            logger.debug(f'Request transformed, stream={current_request.get("stream", False)}')
 
             # 2. Check final stream flag after transformations
-            should_stream = transformed_payload.stream
+            should_stream = current_request.get('stream', False)
 
             # 3. Route based on stream flag
             if should_stream:
                 # Stream from provider
-                async for chunk in self._stream_request(transformed_payload, original_request):
+                async for chunk in self._stream_request(current_request, current_headers):
                     # Apply response transformers to each chunk
                     transformed_chunk = chunk
                     for transformer in self.response_transformers:
@@ -73,7 +75,7 @@ class Provider:
                     yield transformed_chunk
             else:
                 # Non-streaming request
-                response = await self._send_request(transformed_payload, original_request)
+                response = await self._send_request(current_request, current_headers)
 
                 # Apply response transformers to full response
                 transformed_response = response
@@ -90,40 +92,28 @@ class Provider:
             error_chunk = self._format_error_as_sse(str(e))
             yield error_chunk
 
-    async def _stream_request(self, request: ClaudeRequest, original_request: Request) -> AsyncIterator[bytes]:
+    async def _stream_request(self, request_data: Dict[str, Any], headers: Dict[str, Any]) -> AsyncIterator[bytes]:
         """Make a streaming HTTP request to the provider."""
-        # headers = {'Content-Type': 'application/json', 'Authorization': f'Bearer {self.config.api_key}', 'Accept': 'text/event-stream'}
-        headers = original_request.headers | {'authorization': f'Bearer {self.config.api_key}'}
-
-        # # Add any provider-specific headers
-        # if self.config.name.lower() == 'anthropic':
-        #     headers['anthropic-version'] = '2023-06-01'
-
-        request_data = request.to_dict()
+        # Use headers from transformers (which may include auth)
+        final_headers = headers
 
         logger.debug(f'Streaming request to {self.config.url}')
 
-        async with self.http_client.stream('POST', self.config.url, json=request_data, headers=headers) as response:
+        async with self.http_client.stream('POST', self.config.url, json=request_data, headers=final_headers) as response:
             response.raise_for_status()
 
             async for chunk in response.aiter_bytes():
                 if chunk:
                     yield chunk
 
-    async def _send_request(self, request: ClaudeRequest, original_request: Request) -> Dict[str, Any]:
+    async def _send_request(self, request_data: Dict[str, Any], headers: Dict[str, Any]) -> Dict[str, Any]:
         """Make a non-streaming HTTP request to the provider."""
-        # headers = {'Content-Type': 'application/json', 'Authorization': f'Bearer {self.config.api_key}'}
-        headers = original_request.headers | {'authorization': f'Bearer {self.config.api_key}'}
-
-        # # Add any provider-specific headers
-        # if self.config.name.lower() == 'anthropic':
-        #     headers['anthropic-version'] = '2023-06-01'
-
-        request_data = request.to_dict()
+        # Use headers from transformers (which may include auth)
+        final_headers = headers
 
         logger.debug(f'Non-streaming request to {self.config.url}')
 
-        response = await self.http_client.post(self.config.url, json=request_data, headers=headers)
+        response = await self.http_client.post(self.config.url, json=request_data, headers=final_headers)
         response.raise_for_status()
 
         return response.json()
