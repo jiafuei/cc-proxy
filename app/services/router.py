@@ -1,13 +1,47 @@
 """Simple router system for the simplified architecture."""
 
+import os
 from typing import Optional
 
 from app.common.models import ClaudeRequest
 from app.config.log import get_logger
-from app.config.user_models import RoutingConfig
+from app.config.user_models import ProviderConfig, RoutingConfig
 from app.services.provider import Provider, ProviderManager
+from app.services.transformer_loader import TransformerLoader
 
 logger = get_logger(__name__)
+
+OPUS_MODEL_ID = 'claude-opus-4-1-20250805'
+SONNET_MODEL_ID = 'claude-sonnet-4-20250514'
+
+def _create_default_anthropic_config() -> ProviderConfig:
+    """Create a default Anthropic provider configuration from environment variables."""
+    base_url = os.getenv('CCPROXY_FALLBACK_URL', 'https://api.anthropic.com/v1/messages')
+    api_key = os.getenv('CCPROXY_FALLBACK_API_KEY', '')
+    
+    if not api_key:
+        logger.warning('CCPROXY_FALLBACK_API_KEY not set - default provider will not work without authentication')
+    
+    return ProviderConfig(
+        name='default-anthropic (fallback)',
+        url=base_url,
+        api_key=api_key,
+        models=[
+            OPUS_MODEL_ID,
+            SONNET_MODEL_ID,
+            'claude-3-5-haiku-20241022', 
+        ],
+        transformers={
+            'request': [
+                {
+                    'class': 'app.services.transformers.anthropic.AnthropicAuthTransformer',
+                    'params': {'api_key': api_key}
+                }
+            ] if api_key else [],
+            'response': []
+        },
+        timeout=300
+    )
 
 
 class RequestInspector:
@@ -85,52 +119,54 @@ class RequestInspector:
 class SimpleRouter:
     """Simple router that maps requests to providers based on routing configuration."""
 
-    def __init__(self, provider_manager: ProviderManager, routing_config: RoutingConfig):
+    def __init__(self, provider_manager: ProviderManager, routing_config: RoutingConfig, transformer_loader: TransformerLoader):
         self.provider_manager = provider_manager
         self.routing_config = routing_config
+        self.transformer_loader = transformer_loader
         self.inspector = RequestInspector()
+        self.default_provider: Provider = None  # Will be set by _load_default_provider
+        self._load_default_provider()
 
-    def get_provider_for_request(self, request: ClaudeRequest) -> Optional[Provider]:
+    def _load_default_provider(self):
+        """Load the default Anthropic provider as fallback."""
+        default_config = _create_default_anthropic_config()
+        self.default_provider = Provider(default_config, self.transformer_loader)
+        logger.info(f"Loaded default provider '{default_config.name}' with {len(default_config.models)} models")
+
+    def get_provider_for_request(self, request: ClaudeRequest) -> Provider:
         """Get the appropriate provider for a request.
 
         Args:
             request: Claude API request
 
         Returns:
-            Provider instance or None if no suitable provider found
+            Provider instance (never None)
         """
-        try:
-            # 1. Determine routing key based on request content
-            routing_key = self.inspector.determine_routing_key(request)
-            logger.debug(f'Determined routing key: {routing_key}')
+        # 1. Determine routing key based on request content
+        routing_key = self.inspector.determine_routing_key(request)
+        logger.debug(f'Determined routing key: {routing_key}')
 
-            # 2. Get model for routing key
-            model_id = self._get_model_for_key(routing_key)
-            if not model_id:
-                logger.warning(f"No model configured for routing key '{routing_key}'")
-                return None
+        # 2. Get model for routing key (guaranteed to return a value)
+        model_id = self._get_model_for_key(routing_key)
 
-            # 3. Get provider for model
-            provider = self.provider_manager.get_provider_for_model(model_id)
-            if not provider:
-                logger.warning(f"No provider found for model '{model_id}' - no default provider available")
-                return None
-
+        # 3. Try to get configured provider for model
+        provider = self.provider_manager.get_provider_for_model(model_id)
+        if provider:
             logger.info(f'Routed request: {routing_key} -> {model_id} -> {provider.config.name}')
             return provider
 
-        except Exception as e:
-            logger.error(f'Error in request routing: {e}', exc_info=True)
-            return None
+        # 4. Use default provider as fallback (guaranteed to exist)
+        logger.info(f'Routed request to fallback: {routing_key} -> {model_id} -> {self.default_provider.config.name}')
+        return self.default_provider
 
     def _get_model_for_key(self, routing_key: str) -> str:
         """Get model ID for a routing key."""
         if routing_key == 'planning':
-            return self.routing_config.planning
+            return self.routing_config.planning or SONNET_MODEL_ID
         elif routing_key == 'background':
-            return self.routing_config.background
+            return self.routing_config.background or SONNET_MODEL_ID
         else:
-            return self.routing_config.default
+            return self.routing_config.default or SONNET_MODEL_ID
 
     def get_provider_for_model(self, model_id: str) -> Optional[Provider]:
         """Get provider that supports a specific model.
@@ -156,3 +192,7 @@ class SimpleRouter:
             'available_models': self.list_available_models(),
             'providers': self.provider_manager.list_providers(),
         }
+
+    async def close(self):
+        """Clean up resources."""
+        await self.default_provider.close()

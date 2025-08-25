@@ -47,7 +47,7 @@ class ServiceContainer:
 
             # Initialize router
             routing_config = user_config.routing if user_config.routing else self._get_default_routing()
-            self.router = SimpleRouter(self.provider_manager, routing_config)
+            self.router = SimpleRouter(self.provider_manager, routing_config, self.transformer_loader)
 
             logger.info(f'Service container initialized: {len(self.provider_manager.list_providers())} providers, {len(self.provider_manager.list_models())} models')
 
@@ -56,7 +56,7 @@ class ServiceContainer:
             # Initialize with empty configs as fallback
             self.transformer_loader = TransformerLoader([])
             self.provider_manager = ProviderManager([], self.transformer_loader)
-            self.router = SimpleRouter(self.provider_manager, self._get_default_routing())
+            self.router = SimpleRouter(self.provider_manager, self._get_default_routing(), self.transformer_loader)
 
     def _get_default_routing(self) -> RoutingConfig:
         """Get default routing configuration."""
@@ -87,13 +87,19 @@ class ServiceContainer:
                     await self.provider_manager.close_all()
                 except Exception as e:
                     logger.warning(f'Error during provider cleanup: {e}', exc_info=True)
+                    
+            if self.router:
+                try:
+                    await self.router.close()
+                except Exception as e:
+                    logger.warning(f'Error during router cleanup: {e}', exc_info=True)
 
             # Reinitialize with new config
             self.transformer_loader = TransformerLoader(new_config.transformer_paths)
             self.provider_manager = ProviderManager(new_config.providers, self.transformer_loader)
 
             routing_config = new_config.routing if new_config.routing else self._get_default_routing()
-            self.router = SimpleRouter(self.provider_manager, routing_config)
+            self.router = SimpleRouter(self.provider_manager, routing_config, self.transformer_loader)
 
             logger.info(f'Service container reinitialized: {len(self.provider_manager.list_providers())} providers, {len(self.provider_manager.list_models())} models')
 
@@ -104,6 +110,8 @@ class ServiceContainer:
         """Clean up resources."""
         if self.provider_manager:
             await self.provider_manager.close_all()
+        if self.router:
+            await self.router.close()
 
 
 # Global service container instance
