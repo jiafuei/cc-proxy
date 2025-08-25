@@ -1,7 +1,6 @@
 """Integration tests for end-to-end flows, configuration management, and resource handling."""
 
 import asyncio
-import json
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
@@ -166,7 +165,7 @@ class TestConfigurationIntegration:
         container.provider_manager = mock_provider_manager
         
         # Test reinitialization
-        container.reinitialize_from_config(sample_config)
+        await container.reinitialize_from_config(sample_config)
         
         # Verify close_all was called (resource cleanup)
         mock_provider_manager.close_all.assert_called_once()

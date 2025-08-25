@@ -34,7 +34,7 @@ async def reload_configuration() -> Dict[str, Any]:
     try:
         # Get config manager and trigger reload
         config_manager = get_user_config_manager()
-        reload_result = config_manager.trigger_reload()
+        reload_result = await config_manager.trigger_reload()
 
         if not reload_result['success']:
             raise HTTPException(status_code=400, detail=reload_result)

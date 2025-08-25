@@ -1,7 +1,7 @@
 """Core interfaces for simplified configuration management."""
 
 from abc import ABC, abstractmethod
-from typing import Callable, Optional
+from typing import Awaitable, Callable, Optional, Union
 
 from app.config.user_models import UserConfig
 
@@ -20,11 +20,16 @@ class UserConfigManager(ABC):
         pass
 
     @abstractmethod
-    def reload_config(self) -> UserConfig:
+    async def reload_config(self) -> UserConfig:
         """Reload configuration from file."""
+        pass
+    
+    @abstractmethod
+    async def trigger_reload(self) -> dict:
+        """Manually trigger configuration reload via API."""
         pass
 
     @abstractmethod
-    def on_config_change(self, callback: Callable[[UserConfig], None]) -> None:
+    def on_config_change(self, callback: Union[Callable[[UserConfig], None], Callable[[UserConfig], Awaitable[None]]]) -> None:
         """Register a callback for configuration changes."""
         pass

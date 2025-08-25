@@ -1,7 +1,8 @@
 """Simple user configuration manager with manual reload support."""
 
+import asyncio
 from pathlib import Path
-from typing import Callable, Optional
+from typing import Awaitable, Callable, Optional, Union
 
 from app.common.utils import get_app_dir
 from app.config.log import get_logger
@@ -101,7 +102,7 @@ class SimpleUserConfigManager(UserConfigManager):
         """Get the currently loaded configuration."""
         return self._current_config
 
-    def reload_config(self) -> UserConfig:
+    async def reload_config(self) -> UserConfig:
         """Reload configuration from file."""
         logger.info('Manually reloading user configuration')
 
@@ -111,18 +112,18 @@ class SimpleUserConfigManager(UserConfigManager):
         # Only notify callback if config actually changed
         if self._config_changed(old_config, new_config):
             logger.info('Configuration changed, notifying callback')
-            self._notify_callback(new_config)
+            await self._notify_callback(new_config)
         else:
             logger.debug('Configuration unchanged after reload')
 
         return new_config
 
-    def on_config_change(self, callback: Callable[[UserConfig], None]) -> None:
+    def on_config_change(self, callback: Union[Callable[[UserConfig], None], Callable[[UserConfig], Awaitable[None]]]) -> None:
         """Register a callback for configuration changes."""
         self._callback = callback
         logger.debug(f'Registered config change callback: {callback.__name__ if hasattr(callback, "__name__") else "anonymous"}')
 
-    def trigger_reload(self) -> dict:
+    async def trigger_reload(self) -> dict:
         """Manually trigger configuration reload via API.
 
         Returns:
@@ -130,7 +131,7 @@ class SimpleUserConfigManager(UserConfigManager):
         """
         try:
             old_config = self.get_current_config()
-            new_config = self.reload_config()
+            new_config = await self.reload_config()
 
             return {
                 'success': True,
@@ -172,11 +173,14 @@ class SimpleUserConfigManager(UserConfigManager):
             'model_ids': [m.id for m in config.models],
         }
 
-    def _notify_callback(self, config: UserConfig) -> None:
+    async def _notify_callback(self, config: UserConfig) -> None:
         """Notify the registered callback of config change."""
         if self._callback:
             try:
-                self._callback(config)
+                if asyncio.iscoroutinefunction(self._callback):
+                    await self._callback(config)
+                else:
+                    self._callback(config)
             except Exception as e:
                 logger.error(f'Error in config change callback {self._callback}: {e}', exc_info=True)
 

@@ -1,6 +1,5 @@
 """Service container that brings together the new architecture components."""
 
-import asyncio
 from typing import Dict, Optional
 
 from app.common.dumper import Dumper
@@ -76,7 +75,7 @@ class ServiceContainer:
             'transformer_cache': self.transformer_loader.get_cache_info() if self.transformer_loader else {},
         }
 
-    def reinitialize_from_config(self, new_config: UserConfig):
+    async def reinitialize_from_config(self, new_config: UserConfig):
         """Reinitialize the service container with new configuration."""
         try:
             logger.info('Reinitializing service container with new config')
@@ -84,9 +83,8 @@ class ServiceContainer:
             # Clean up existing resources
             if self.provider_manager:
                 try:
-                    # Wait for async cleanup to complete synchronously
-                    asyncio.ensure_future()
-                    asyncio.run(self.provider_manager.close_all())
+                    # Wait for async cleanup to complete
+                    await self.provider_manager.close_all()
                 except Exception as e:
                     logger.warning(f'Error during provider cleanup: {e}', exc_info=True)
 
