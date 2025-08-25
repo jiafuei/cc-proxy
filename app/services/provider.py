@@ -18,11 +18,11 @@ logger = get_logger(__name__)
 
 def _create_default_anthropic_config() -> ProviderConfig:
     """Create a default Anthropic provider configuration from environment variables."""
-    base_url = os.getenv('ANTHROPIC_BASE_URL', 'https://api.anthropic.com/v1/messages')
-    api_key = os.getenv('ANTHROPIC_AUTH_TOKEN', '')
+    base_url = os.getenv('CCPROXY_FALLBACK_URL', 'https://api.anthropic.com/v1/messages')
+    api_key = os.getenv('CCPROXY_FALLBACK_API_KEY', '')
     
     if not api_key:
-        logger.warning('ANTHROPIC_AUTH_TOKEN not set - default provider will not work without authentication')
+        logger.warning('CCPROXY_FALLBACK_API_KEY not set - default provider will not work without authentication')
     
     return ProviderConfig(
         name='default-anthropic (fallback)',

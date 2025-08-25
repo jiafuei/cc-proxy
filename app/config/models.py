@@ -1,7 +1,8 @@
+import os
 from typing import List
 
 import yaml
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.common.utils import get_app_dir
 
@@ -20,6 +21,7 @@ class LoggingConfig(BaseModel):
 
 class ConfigModel(BaseModel):
     """Configuration model with validation."""
+    model_config = ConfigDict(extra='allow')
 
     version: str = Field(default='1', description='Config version')
     host: str = Field(default='127.0.0.1')
@@ -31,8 +33,8 @@ class ConfigModel(BaseModel):
     dump_dir: str | None = Field(default=None)
     cors_allow_origins: List[str] = Field(default_factory=list)
     redact_headers: List[str] | None = Field(default_factory=lambda: ['authorization', 'x-api-key', 'cookie', 'set-cookie'])
-    anthropic_api_url: str | None = Field(default='https://api.anthropic.com/v1/messages')
-    anthropic_api_key: str | None = Field(default=None)
+    fallback_api_url: str | None = Field(default='https://api.anthropic.com/v1/messages')
+    fallback_api_key: str | None = Field(default=None)
     logging: LoggingConfig = Field(default_factory=LoggingConfig, description='Logging configuration')
 
     @classmethod
@@ -76,6 +78,8 @@ class ConfigModel(BaseModel):
                 raise ValueError(f'Error reading config file {path}: {e}')
 
         # Use default values for missing keys
+        os.environ.setdefault('CCPROXY_FALLBACK_URL', data.get('fallback_api_url', 'https://api.anthropic.com/v1/messages'))
+        os.environ.setdefault('CCPROXY_FALLBACK_API_KEY', data.get('fallback_api_key', ''))
         return cls(**data)
 
     def save(self, config_path: str) -> None:

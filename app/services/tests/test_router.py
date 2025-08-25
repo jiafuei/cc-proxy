@@ -153,7 +153,7 @@ def test_provider_manager_default_provider_fallback():
     from unittest.mock import patch
     
     # Mock environment variables for the test
-    with patch.dict('os.environ', {'ANTHROPIC_AUTH_TOKEN': 'test-key', 'ANTHROPIC_BASE_URL': 'https://api.anthropic.com/v1/messages'}):
+    with patch.dict('os.environ', {'CCPROXY_FALLBACK_API_KEY': 'test-key', 'CCPROXY_FALLBACK_URL': 'https://api.anthropic.com/v1/messages'}):
         transformer_loader = TransformerLoader([])
         provider_manager = ProviderManager([], transformer_loader)  # No configured providers
         
