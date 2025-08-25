@@ -57,10 +57,11 @@ class Provider:
             current_request = request.to_dict()  # Use to_dict() method
             current_headers = dict(original_request.headers)  # Copy headers
             
+            logger.debug(f"Before transform, headers={current_headers}")
             for transformer in self.request_transformers:
                 current_request, current_headers = await transformer.transform(current_request, current_headers, self.config, original_request)
 
-            logger.debug(f'Request transformed, stream={current_request.get("stream", False)}')
+            logger.debug(f'Request transformed, stream={current_request.get("stream", False)}, headers={current_headers}')
 
             # 2. Check final stream flag after transformations
             should_stream = current_request.get('stream', False)
@@ -98,7 +99,7 @@ class Provider:
         # Use headers from transformers (which may include auth)
         final_headers = headers
 
-        logger.debug(f'Streaming request to {self.config.url}')
+        logger.debug(f'Streaming request to {self.config.url}', headers=final_headers)
 
         async with self.http_client.stream('POST', self.config.url, json=request_data, headers=final_headers) as response:
             response.raise_for_status()

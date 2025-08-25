@@ -3,6 +3,7 @@
 from typing import Any, Dict, Mapping, Tuple
 
 from fastapi import Request
+from urllib.parse import urlparse
 
 from app.config.user_models import ProviderConfig
 from app.services.transformers.interfaces import RequestTransformer, ResponseTransformer
@@ -24,10 +25,13 @@ class AnthropicAuthTransformer(RequestTransformer):
         """
         self.api_key = api_key
         self.base_url = base_url
+        self.host = urlparse(base_url).hostname
 
     async def transform(self, request: Dict[str, Any], headers: Mapping[str, Any], config: ProviderConfig, original_request: Request) -> Tuple[Dict[str, Any], Dict[str, str]]:
         """Pure passthrough - incoming format is already Anthropic format."""
-        return request, dict(headers)
+        headers = dict(headers | {'host': self.host, 'authorization': f'Bearer {self.api_key}'})
+        headers.pop('content-length', None)
+        return request, headers
 
 
 class AnthropicResponseTransformer(ResponseTransformer):
