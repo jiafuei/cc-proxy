@@ -1,5 +1,6 @@
 """Enhanced provider system for the simplified architecture."""
 
+import os
 from typing import Any, AsyncIterator, Dict, List, Optional
 
 import httpx
@@ -15,11 +16,42 @@ from app.services.transformers import RequestTransformer, ResponseTransformer
 logger = get_logger(__name__)
 
 
+def _create_default_anthropic_config() -> ProviderConfig:
+    """Create a default Anthropic provider configuration from environment variables."""
+    base_url = os.getenv('ANTHROPIC_BASE_URL', 'https://api.anthropic.com/v1/messages')
+    api_key = os.getenv('ANTHROPIC_AUTH_TOKEN', '')
+    
+    if not api_key:
+        logger.warning('ANTHROPIC_AUTH_TOKEN not set - default provider will not work without authentication')
+    
+    return ProviderConfig(
+        name='default-anthropic (fallback)',
+        url=base_url,
+        api_key=api_key,
+        models=[
+            'claude-opus-4-1-20250805',
+            'claude-sonnet-4-20250514',
+            'claude-3-5-haiku-20241022', 
+        ],
+        transformers={
+            'request': [
+                {
+                    'class': 'app.services.transformers.anthropic.AnthropicAuthTransformer',
+                    'params': {'api_key': api_key}
+                }
+            ] if api_key else [],
+            'response': []
+        },
+        timeout=300
+    )
+
+
 class Provider:
     """Handles requests to a specific API provider with transformer support."""
 
     def __init__(self, config: ProviderConfig, transformer_loader: TransformerLoader):
         self.config = config
+        self.name = config.name
         self.transformer_loader = transformer_loader
         self.http_client = httpx.AsyncClient(timeout=httpx.Timeout(self.config.timeout), http2=True)
 
@@ -183,7 +215,9 @@ class ProviderManager:
     def __init__(self, providers_config: List[ProviderConfig], transformer_loader: TransformerLoader):
         self.providers: Dict[str, Provider] = {}
         self.model_to_provider: Dict[str, str] = {}
+        self.default_provider: Optional[Provider] = None
         self._load_providers(providers_config, transformer_loader)
+        self._load_default_provider(transformer_loader)
 
     def _load_providers(self, providers_config: List[ProviderConfig], transformer_loader: TransformerLoader):
         """Load providers from configuration."""
@@ -201,12 +235,25 @@ class ProviderManager:
             except Exception as e:
                 logger.error(f"Failed to load provider '{provider_config.name}': {e}", exc_info=True)
 
+    def _load_default_provider(self, transformer_loader: TransformerLoader):
+        """Load the default Anthropic provider as fallback."""
+        try:
+            default_config = _create_default_anthropic_config()
+            self.default_provider = Provider(default_config, transformer_loader)
+            logger.info(f"Loaded default provider '{default_config.name}' with {len(default_config.models)} models")
+        except Exception as e:
+            logger.error(f"Failed to load default provider: {e}", exc_info=True)
+            self.default_provider = None
+
     def get_provider_for_model(self, model_id: str) -> Optional[Provider]:
         """Get the provider that supports the given model."""
         provider_name = self.model_to_provider.get(model_id)
         if provider_name:
             return self.providers.get(provider_name)
-        return None
+        # Return default provider as fallback
+        if self.default_provider:
+            logger.debug(f"No configured provider for model '{model_id}', using default provider")
+        return self.default_provider
 
     def get_provider_by_name(self, name: str) -> Optional[Provider]:
         """Get provider by name."""
@@ -214,7 +261,10 @@ class ProviderManager:
 
     def list_providers(self) -> List[str]:
         """List all provider names."""
-        return list(self.providers.keys())
+        providers = list(self.providers.keys())
+        if self.default_provider:
+            providers.append(self.default_provider.config.name)
+        return providers
 
     def list_models(self) -> List[str]:
         """List all supported models."""
@@ -224,3 +274,5 @@ class ProviderManager:
         """Close all providers."""
         for provider in self.providers.values():
             await provider.close()
+        if self.default_provider:
+            await self.default_provider.close()

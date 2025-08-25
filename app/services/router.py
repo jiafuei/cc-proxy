@@ -113,7 +113,7 @@ class SimpleRouter:
             # 3. Get provider for model
             provider = self.provider_manager.get_provider_for_model(model_id)
             if not provider:
-                logger.warning(f"No provider found for model '{model_id}'")
+                logger.warning(f"No provider found for model '{model_id}' - no default provider available")
                 return None
 
             logger.info(f'Routed request: {routing_key} -> {model_id} -> {provider.config.name}')

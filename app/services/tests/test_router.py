@@ -144,3 +144,24 @@ def test_simple_router_get_routing_info():
     assert info['background_model'] == 'claude-3-haiku'
     assert info['available_models'] == ['claude-3-sonnet']
     assert info['providers'] == ['anthropic']
+
+
+def test_provider_manager_default_provider_fallback():
+    """Test that ProviderManager returns default provider when no match found."""
+    from app.services.provider import ProviderManager
+    from app.services.transformer_loader import TransformerLoader
+    from unittest.mock import patch
+    
+    # Mock environment variables for the test
+    with patch.dict('os.environ', {'ANTHROPIC_AUTH_TOKEN': 'test-key', 'ANTHROPIC_BASE_URL': 'https://api.anthropic.com/v1/messages'}):
+        transformer_loader = TransformerLoader([])
+        provider_manager = ProviderManager([], transformer_loader)  # No configured providers
+        
+        # Should return default provider for any model
+        provider = provider_manager.get_provider_for_model('claude-3-unknown-model')
+        assert provider is not None
+        assert provider.config.name.startswith('default-anthropic')
+        
+        # Should include default provider in list
+        providers = provider_manager.list_providers()
+        assert any('default-anthropic' in p for p in providers)
