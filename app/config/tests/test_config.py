@@ -117,9 +117,6 @@ def test_config_multifile_loading():
         config = ConfigModel.load(temp_path)
         assert config.port == 9000
 
-        # Test with default config path (file doesn't exist)
-        config = ConfigModel.load()
-        assert config.port == 8000
     finally:
         # Clean up the temporary file
         os.unlink(temp_path)

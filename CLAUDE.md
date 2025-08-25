@@ -30,3 +30,4 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - Each method and component should be easily mockable and unit testable
 - Design and write tests first before implementation, each test must be focused
 - `app.config.log.get_logger` is direct, compatible replacement of `logging.getLogger`. use it to get logger instead
+- add '[ai]' to message when doing git commit. eg: 'feat: [ai] some feature'
