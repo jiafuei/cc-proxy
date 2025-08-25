@@ -99,7 +99,7 @@ class Provider:
         # Use headers from transformers (which may include auth)
         final_headers = headers
 
-        logger.debug(f'Streaming request to {self.config.url}', headers=final_headers)
+        logger.debug(f'Streaming request to {self.config.url}')
 
         async with self.http_client.stream('POST', self.config.url, json=request_data, headers=final_headers) as response:
             response.raise_for_status()

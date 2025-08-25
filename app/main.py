@@ -1,3 +1,4 @@
+import logging
 import traceback
 from pprint import pprint
 
@@ -18,6 +19,9 @@ from app.routers.health import router as health_router
 from app.routers.messages import router as messages_router
 
 app = FastAPI(title='cc-proxy', version='0.1.0')
+for k in logging.root.manager.loggerDict.keys():
+    if any( k.startswith(v) for v in {'fastapi', 'uvicorn', 'httpx', 'httpcore', 'hpack'}):
+        logging.getLogger(k).setLevel('INFO')
 
 
 app.include_router(config_router)
