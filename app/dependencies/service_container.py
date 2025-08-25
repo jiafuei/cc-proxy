@@ -1,5 +1,6 @@
 """Service container that brings together the new architecture components."""
 
+import asyncio
 from typing import Dict, Optional
 
 from app.common.dumper import Dumper
@@ -82,10 +83,12 @@ class ServiceContainer:
 
             # Clean up existing resources
             if self.provider_manager:
-                # Note: This is sync method, but provider_manager.close_all() is async
-                # For now, we'll recreate without explicit cleanup
-                # TODO: Consider making this method async if needed
-                pass
+                try:
+                    # Wait for async cleanup to complete synchronously
+                    asyncio.ensure_future()
+                    asyncio.run(self.provider_manager.close_all())
+                except Exception as e:
+                    logger.warning(f'Error during provider cleanup: {e}', exc_info=True)
 
             # Reinitialize with new config
             self.transformer_loader = TransformerLoader(new_config.transformer_paths)

@@ -13,6 +13,13 @@ logger = get_logger(__name__)
 class RequestInspector:
     """Analyzes requests to determine routing key."""
 
+    def __init__(self):
+        """Initialize with routing keyword configuration."""
+        self.routing_keywords = {
+            'planning': ['plan', 'strategy', 'approach', 'steps', 'methodology', 'design', 'architecture', 'roadmap', 'timeline'],
+            'background': ['analyze', 'review', 'summarize', 'extract', 'process', 'batch', 'bulk', 'generate report', 'data analysis']
+        }
+
     def determine_routing_key(self, request: ClaudeRequest) -> str:
         """Determine routing key based on request content.
 
@@ -22,69 +29,57 @@ class RequestInspector:
         Returns:
             Routing key ('default', 'planning', 'background')
         """
-        # Simple routing logic based on request content
-        # Users can extend this by creating custom inspectors
-
-        # Check if request contains planning-related keywords
-        if self._is_planning_request(request):
-            return 'planning'
-
-        # Check if request is suitable for background processing
-        if self._is_background_request(request):
-            return 'background'
-
+        # Extract all text content from the request
+        request_text = self._extract_request_text(request)
+        
+        # Check for routing keywords in priority order
+        for routing_type, keywords in self.routing_keywords.items():
+            if self._contains_keywords(request_text, keywords):
+                return routing_type
+        
         # Default routing
         return 'default'
 
-    def _is_planning_request(self, request: ClaudeRequest) -> bool:
-        """Check if request appears to be planning-related."""
-        planning_keywords = ['plan', 'strategy', 'approach', 'steps', 'methodology', 'design', 'architecture', 'roadmap', 'timeline']
+    def _extract_request_text(self, request: ClaudeRequest) -> str:
+        """Extract all text content from request for analysis.
+        
+        Args:
+            request: Claude API request
+            
+        Returns:
+            Concatenated lowercase text from all messages
+        """
+        texts = []
 
-        # Check system messages
+        # Extract system message text
         if request.system:
             for msg in request.system:
-                if any(keyword in msg.text.lower() for keyword in planning_keywords):
-                    return True
+                texts.append(msg.text.lower())
 
-        # Check user messages
+        # Extract user message text
         for message in request.messages:
             if message.role == 'user':
                 content = message.content
                 if isinstance(content, str):
-                    if any(keyword in content.lower() for keyword in planning_keywords):
-                        return True
+                    texts.append(content.lower())
                 elif isinstance(content, list):
                     for block in content:
                         if hasattr(block, 'text') and block.text:
-                            if any(keyword in block.text.lower() for keyword in planning_keywords):
-                                return True
+                            texts.append(block.text.lower())
 
-        return False
-
-    def _is_background_request(self, request: ClaudeRequest) -> bool:
-        """Check if request is suitable for background processing."""
-        background_keywords = ['analyze', 'review', 'summarize', 'extract', 'process', 'batch', 'bulk', 'generate report', 'data analysis']
-
-        # Check system messages
-        if request.system:
-            for msg in request.system:
-                if any(keyword in msg.text.lower() for keyword in background_keywords):
-                    return True
-
-        # Check user messages
-        for message in request.messages:
-            if message.role == 'user':
-                content = message.content
-                if isinstance(content, str):
-                    if any(keyword in content.lower() for keyword in background_keywords):
-                        return True
-                elif isinstance(content, list):
-                    for block in content:
-                        if hasattr(block, 'text') and block.text:
-                            if any(keyword in block.text.lower() for keyword in background_keywords):
-                                return True
-
-        return False
+        return ' '.join(texts)
+    
+    def _contains_keywords(self, text: str, keywords: list[str]) -> bool:
+        """Check if text contains any of the specified keywords.
+        
+        Args:
+            text: Text to search in (should be lowercase)
+            keywords: List of keywords to search for
+            
+        Returns:
+            True if any keyword is found
+        """
+        return any(keyword in text for keyword in keywords)
 
 
 class SimpleRouter:
