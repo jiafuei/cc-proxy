@@ -2,14 +2,23 @@
 
 from typing import Any, Dict
 
+import yaml
 from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel
 
 from app.config.log import get_logger
+from app.config.user_models import UserConfig
 from app.dependencies.service_container import get_service_container
 from app.services.config.simple_user_config_manager import get_user_config_manager
 
 router = APIRouter(prefix='/api', tags=['Configuration'])
 logger = get_logger(__name__)
+
+
+class ConfigValidationRequest(BaseModel):
+    """Request model for config validation endpoint."""
+
+    yaml_content: str
 
 
 @router.post('/reload')
@@ -139,3 +148,106 @@ async def validate_configuration() -> Dict[str, Any]:
     except Exception as e:
         logger.error(f'Error validating configuration via API: {e}', exc_info=True)
         raise HTTPException(status_code=500, detail=f'Internal error: {str(e)}')
+
+
+@router.post('/config/validate-yaml')
+async def validate_yaml_content(request: ConfigValidationRequest) -> Dict[str, Any]:
+    """Validate YAML configuration content without loading it into the system.
+
+    This endpoint allows users to test their configuration YAML before applying it.
+
+    Args:
+        request: Request containing yaml_content to validate
+
+    Returns:
+        Dictionary with validation results and detailed error information
+    """
+    try:
+        errors = []
+        warnings = []
+
+        # 1. Parse YAML syntax
+        try:
+            yaml_data = yaml.safe_load(request.yaml_content)
+            if yaml_data is None:
+                yaml_data = {}
+        except yaml.YAMLError as e:
+            return {'valid': False, 'errors': [f'Invalid YAML syntax: {str(e)}'], 'warnings': [], 'stage': 'yaml_parsing'}
+
+        # 2. Validate against UserConfig model
+        try:
+            config = UserConfig(**yaml_data)
+            logger.debug('YAML content successfully parsed into UserConfig model')
+        except Exception as e:
+            return {
+                'valid': False,
+                'errors': [f'Schema validation failed: {str(e)}'],
+                'warnings': warnings,
+                'stage': 'schema_validation',
+                'yaml_structure': _get_yaml_structure_info(yaml_data),
+            }
+
+        # 3. Validate references between components
+        try:
+            config.validate_references()
+            logger.debug('Reference validation passed')
+        except ValueError as e:
+            errors.append(f'Reference validation failed: {str(e)}')
+
+        # 4. Additional validation checks
+        if not config.providers:
+            warnings.append('No providers configured - system will not be able to process requests')
+
+        if not config.models:
+            warnings.append('No models configured - routing will not work')
+
+        if config.routing is None:
+            warnings.append('No routing configuration - will use default routing')
+
+        # Check for potential transformer loading issues
+        for provider in config.providers:
+            request_transformers = provider.transformers.get('request', [])
+            response_transformers = provider.transformers.get('response', [])
+
+            for transformer_list, transformer_type in [(request_transformers, 'request'), (response_transformers, 'response')]:
+                for transformer_config in transformer_list:
+                    class_path = transformer_config.get('class', '')
+                    if not class_path:
+                        errors.append(f"Provider '{provider.name}' {transformer_type} transformer missing 'class' field")
+                    elif not isinstance(transformer_config.get('params', {}), dict):
+                        errors.append(f"Provider '{provider.name}' {transformer_type} transformer 'params' must be a dictionary")
+
+        # Generate summary
+        config_summary = {
+            'providers': len(config.providers),
+            'models': len(config.models),
+            'routing_configured': config.routing is not None,
+            'transformer_paths': len(config.transformer_paths),
+            'total_request_transformers': sum(len(p.transformers.get('request', [])) for p in config.providers),
+            'total_response_transformers': sum(len(p.transformers.get('response', [])) for p in config.providers),
+        }
+
+        return {
+            'valid': len(errors) == 0,
+            'errors': errors,
+            'warnings': warnings,
+            'config_summary': config_summary,
+            'stage': 'complete',
+            'message': 'Configuration is valid and ready to use' if len(errors) == 0 else f'Configuration has {len(errors)} error(s)',
+        }
+
+    except Exception as e:
+        logger.error(f'Unexpected error validating YAML content: {e}', exc_info=True)
+        raise HTTPException(status_code=500, detail=f'Internal validation error: {str(e)}')
+
+
+def _get_yaml_structure_info(yaml_data: Dict) -> Dict[str, Any]:
+    """Get information about the YAML structure for debugging."""
+    return {
+        'root_keys': list(yaml_data.keys()) if isinstance(yaml_data, dict) else ['not_a_dict'],
+        'has_providers': 'providers' in yaml_data if isinstance(yaml_data, dict) else False,
+        'has_models': 'models' in yaml_data if isinstance(yaml_data, dict) else False,
+        'has_routing': 'routing' in yaml_data if isinstance(yaml_data, dict) else False,
+        'has_transformer_paths': 'transformer_paths' in yaml_data if isinstance(yaml_data, dict) else False,
+        'provider_count': len(yaml_data.get('providers', [])) if isinstance(yaml_data, dict) else 0,
+    }

@@ -5,7 +5,7 @@ from typing import Dict, Optional
 from app.common.dumper import Dumper
 from app.config import get_config
 from app.config.log import get_logger
-from app.config.user_models import RoutingConfig
+from app.config.user_models import RoutingConfig, UserConfig
 from app.services.config.simple_user_config_manager import get_user_config_manager
 from app.services.provider import ProviderManager
 from app.services.router import SimpleRouter
@@ -35,6 +35,9 @@ class ServiceContainer:
             # Load user config
             config_manager = get_user_config_manager()
             user_config = config_manager.load_config()
+
+            # Register callback for config changes
+            config_manager.on_config_change(self.reinitialize_from_config)
 
             # Initialize transformer loader
             self.transformer_loader = TransformerLoader(user_config.transformer_paths)
@@ -71,6 +74,30 @@ class ServiceContainer:
             'routing': self.router.get_routing_info(),
             'transformer_cache': self.transformer_loader.get_cache_info() if self.transformer_loader else {},
         }
+
+    def reinitialize_from_config(self, new_config: UserConfig):
+        """Reinitialize the service container with new configuration."""
+        try:
+            logger.info('Reinitializing service container with new config')
+
+            # Clean up existing resources
+            if self.provider_manager:
+                # Note: This is sync method, but provider_manager.close_all() is async
+                # For now, we'll recreate without explicit cleanup
+                # TODO: Consider making this method async if needed
+                pass
+
+            # Reinitialize with new config
+            self.transformer_loader = TransformerLoader(new_config.transformer_paths)
+            self.provider_manager = ProviderManager(new_config.providers, self.transformer_loader)
+
+            routing_config = new_config.routing if new_config.routing else self._get_default_routing()
+            self.router = SimpleRouter(self.provider_manager, routing_config)
+
+            logger.info(f'Service container reinitialized: {len(self.provider_manager.list_providers())} providers, {len(self.provider_manager.list_models())} models')
+
+        except Exception as e:
+            logger.error(f'Failed to reinitialize service container: {e}', exc_info=True)
 
     async def close(self):
         """Clean up resources."""

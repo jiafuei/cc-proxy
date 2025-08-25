@@ -31,27 +31,71 @@ class SimpleUserConfigManager(UserConfigManager):
         """Load the current user configuration."""
         try:
             config = UserConfig.load(self._config_path)
+            logger.info('Successfully loaded user configuration from file')
 
-            # Validate configuration references
-            config.validate_references()
-
-            self._current_config = config
-            logger.info('Successfully loaded user configuration')
-            logger.debug(f'Config: {len(config.transformer_paths)} transformer paths, {len(config.providers)} providers, {len(config.models)} models')
-
-            return config
-
-        except Exception as e:
-            logger.error(f'Failed to load user configuration: {e}')
-            # If we have a previous config, keep using it
-            if self._current_config is not None:
-                logger.info('Keeping previous configuration due to load error')
-                return self._current_config
-            # Otherwise return empty config
-            logger.info('Using empty configuration due to load error')
+        except FileNotFoundError:
+            # Config file doesn't exist - this is expected for fresh installs
+            logger.info(f'No user config file found at {self._config_path}, using empty configuration')
             empty_config = UserConfig()
             self._current_config = empty_config
             return empty_config
+
+        except PermissionError as e:
+            # File permission issues - fallback but log error
+            logger.error(f'Permission denied reading config file {self._config_path}: {e}')
+            if self._current_config is not None:
+                logger.info('Keeping previous configuration due to permission error')
+                return self._current_config
+            logger.warning('Using empty configuration due to permission error')
+            empty_config = UserConfig()
+            self._current_config = empty_config
+            return empty_config
+
+        except ValueError as e:
+            # This covers YAML parsing errors and pydantic validation errors from UserConfig.load()
+            if 'Invalid YAML' in str(e):
+                logger.error(f'YAML syntax error in config file: {e}')
+            else:
+                logger.error(f'Configuration validation error: {e}')
+
+            # For syntax/validation errors, we should not silently fall back
+            # These are user configuration mistakes that need to be fixed
+            if self._current_config is not None:
+                logger.warning('Keeping previous configuration due to validation error - please fix your config file')
+                return self._current_config
+
+            # If no previous config and validation fails, this is a critical error
+            # The user needs to know their config is broken
+            logger.error('No valid configuration available - system will run with empty config but may not function correctly')
+            logger.error('Please check your config file syntax and structure using the /api/config/validate-yaml endpoint')
+            empty_config = UserConfig()
+            self._current_config = empty_config
+            return empty_config
+
+        # Validate configuration references
+        try:
+            config.validate_references()
+
+        except ValueError as e:
+            # Reference validation errors are serious - these indicate logical errors in config
+            logger.error(f'Configuration reference validation failed: {e}')
+            if self._current_config is not None:
+                logger.warning('Keeping previous configuration due to reference validation error')
+                return self._current_config
+
+            # If no previous config, log detailed error but continue with loaded config
+            # The config structure is valid but references are wrong
+            logger.error('Configuration loaded but has invalid references - some functionality may not work')
+            logger.error('Please use the /api/config/validate endpoint to check your configuration')
+            # Still save the config so user can see what was loaded
+            self._current_config = config
+            return config
+
+        # Configuration loaded and validated successfully
+        self._current_config = config
+        logger.info('Successfully loaded and validated user configuration')
+        logger.debug(f'Config: {len(config.transformer_paths)} transformer paths, {len(config.providers)} providers, {len(config.models)} models')
+        return config
 
     def get_current_config(self) -> Optional[UserConfig]:
         """Get the currently loaded configuration."""

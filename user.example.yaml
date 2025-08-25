@@ -1,25 +1,27 @@
-transformers:
-  - name: 'custom-transformer-1'
-    path: '/path/to/transformer-1.py'
-    args: 
-      - key: 'default-key-1'
-        value: 'default-value-1'
-  - name: 'custom-transformer-2'
-    path: '/path/to/transformer-2.py'
-    args: []
+# Directory paths to search for external transformer modules
+transformer_paths:
+  - '/path/to/custom/transformers'
+  - '/another/transformer/directory'
 
 providers:
   - name: 'example-provider'
     api_key: 'api-key-here'
     url: 'https://example.com/v1'
-    request_pipeline: 
-      - name: 'custom-transformer-1'
-        args:
-          - key: 'key-1'
-            value: 'value-1'
-      - name: 'builtin-transformer'
-    response_pipeline:
-      - name: 'custom-transformer-2'
+    models: ['gpt-5-nano', 'opus-4-1', 'sonnet-4']  # Models supported by this provider
+    timeout: 300  # Request timeout in seconds
+    transformers:
+      request:
+        - class: 'my_transformers.CustomAuthTransformer'
+          params:
+            api_key: 'custom-key'
+            special_header: 'value-1'
+        - class: 'app.services.transformer_interfaces.AnthropicAuthTransformer'
+          params:
+            api_key: 'builtin-key'
+      response:
+        - class: 'my_transformers.CustomResponseTransformer'
+          params:
+            format_style: 'enhanced'
 
 models:
   - id: 'gpt-5-nano'

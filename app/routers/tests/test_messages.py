@@ -22,7 +22,7 @@ def test_messages_endpoint():
             self.config = Mock()
             self.config.name = name
 
-        async def process_request(self, request):
+        async def process_request(self, payload, request):
             """Mock provider that returns SSE-formatted chunks."""
             yield b'event: message_start\ndata: {"type": "message_start"}\n\n'
             yield b'event: content_block_delta\ndata: {"type": "content_block_delta", "delta": {"text": "Hello"}}\n\n'
@@ -114,7 +114,7 @@ def test_messages_endpoint_with_dumping(tmp_path):
             self.config = Mock()
             self.config.name = 'test-provider'
 
-        async def process_request(self, request):
+        async def process_request(self, payload, request):
             yield b'event: message_start\ndata: {"type": "message_start"}\n\n'
             yield b'event: content_block_delta\ndata: {"type": "content_block_delta", "delta": {"text": "Test response"}}\n\n'
             yield b'event: message_stop\ndata: {"type": "message_stop"}\n\n'

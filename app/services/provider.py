@@ -2,9 +2,9 @@
 
 from typing import Any, AsyncIterator, Dict, List, Optional
 
-from fastapi import Request
 import httpx
 import orjson
+from fastapi import Request
 
 from app.common.models import ClaudeRequest
 from app.config.log import get_logger

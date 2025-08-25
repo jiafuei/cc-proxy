@@ -70,14 +70,12 @@ Architecture
   - container.py
 
 Config schema outline
-- providers: [{name, url, api_key, models[], request_pipeline?, response_pipeline?}]
-- model_routing:
-  - stages:
-    - default: {provider, model}
-    - thinking: {provider, model}
-    - planning: {provider, model}
-    - background: {provider, model}
-- pipelines: [{name, transformers: [string]}]  # ordered refs by id or name
-- transformers:
-  - builtins: referenced by well-known ids (not defined/edited in config)
-  - user: [{name, path, kind: request|response, config?}]
+- **transformer_paths**: [string]  # Directory paths to search for external transformer modules
+- **providers**: [{name, url, api_key, models[], timeout?, transformers: {request: [], response: []}}]
+- **models**: [{id, provider}]  # Model definitions linking to providers
+- **routing**: {default, planning?, background?}  # Model routing for different request types
+
+Transformer configuration:
+- **Built-in transformers**: Reference by full class path (e.g., `app.services.transformer_interfaces.AnthropicAuthTransformer`)
+- **External transformers**: Reference by module.ClassName, requires transformer_paths to locate modules
+- **Format**: {class: "module.ClassName", params: {key: value}}
