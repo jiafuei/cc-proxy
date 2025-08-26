@@ -3,8 +3,6 @@
 from typing import Any, Dict, Tuple
 from urllib.parse import urlparse
 
-from httpx import Headers
-
 from app.services.transformers.interfaces import RequestTransformer, ResponseTransformer
 
 

@@ -99,7 +99,7 @@ class AnthropicTool(BaseModel):
 
     name: str
     description: str
-    input_schema: dict[str, Any] = Field(description="JSON schema object defining expected parameters for the tool")
+    input_schema: dict[str, Any] = Field(description='JSON schema object defining expected parameters for the tool')
 
 
 class AnthropicThinkingConfig(BaseModel):

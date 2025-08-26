@@ -58,7 +58,7 @@ def test_simple_router_success():
     mock_provider_manager.get_provider_for_model.return_value = mock_provider
 
     routing_config = RoutingConfig(default='claude-3-sonnet', planning='claude-3-opus', background='claude-3-haiku')
-    
+
     # Mock transformer loader
     mock_transformer_loader = Mock()
 
@@ -79,7 +79,7 @@ def test_simple_router_no_provider():
     mock_provider_manager.get_provider_for_model.return_value = None
 
     routing_config = RoutingConfig(default='claude-3-sonnet', planning='claude-3-opus', background='claude-3-haiku')
-    
+
     # Mock transformer loader and create environment for default provider
     mock_transformer_loader = Mock()
 
@@ -87,7 +87,7 @@ def test_simple_router_no_provider():
         with patch('app.services.router.Provider') as mock_provider_class:
             mock_default_provider = Mock()
             mock_provider_class.return_value = mock_default_provider
-            
+
             router = SimpleRouter(mock_provider_manager, routing_config, mock_transformer_loader)
 
             request = AnthropicRequest(model='claude-3-sonnet', messages=[{'role': 'user', 'content': 'Hello'}])
@@ -105,7 +105,7 @@ def test_simple_router_planning_request():
     mock_provider_manager.get_provider_for_model.return_value = mock_provider
 
     routing_config = RoutingConfig(default='claude-3-sonnet', planning='claude-3-opus', background='claude-3-haiku')
-    
+
     # Mock transformer loader
     mock_transformer_loader = Mock()
 
@@ -125,7 +125,7 @@ def test_simple_router_get_provider_for_model():
     mock_provider_manager = Mock()
     mock_provider = Mock()
     mock_provider_manager.get_provider_for_model.return_value = mock_provider
-    
+
     # Mock transformer loader
     mock_transformer_loader = Mock()
 
@@ -140,7 +140,7 @@ def test_simple_router_list_available_models():
     """Test simple router can list available models."""
     mock_provider_manager = Mock()
     mock_provider_manager.list_models.return_value = ['claude-3-sonnet', 'claude-3-opus']
-    
+
     # Mock transformer loader
     mock_transformer_loader = Mock()
 
@@ -158,7 +158,7 @@ def test_simple_router_get_routing_info():
     mock_provider_manager.list_providers.return_value = ['anthropic']
 
     routing_config = RoutingConfig(default='claude-3-sonnet', planning='claude-3-opus', background='claude-3-haiku')
-    
+
     # Mock transformer loader
     mock_transformer_loader = Mock()
 
@@ -177,21 +177,21 @@ def test_simple_router_default_provider_fallback():
     # Mock provider manager that has no configured providers
     mock_provider_manager = Mock()
     mock_provider_manager.get_provider_for_model.return_value = None  # No configured provider
-    
+
     # Mock environment variables for the test
     with patch.dict('os.environ', {'CCPROXY_FALLBACK_API_KEY': 'test-key', 'CCPROXY_FALLBACK_URL': 'https://api.anthropic.com/v1/messages'}):
         with patch('app.services.router.Provider') as mock_provider_class:
             mock_default_provider = Mock()
             mock_default_provider.config.name = 'default-anthropic (fallback)'
             mock_provider_class.return_value = mock_default_provider
-            
+
             transformer_loader = TransformerLoader([])
             routing_config = RoutingConfig(default='claude-3-unknown-model', planning='', background='')
             router = SimpleRouter(mock_provider_manager, routing_config, transformer_loader)
-            
+
             # Create a request
             request = AnthropicRequest(model='test', messages=[{'role': 'user', 'content': 'Hello'}])
-            
+
             # Should always return default provider since no configured provider found
             provider = router.get_provider_for_request(request)
             assert provider == mock_default_provider
@@ -202,25 +202,25 @@ def test_simple_router_empty_routing_config():
     """Test that SimpleRouter works with completely empty routing config."""
     mock_provider_manager = Mock()
     mock_provider_manager.get_provider_for_model.return_value = None  # No configured provider
-    
+
     # Mock transformer loader and create environment for default provider
     mock_transformer_loader = Mock()
-    
+
     with patch.dict('os.environ', {'CCPROXY_FALLBACK_API_KEY': 'test-key'}):
         with patch('app.services.router.Provider') as mock_provider_class:
             mock_default_provider = Mock()
             mock_provider_class.return_value = mock_default_provider
-            
+
             # Empty routing config (all empty strings)
             routing_config = RoutingConfig(default='', planning='', background='')
             router = SimpleRouter(mock_provider_manager, routing_config, mock_transformer_loader)
-            
+
             request = AnthropicRequest(model='test', messages=[{'role': 'user', 'content': 'Hello'}])
-            
+
             # Should use fallback model and return default provider
             provider = router.get_provider_for_request(request)
             assert provider == mock_default_provider
             assert provider is not None
-            
+
             # Should have tried to get provider for fallback model 'claude-sonnet-4-20250514'
             mock_provider_manager.get_provider_for_model.assert_called_once_with('claude-sonnet-4-20250514')

@@ -23,7 +23,7 @@ class UserConfigManager(ABC):
     async def reload_config(self) -> UserConfig:
         """Reload configuration from file."""
         pass
-    
+
     @abstractmethod
     async def trigger_reload(self) -> dict:
         """Manually trigger configuration reload via API."""

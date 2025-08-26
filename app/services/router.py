@@ -14,14 +14,15 @@ logger = get_logger(__name__)
 OPUS_MODEL_ID = 'claude-opus-4-1-20250805'
 SONNET_MODEL_ID = 'claude-sonnet-4-20250514'
 
+
 def _create_default_anthropic_config() -> ProviderConfig:
     """Create a default Anthropic provider configuration from environment variables."""
     base_url = os.getenv('CCPROXY_FALLBACK_URL', 'https://api.anthropic.com/v1/messages')
     api_key = os.getenv('CCPROXY_FALLBACK_API_KEY', '')
-    
+
     if not api_key:
         logger.warning('CCPROXY_FALLBACK_API_KEY not set - default provider will not work without authentication')
-    
+
     return ProviderConfig(
         name='default-anthropic (fallback)',
         url=base_url,
@@ -29,18 +30,13 @@ def _create_default_anthropic_config() -> ProviderConfig:
         models=[
             OPUS_MODEL_ID,
             SONNET_MODEL_ID,
-            'claude-3-5-haiku-20241022', 
+            'claude-3-5-haiku-20241022',
         ],
         transformers={
-            'request': [
-                {
-                    'class': 'app.services.transformers.anthropic.AnthropicAuthTransformer',
-                    'params': {'api_key': api_key, 'base_url': base_url}
-                }
-            ] if api_key else [],
-            'response': []
+            'request': [{'class': 'app.services.transformers.anthropic.AnthropicAuthTransformer', 'params': {'api_key': api_key, 'base_url': base_url}}] if api_key else [],
+            'response': [],
         },
-        timeout=300
+        timeout=300,
     )
 
 
@@ -51,7 +47,7 @@ class RequestInspector:
         """Initialize with routing keyword configuration."""
         self.routing_keywords = {
             'planning': ['plan', 'strategy', 'approach', 'steps', 'methodology', 'design', 'architecture', 'roadmap', 'timeline'],
-            'background': ['analyze', 'review', 'summarize', 'extract', 'process', 'batch', 'bulk', 'generate report', 'data analysis']
+            'background': ['analyze', 'review', 'summarize', 'extract', 'process', 'batch', 'bulk', 'generate report', 'data analysis'],
         }
 
     def determine_routing_key(self, request: AnthropicRequest) -> str:
@@ -65,21 +61,21 @@ class RequestInspector:
         """
         # Extract all text content from the request
         request_text = self._extract_request_text(request)
-        
+
         # Check for routing keywords in priority order
         for routing_type, keywords in self.routing_keywords.items():
             if self._contains_keywords(request_text, keywords):
                 return routing_type
-        
+
         # Default routing
         return 'default'
 
     def _extract_request_text(self, request: AnthropicRequest) -> str:
         """Extract all text content from request for analysis.
-        
+
         Args:
             request: Anthropic API request
-            
+
         Returns:
             Concatenated lowercase text from all messages
         """
@@ -102,14 +98,14 @@ class RequestInspector:
                             texts.append(block.text.lower())
 
         return ' '.join(texts)
-    
+
     def _contains_keywords(self, text: str, keywords: list[str]) -> bool:
         """Check if text contains any of the specified keywords.
-        
+
         Args:
             text: Text to search in (should be lowercase)
             keywords: List of keywords to search for
-            
+
         Returns:
             True if any keyword is found
         """

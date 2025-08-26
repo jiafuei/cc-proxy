@@ -87,7 +87,7 @@ class ServiceContainer:
                     await self.provider_manager.close_all()
                 except Exception as e:
                     logger.warning(f'Error during provider cleanup: {e}', exc_info=True)
-                    
+
             if self.router:
                 try:
                     await self.router.close()

@@ -21,6 +21,7 @@ class LoggingConfig(BaseModel):
 
 class ConfigModel(BaseModel):
     """Configuration model with validation."""
+
     model_config = ConfigDict(extra='allow')
 
     version: str = Field(default='1', description='Config version')

@@ -21,7 +21,7 @@ from app.routers.messages import router as messages_router
 
 app = FastAPI(title='cc-proxy', version='0.1.0')
 for k in logging.root.manager.loggerDict.keys():
-    if any( k.startswith(v) for v in {'fastapi', 'uvicorn', 'httpx', 'httpcore', 'hpack'}):
+    if any(k.startswith(v) for v in {'fastapi', 'uvicorn', 'httpx', 'httpcore', 'hpack'}):
         logging.getLogger(k).setLevel('INFO')
 
 
@@ -58,18 +58,21 @@ app.add_middleware(ContextMiddleware)
 logger = get_logger(__name__)
 dumper = Dumper(config)
 
+
 @app.exception_handler(HTTPException)
 async def http_exception_handler(request: Request, exc: HTTPException):
-    return ORJSONResponse(status_code=exc.status_code, content={'type': 'error', 'error': {'type': 'invalid_request_error', 'message': 'http exception: '+traceback.format_exception(exc)}})
+    return ORJSONResponse(
+        status_code=exc.status_code, content={'type': 'error', 'error': {'type': 'invalid_request_error', 'message': 'http exception: ' + traceback.format_exception(exc)}}
+    )
 
 
 @app.exception_handler(RequestValidationError)
 async def request_validation_error_handler(request: Request, exc: RequestValidationError):
     req_body = await request.json()
     handles = dumper.begin(request=request, payload=req_body)
-    logger.debug("validation error", body=req_body)
+    logger.debug('validation error', body=req_body)
     try:
-        error_msg = f"request validation error: {str(exc.errors())}" 
+        error_msg = f'request validation error: {str(exc.errors())}'
         dumper.write_chunk(handles, error_msg)
         return ORJSONResponse(status_code=400, content={'type': 'error', 'error': {'type': 'invalid_request_error', 'message': error_msg}})
     finally:
