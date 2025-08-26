@@ -1,7 +1,8 @@
 """Tests for OpenAIRequestTransformer - comprehensive field mapping tests."""
 
-import pytest
 from unittest.mock import Mock
+
+import pytest
 
 from app.services.transformers.openai import OpenAIRequestTransformer
 
