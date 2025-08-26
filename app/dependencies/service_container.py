@@ -2,7 +2,6 @@
 
 from typing import Dict, Optional
 
-from app.common.dumper import Dumper
 from app.config import get_config
 from app.config.log import get_logger
 from app.config.user_models import RoutingConfig, UserConfig
@@ -19,7 +18,6 @@ class ServiceContainer:
 
     def __init__(self):
         self.app_config = get_config()
-        self.dumper = Dumper(self.app_config)
 
         # Core components
         self.transformer_loader: Optional[TransformerLoader] = None
