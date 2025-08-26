@@ -21,7 +21,7 @@ class TestEndToEndRequestFlow:
         provider.config = Mock()
         provider.config.name = 'test-provider'
 
-        async def process_request(payload, request):
+        async def process_request(payload, request, routing_key, dumper, correlation_id):
             # Simple SSE response like existing tests
             yield b'event: message_start\ndata: {"type": "message_start"}\n\n'
             yield b'event: content_block_delta\ndata: {"type": "content_block_delta", "delta": {"text": "Hello! I understand your request."}}\n\n'
@@ -37,46 +37,57 @@ class TestEndToEndRequestFlow:
 
         # Mock router with realistic behavior
         router = Mock()
-        router.get_provider_for_request.return_value = mock_provider
+        router.get_provider_for_request.return_value = mock_provider, 'test-routing-key'
         container.router = router
-
-        # Mock dumper
-        dumper = Mock()
-        dumper.begin.return_value = DumpHandles(None, None, None, None)
-        dumper.write_chunk = Mock()
-        dumper.close = Mock()
-        container.dumper = dumper
 
         return container
 
-    def test_complete_message_flow_success(self, mock_service_container):
+    @pytest.fixture
+    def mock_dumper(self):
+        """Create a mock dumper for dependency injection."""
+        dumper = Mock()
+        dumper.begin.return_value = DumpHandles(None, None, None, None, None, None, None, None, 'test-correlation-id')
+        dumper.write_response_chunk = Mock()
+        dumper.close = Mock()
+        return dumper
+
+    def test_complete_message_flow_success(self, mock_service_container, mock_dumper):
         """Test successful end-to-end message processing."""
+        from app.dependencies.dumper import get_dumper
+
         client = TestClient(app)
 
-        with patch('app.routers.messages.get_service_container', return_value=mock_service_container):
-            request_payload = {'model': 'claude-3-sonnet-20240229', 'messages': [{'role': 'user', 'content': 'Hello, how are you?'}], 'max_tokens': 100}
+        # Override dependencies
+        app.dependency_overrides[get_dumper] = lambda: mock_dumper
 
-            response = client.post('/v1/messages', json=request_payload)
+        try:
+            with patch('app.routers.messages.get_service_container', return_value=mock_service_container):
+                request_payload = {'model': 'claude-3-sonnet-20240229', 'messages': [{'role': 'user', 'content': 'Hello, how are you?'}], 'max_tokens': 100}
 
-            assert response.status_code == 200
-            assert response.headers['content-type'] == 'text/event-stream; charset=utf-8'
+                response = client.post('/v1/messages', json=request_payload)
 
-            content = response.content.decode()
-            assert 'event: message_start' in content
-            assert 'event: content_block_delta' in content
-            assert 'event: message_stop' in content
-            assert 'Hello! I understand your request.' in content
+                assert response.status_code == 200
+                assert response.headers['content-type'] == 'text/event-stream; charset=utf-8'
 
-            # Verify router was called with correct request
-            mock_service_container.router.get_provider_for_request.assert_called_once()
-            call_args = mock_service_container.router.get_provider_for_request.call_args[0][0]
-            assert call_args.model == 'claude-3-sonnet-20240229'
-            assert len(call_args.messages) == 1
+                content = response.content.decode()
+                assert 'event: message_start' in content
+                assert 'event: content_block_delta' in content
+                assert 'event: message_stop' in content
+                assert 'Hello! I understand your request.' in content
 
-            # Verify dumper lifecycle
-            mock_service_container.dumper.begin.assert_called_once()
-            assert mock_service_container.dumper.write_chunk.call_count > 0
-            mock_service_container.dumper.close.assert_called_once()
+                # Verify router was called with correct request
+                mock_service_container.router.get_provider_for_request.assert_called_once()
+                call_args = mock_service_container.router.get_provider_for_request.call_args[0][0]
+                assert call_args.model == 'claude-3-sonnet-20240229'
+                assert len(call_args.messages) == 1
+
+                # Verify dumper lifecycle
+                mock_dumper.begin.assert_called_once()
+                assert mock_dumper.write_response_chunk.call_count > 0
+                mock_dumper.close.assert_called_once()
+        finally:
+            # Clean up dependency overrides
+            app.dependency_overrides.clear()
 
     def test_routing_integration_planning_keywords(self, mock_service_container):
         """Test that planning keywords properly route through the system."""
@@ -230,7 +241,7 @@ class TestResourceManagement:
         mock_provider = Mock()
         mock_provider.config.name = 'test-provider'
 
-        async def mock_process_request(payload, request):
+        async def mock_process_request(payload, request, routing_key, dumper, correlation_id):
             # Simulate some processing time
             await asyncio.sleep(0.01)
             yield b'event: message_start\ndata: {"type": "message_start"}\n\n'
@@ -238,12 +249,15 @@ class TestResourceManagement:
             yield b'event: message_stop\ndata: {"type": "message_stop"}\n\n'
 
         mock_provider.process_request = mock_process_request
-        mock_container.router.get_provider_for_request.return_value = mock_provider
-        mock_container.dumper.begin.return_value = DumpHandles(None, None, None, None)
-        mock_container.dumper.write_chunk = Mock()
-        mock_container.dumper.close = Mock()
+        mock_container.router.get_provider_for_request.return_value = mock_provider, 'test-routing-key'
 
-        with patch('app.routers.messages.get_service_container', return_value=mock_container):
+        # Create dumper mock
+        mock_dumper = Mock()
+        mock_dumper.begin.return_value = DumpHandles(None, None, None, None, None, None, None, None, 'test-correlation-id')
+        mock_dumper.write_chunk = Mock()
+        mock_dumper.close = Mock()
+
+        with patch('app.routers.messages.get_service_container', return_value=mock_container), patch('app.dependencies.dumper.get_dumper', return_value=mock_dumper):
             # Make multiple concurrent requests
             import concurrent.futures
 
@@ -271,17 +285,20 @@ class TestErrorHandling:
         mock_provider = Mock()
         mock_provider.config.name = 'failing-provider'
 
-        async def failing_process_request(payload, request):
+        async def failing_process_request(payload, request, routing_key, dumper, correlation_id):
             raise Exception('Provider connection failed')
             yield b'never reached'  # This line is unreachable but needed for generator syntax
 
         mock_provider.process_request = failing_process_request
-        mock_container.router.get_provider_for_request.return_value = mock_provider
-        mock_container.dumper.begin.return_value = DumpHandles(None, None, None, None)
-        mock_container.dumper.write_chunk = Mock()
-        mock_container.dumper.close = Mock()
+        mock_container.router.get_provider_for_request.return_value = mock_provider, 'test-routing-key'
 
-        with patch('app.routers.messages.get_service_container', return_value=mock_container):
+        # Create dumper mock
+        mock_dumper = Mock()
+        mock_dumper.begin.return_value = DumpHandles(None, None, None, None, None, None, None, None, 'test-correlation-id')
+        mock_dumper.write_chunk = Mock()
+        mock_dumper.close = Mock()
+
+        with patch('app.routers.messages.get_service_container', return_value=mock_container), patch('app.dependencies.dumper.get_dumper', return_value=mock_dumper):
             response = client.post('/v1/messages', json={'model': 'claude-3-sonnet-20240229', 'messages': [{'role': 'user', 'content': 'Test'}]})
 
             # Provider errors are streamed back as SSE, so status is still 200
@@ -291,28 +308,45 @@ class TestErrorHandling:
 
     def test_no_provider_available_error(self):
         """Test error when no suitable provider is found."""
+        from app.dependencies.dumper import get_dumper
+
         client = TestClient(app)
 
         mock_container = Mock()
-        mock_container.router.get_provider_for_request.return_value = None  # No provider
-        mock_container.dumper.begin.return_value = DumpHandles(None, None, None, None)
+        mock_container.router.get_provider_for_request.return_value = None, None  # No provider
 
-        with patch('app.routers.messages.get_service_container', return_value=mock_container):
-            response = client.post('/v1/messages', json={'model': 'unknown-model', 'messages': [{'role': 'user', 'content': 'Test'}]})
+        # Override dumper dependency (shouldn't be called in this test, but FastAPI needs it)
+        mock_dumper = Mock()
+        app.dependency_overrides[get_dumper] = lambda: mock_dumper
 
-            assert response.status_code == 400
-            result = response.json()
-            assert result['type'] == 'error'
-            assert result['error']['type'] == 'invalid_request_error'
+        try:
+            with patch('app.routers.messages.get_service_container', return_value=mock_container):
+                response = client.post('/v1/messages', json={'model': 'unknown-model', 'messages': [{'role': 'user', 'content': 'Test'}]})
+
+                assert response.status_code == 400
+                result = response.json()
+                assert result['type'] == 'error'
+                assert result['error']['type'] == 'api_error'
+        finally:
+            app.dependency_overrides.clear()
 
     def test_service_container_not_available(self):
         """Test error when service container is not available."""
+        from app.dependencies.dumper import get_dumper
+
         client = TestClient(app)
 
-        with patch('app.routers.messages.get_service_container', return_value=None):
-            response = client.post('/v1/messages', json={'model': 'claude-3-sonnet-20240229', 'messages': [{'role': 'user', 'content': 'Test'}]})
+        # Override dumper dependency (shouldn't be called in this test, but FastAPI needs it)
+        mock_dumper = Mock()
+        app.dependency_overrides[get_dumper] = lambda: mock_dumper
 
-            assert response.status_code == 500
-            result = response.json()
-            assert result['type'] == 'error'
-            assert result['error']['type'] == 'invalid_request_error'
+        try:
+            with patch('app.routers.messages.get_service_container', return_value=None):
+                response = client.post('/v1/messages', json={'model': 'claude-3-sonnet-20240229', 'messages': [{'role': 'user', 'content': 'Test'}]})
+
+                assert response.status_code == 500
+                result = response.json()
+                assert result['type'] == 'error'
+                assert result['error']['type'] == 'api_error'
+        finally:
+            app.dependency_overrides.clear()

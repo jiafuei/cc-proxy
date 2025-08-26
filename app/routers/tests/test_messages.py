@@ -36,7 +36,7 @@ def test_messages_endpoint():
         def begin(self, request, payload):
             return DumpHandles(headers_path=None, request_path=None, response_path=None, response_file=None)
 
-        def write_chunk(self, handles, chunk):
+        def write_response_chunk(self, handles, chunk):
             pass
 
         def close(self, handles):
@@ -145,7 +145,7 @@ def test_messages_endpoint_with_dumping(tmp_path):
 
             return DumpHandles(headers_path=None, request_path=None, response_path=response_path, response_file=response_file)
 
-        def write_chunk(self, handles, chunk):
+        def write_response_chunk(self, handles, chunk):
             if handles.response_file:
                 handles.response_file.write(chunk)
                 handles.response_file.flush()
