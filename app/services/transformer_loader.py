@@ -61,6 +61,7 @@ class TransformerLoader:
             transformer_class = getattr(module, class_name)
 
             # Instantiate with params
+            params['logger'] = get_logger(module_name)
             instance = transformer_class(**params)
 
             # Cache the instance

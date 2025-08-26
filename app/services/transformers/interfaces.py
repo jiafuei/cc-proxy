@@ -12,6 +12,8 @@ class RequestTransformer(ABC):
     - Add authentication headers
     - Change the stream flag
     - Convert between different provider formats
+
+    A `logger` instance can be accessed using self.logger
     """
 
     @abstractmethod
@@ -24,6 +26,7 @@ class RequestTransformer(ABC):
                 - headers: Current headers to be modified `dict`
                 - provider_config: The current provider config `ProviderConfig`
                 - original_request: The original request object `fastapi.Request`
+                - routing_key: The routing key `str`
 
         Returns:
             Tuple of (transformed_request, updated_headers) `Tuple[dict,dict]
