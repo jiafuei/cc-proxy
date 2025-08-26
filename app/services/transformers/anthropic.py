@@ -69,8 +69,8 @@ class AnthropicCacheTransformer(RequestTransformer):
     - Reorder 'tools' array
         1. default tools
         2. MCP tools
-    - Insert at most 2 cache breakpoints for tools
-    - Insert at most 2 cache breakpoints every 20 content blocks (excluding 'thinking')
+    - Insert breakpoints for tools
+    - Insert cache breakpoints every 20 content blocks (excluding 'thinking')
 
     Docs:
     - https://docs.anthropic.com/en/docs/build-with-claude/prompt-caching
@@ -120,7 +120,7 @@ class AnthropicCacheTransformer(RequestTransformer):
         request['system'] = system_arr
 
     def _remove_tool_cache_breakpoints(self, request: dict[str, Any]):
-        """I don't think there is any tools caching right now"""
+        """Tools seems to be cached even without cache_control"""
 
         if 'tools' not in request:
             return
@@ -179,19 +179,18 @@ class AnthropicCacheTransformer(RequestTransformer):
         breakpoints_used = 0
 
         for i in range(0, total_tools, 20):
-            if i+20 > total_tools:
+            if i + 20 > total_tools:
                 break
             if breakpoints_used >= self.max_tools_breakpoints:
                 break
 
-            reordered_tools[i+20-1]['cache_control'] = {'type': 'ephemeral'}
+            reordered_tools[i + 20 - 1]['cache_control'] = {'type': 'ephemeral'}
             breakpoints_used += 1
 
         if breakpoints_used == 0:
             reordered_tools[-1]['cache_control'] = {'type': 'ephemeral'}
             breakpoints_used += 1
 
-        
         self.logger.debug(f'Added {breakpoints_used} breakpoint for {total_tools} total tools')
         request['tools'] = reordered_tools
         return breakpoints_used
@@ -215,7 +214,7 @@ class AnthropicCacheTransformer(RequestTransformer):
         return 1
 
     def _insert_messages_cache_bp(self, request: dict[str, Any], used_breakpoints: int):
-        """Add intelligent cache breakpoints to message history.
+        """Add simple, effective cache breakpoints to message history.
 
         Args:
             used_breakpoints: Number of breakpoints already used by previous stages
@@ -231,105 +230,39 @@ class AnthropicCacheTransformer(RequestTransformer):
 
         breakpoints_used = 0
 
-        # Strategy 1: Cache after tool clusters
-        tool_clusters = self._identify_tool_clusters(messages)
-        for cluster in tool_clusters:
-            if breakpoints_used >= available_breakpoints:
+        # Priority 1: Cache last user message (especially valuable for images)
+        for i in reversed(range(len(messages))):
+            if messages[i].get('role') == 'user':
+                if self._add_cache_breakpoint_to_message_content(messages[i]):
+                    breakpoints_used += 1
+                    self.logger.debug(f'Added cache breakpoint to last user message at index {i}')
                 break
 
-            cluster_end_idx = cluster[-1]
-            # Only cache if cluster has 3+ tool interactions and not the last message
-            if len(cluster) >= 3 and cluster_end_idx < len(messages) - 1:
-                if self._add_cache_breakpoint_to_message_content(messages[cluster_end_idx]):
-                    breakpoints_used += 1
-                    self.logger.debug(f'Added cache breakpoint after tool cluster of {len(cluster)} interactions')
-
-        # Strategy 2: Cache at conversation milestones
+        # Priority 2: Add breakpoints every 20 content blocks working backwards
         if breakpoints_used < available_breakpoints:
-            milestone_indices = self._find_conversation_milestones(messages)
-            for idx in milestone_indices:
+            content_count = 0
+            for i in reversed(range(len(messages))):
                 if breakpoints_used >= available_breakpoints:
                     break
-                if idx < len(messages) - 1:  # Don't cache the last message
-                    if self._add_cache_breakpoint_to_message_content(messages[idx]):
-                        breakpoints_used += 1
-                        self.logger.debug(f'Added cache breakpoint at conversation milestone (message {idx})')
+                if messages[i].get('cache_control'):  # Skip already cached messages
+                    continue
 
-        # Strategy 3: Content block counting fallback
-        if breakpoints_used < available_breakpoints:
-            self._add_content_block_breakpoints(messages, available_breakpoints - breakpoints_used)
+                # Count content blocks in this message
+                content = messages[i].get('content', [])
+                if isinstance(content, str):
+                    content_count += 1
+                elif isinstance(content, list):
+                    # Count non-thinking content blocks
+                    content_count += len([c for c in content if c.get('type') != 'thinking'])
+
+                # Add breakpoint every 20 content blocks
+                if content_count >= 20:
+                    if self._add_cache_breakpoint_to_message_content(messages[i]):
+                        breakpoints_used += 1
+                        content_count = 0  # Reset counter
+                        self.logger.debug(f'Added cache breakpoint at content block milestone (message {i})')
 
         self.logger.debug(f'Applied {breakpoints_used} message cache breakpoints')
-
-    def _identify_tool_clusters(self, messages: list) -> list:
-        """Identify clusters of consecutive tool use/result interactions."""
-        clusters = []
-        current_cluster = []
-
-        for i, message in enumerate(messages):
-            if self._has_tool_use(message) or self._has_tool_result(message):
-                current_cluster.append(i)
-            else:
-                if current_cluster:
-                    clusters.append(current_cluster)
-                    current_cluster = []
-
-        if current_cluster:
-            clusters.append(current_cluster)
-
-        return clusters
-
-    def _has_tool_use(self, message: dict) -> bool:
-        """Check if message contains tool use."""
-        content = message.get('content', [])
-        if isinstance(content, list):
-            return any(block.get('type') == 'tool_use' for block in content)
-        return False
-
-    def _has_tool_result(self, message: dict) -> bool:
-        """Check if message contains tool result."""
-        content = message.get('content', [])
-        if isinstance(content, list):
-            return any(block.get('type') == 'tool_result' for block in content)
-        return False
-
-    def _find_conversation_milestones(self, messages: list) -> list:
-        """Find major workflow transition points in conversation."""
-        milestones = []
-
-        for i, message in enumerate(messages):
-            content = message.get('content', [])
-            if isinstance(content, list):
-                for block in content:
-                    # TodoWrite completion indicates workflow milestone
-                    if block.get('type') == 'tool_use' and block.get('name') == 'TodoWrite':
-                        milestones.append(i)
-
-                    # File operation clusters (MultiEdit, Write patterns)
-                    elif block.get('type') == 'tool_use' and block.get('name') in ['MultiEdit', 'Write']:
-                        milestones.append(i)
-
-        return milestones
-
-    def _add_content_block_breakpoints(self, messages: list, max_breakpoints: int):
-        """Add breakpoints every ~20 content blocks as fallback strategy."""
-        content_count = 0
-        breakpoints_added = 0
-
-        for i, message in enumerate(messages[:-1]):  # Skip last message
-            content = message.get('content', [])
-            if isinstance(content, str):
-                content_count += 1
-            elif isinstance(content, list):
-                # Count non-thinking content blocks
-                content_count += len([c for c in content if c.get('type') != 'thinking'])
-
-            # Add breakpoint every 20 content blocks
-            if content_count >= 20 and breakpoints_added < max_breakpoints:
-                if self._add_cache_breakpoint_to_message_content(message):
-                    breakpoints_added += 1
-                    content_count = 0
-                    self.logger.debug(f'Added cache breakpoint at content block milestone (message {i})')
 
     def _add_cache_breakpoint_to_message_content(self, message: dict) -> bool:
         """Add cache control to the last content block in a message."""
