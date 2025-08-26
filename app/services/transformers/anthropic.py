@@ -2,7 +2,6 @@
 
 import random
 from typing import Any, Dict, Tuple
-from urllib.parse import urlparse
 
 from app.services.transformers.interfaces import RequestTransformer, ResponseTransformer
 
@@ -14,22 +13,21 @@ class AnthropicAuthTransformer(RequestTransformer):
     no transformation is needed.
     """
 
-    def __init__(self, logger, api_key: str = '', base_url: str = 'https://api.anthropic.com/v1/messages'):
-        """Initialize with API credentials.
+    def __init__(self, logger):
+        """Initialize transformer.
 
-        Args:
-            api_key: Anthropic API key
-            base_url: Base URL for Anthropic API
+        API credentials are obtained from provider config during transform.
         """
-        self.api_key = api_key
-        self.base_url = base_url
-        self.host = urlparse(base_url).hostname
         self.logger = logger
 
     async def transform(self, params: Dict[str, Any]) -> Tuple[Dict[str, Any], Dict[str, str]]:
         """Pure passthrough - incoming format is already Anthropic format."""
         request: dict[str, Any] = params['request']
         headers: dict[str, str] = params['headers']
+        provider_config = params['provider_config']
+
+        # Get API key from provider config
+        api_key = provider_config.api_key
 
         final_headers = {
             k: v
@@ -45,7 +43,7 @@ class AnthropicAuthTransformer(RequestTransformer):
                 )
             )
         }
-        final_headers = final_headers | {'authorization': f'Bearer {self.api_key}'}
+        final_headers = final_headers | {'authorization': f'Bearer {api_key}'}
         return request, final_headers
 
 

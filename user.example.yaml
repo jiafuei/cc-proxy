@@ -18,8 +18,7 @@ providers:
         - class: 'app.services.transformers.anthropic.AnthropicCacheTransformer'
           params: {}  # No parameters needed, uses optimal cache breakpoint strategy
         - class: 'app.services.transformers.anthropic.AnthropicAuthTransformer'
-          params:
-            api_key: 'builtin-key'
+          params: {}  # API key and URL are taken from provider config
       response:
         - class: 'my_transformers.CustomResponseTransformer'
           params:
