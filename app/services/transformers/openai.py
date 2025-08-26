@@ -27,11 +27,18 @@ class OpenAIRequestTransformer(RequestTransformer):
         request = params['request']
         config = params['provider_config']
 
-        # Convert messages format
-        openai_messages = self._convert_messages(request.get('messages', []))
+        # Convert system messages and combine with regular messages
+        openai_messages = self._convert_messages_with_system(request.get('messages', []), request.get('system'))
 
         # Convert model names
         openai_model = self._convert_model_name(request.get('model', ''))
+
+        # Convert tools and tool_choice
+        openai_tools = self._convert_tools(request.get('tools'))
+        openai_tool_choice = self._convert_tool_choice(request.get('tool_choice'))
+
+        # Convert stop sequences
+        openai_stop = self._convert_stop_sequences(request.get('stop_sequences'))
 
         # Build OpenAI request (remove Claude-specific fields)
         openai_request = {
@@ -40,6 +47,9 @@ class OpenAIRequestTransformer(RequestTransformer):
             'max_tokens': request.get('max_tokens'),
             'temperature': request.get('temperature'),
             'stream': request.get('stream', False),
+            'tools': openai_tools,
+            'tool_choice': openai_tool_choice,
+            'stop': openai_stop,
         }
 
         # Remove None values
@@ -52,30 +62,118 @@ class OpenAIRequestTransformer(RequestTransformer):
 
         return openai_request, auth_headers
 
-    def _convert_messages(self, claude_messages: List[Dict[str, Any]]) -> List[Dict[str, str]]:
-        """Convert Claude message format to OpenAI format."""
+    def _convert_messages_with_system(self, claude_messages: List[Dict[str, Any]], system: Any) -> List[Dict[str, Any]]:
+        """Convert Claude messages with system prompt to OpenAI format."""
         openai_messages = []
 
+        # Convert system prompt first
+        if system:
+            system_content = self._convert_system_to_content(system)
+            if system_content:
+                openai_messages.append({'role': 'system', 'content': system_content})
+
+        # Convert regular messages
         for message in claude_messages:
             role = message.get('role', 'user')
             content = message.get('content', '')
 
-            # Convert Claude content blocks to simple string
-            if isinstance(content, list):
-                # Claude format: content is list of blocks
-                text_parts = []
-                for block in content:
-                    if isinstance(block, dict) and block.get('type') == 'text':
-                        text_parts.append(block.get('text', ''))
-                    elif isinstance(block, str):
-                        text_parts.append(block)
-                content_str = '\n'.join(text_parts)
-            else:
-                content_str = str(content)
-
-            openai_messages.append({'role': role, 'content': content_str})
+            # Convert Claude content blocks to appropriate format
+            content_str = self._convert_content_blocks(content)
+            if content_str:  # Only add non-empty messages
+                openai_messages.append({'role': role, 'content': content_str})
 
         return openai_messages
+
+    def _convert_system_to_content(self, system: Any) -> str:
+        """Convert Anthropic system format to OpenAI system message content."""
+        if isinstance(system, str):
+            return system
+        elif isinstance(system, list):
+            # System is array of text blocks
+            text_parts = []
+            for block in system:
+                if isinstance(block, dict) and block.get('type') == 'text':
+                    text_parts.append(block.get('text', ''))
+                elif isinstance(block, str):
+                    text_parts.append(block)
+            return '\n'.join(text_parts)
+        else:
+            return str(system) if system else ''
+
+    def _convert_content_blocks(self, content: Any) -> str:
+        """Convert Claude content blocks to simple string format."""
+        if isinstance(content, str):
+            return content
+        elif isinstance(content, list):
+            # Claude format: content is list of blocks
+            text_parts = []
+            for block in content:
+                if isinstance(block, dict):
+                    block_type = block.get('type')
+                    if block_type == 'text':
+                        text_parts.append(block.get('text', ''))
+                    elif block_type == 'tool_use':
+                        # Convert tool use to a readable format for OpenAI
+                        tool_name = block.get('name', '')
+                        tool_input = block.get('input', {})
+                        text_parts.append(f'[Tool: {tool_name} with input: {json.dumps(tool_input)}]')
+                    elif block_type == 'tool_result':
+                        # Convert tool result to readable format
+                        tool_id = block.get('tool_use_id', '')
+                        result_content = block.get('content', '')
+                        text_parts.append(f'[Tool Result for {tool_id}: {result_content}]')
+                    # Skip other block types like 'thinking'
+                elif isinstance(block, str):
+                    text_parts.append(block)
+            return '\n'.join(text_parts)
+        else:
+            return str(content) if content else ''
+
+    def _convert_tools(self, claude_tools: List[Dict[str, Any]]) -> List[Dict[str, Any]] | None:
+        """Convert Claude tools format to OpenAI functions format."""
+        if not claude_tools:
+            return None
+
+        openai_tools = []
+        for tool in claude_tools:
+            # Convert Anthropic tool to OpenAI function
+            function_def = {'type': 'function', 'function': {'name': tool.get('name', ''), 'description': tool.get('description', ''), 'parameters': tool.get('input_schema', {})}}
+            openai_tools.append(function_def)
+
+        return openai_tools if openai_tools else None
+
+    def _convert_tool_choice(self, claude_tool_choice: Any) -> str | Dict[str, Any] | None:
+        """Convert Claude tool_choice to OpenAI format."""
+        if not claude_tool_choice:
+            return None
+
+        if isinstance(claude_tool_choice, str):
+            # Simple string values
+            if claude_tool_choice == 'auto':
+                return 'auto'
+            elif claude_tool_choice == 'any':
+                return 'required'
+            elif claude_tool_choice == 'none':
+                return 'none'
+        elif isinstance(claude_tool_choice, dict):
+            # Specific tool choice
+            tool_type = claude_tool_choice.get('type')
+            if tool_type == 'tool':
+                tool_name = claude_tool_choice.get('name')
+                if tool_name:
+                    return {'type': 'function', 'function': {'name': tool_name}}
+            elif tool_type == 'any':
+                return 'required'
+
+        return 'auto'  # Default fallback
+
+    def _convert_stop_sequences(self, claude_stop_sequences: List[str]) -> List[str] | None:
+        """Convert Claude stop_sequences to OpenAI stop format."""
+        if not claude_stop_sequences or not isinstance(claude_stop_sequences, list):
+            return None
+
+        # OpenAI supports up to 4 stop sequences
+        return claude_stop_sequences[:4] if claude_stop_sequences else None
 
     def _convert_model_name(self, claude_model: str) -> str:
         """Convert Claude model names to OpenAI equivalents."""
@@ -85,6 +183,8 @@ class OpenAIRequestTransformer(RequestTransformer):
             'claude-3-opus-20240229': 'gpt-4-turbo',
             'claude-3-5-sonnet-20241022': 'gpt-4',
             'claude-3-5-haiku-20241022': 'gpt-3.5-turbo',
+            'claude-sonnet-4-20250514': 'gpt-4o',
+            'claude-3-5-sonnet-20250121': 'gpt-4o',
         }
 
         mapped_model = model_mapping.get(claude_model, 'gpt-4')
