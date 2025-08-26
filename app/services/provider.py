@@ -1,6 +1,5 @@
 """Enhanced provider system for the simplified architecture."""
 
-import traceback
 from typing import Any, AsyncIterator, Dict, List, Optional
 
 import httpx
@@ -53,62 +52,61 @@ class Provider:
         Yields:
             SSE-formatted response chunks
         """
-        try:
-            # 1. Convert AnthropicRequest to Dict and apply request transformers sequentially
-            current_request = request.to_dict()  # Use to_dict() method
-            current_headers = dict(original_request.headers)  # Copy headers
+        # 1. Convert AnthropicRequest to Dict and apply request transformers sequentially
+        current_request = request.to_dict()  # Use to_dict() method
+        current_headers = dict(original_request.headers)  # Copy headers
 
-            logger.debug(f'Before transform, headers={current_headers}')
-            for transformer in self.request_transformers:
-                transform_params = {'request': current_request, 'headers': current_headers, 'provider_config': self.config, 'original_request': original_request, 'routing_key': routing_key}
-                current_request, current_headers = await transformer.transform(transform_params)
+        logger.debug(f'Before transform, headers={current_headers}')
+        for transformer in self.request_transformers:
+            transform_params = {
+                'request': current_request,
+                'headers': current_headers,
+                'provider_config': self.config,
+                'original_request': original_request,
+                'routing_key': routing_key,
+            }
+            current_request, current_headers = await transformer.transform(transform_params)
 
-            logger.debug(f'Request transformed, stream={current_request.get("stream", False)}, headers={current_headers}')
+        logger.debug(f'Request transformed, stream={current_request.get("stream", False)}, headers={current_headers}')
 
-            # 2. Check final stream flag after transformations
-            should_stream = current_request.get('stream', False)
+        # 2. Check final stream flag after transformations
+        should_stream = current_request.get('stream', False)
 
-            # 3. Route based on stream flag
-            if should_stream:
-                # Stream from provider
-                async for chunk in self._stream_request(current_request, current_headers):
-                    # Apply response transformers to each chunk
-                    transformed_chunk = chunk
-                    for transformer in self.response_transformers:
-                        chunk_params = {
-                            'chunk': transformed_chunk,
-                            'request': current_request,
-                            'final_headers': current_headers,
-                            'provider_config': self.config,
-                            'original_request': original_request,
-                        }
-                        transformed_chunk = await transformer.transform_chunk(chunk_params)
-                    yield transformed_chunk
-            else:
-                # Non-streaming request
-                response = await self._send_request(current_request, current_headers)
-
-                # Apply response transformers to full response
-                transformed_response = response
+        # 3. Route based on stream flag
+        if should_stream:
+            # Stream from provider
+            async for chunk in self._stream_request(current_request, current_headers):
+                # Apply response transformers to each chunk
+                transformed_chunk = chunk
                 for transformer in self.response_transformers:
-                    response_params = {
-                        'response': transformed_response,
+                    chunk_params = {
+                        'chunk': transformed_chunk,
                         'request': current_request,
                         'final_headers': current_headers,
                         'provider_config': self.config,
                         'original_request': original_request,
                     }
-                    transformed_response = await transformer.transform_response(response_params)
+                    transformed_chunk = await transformer.transform_chunk(chunk_params)
+                yield transformed_chunk
+        else:
+            # Non-streaming request
+            response = await self._send_request(current_request, current_headers)
 
-                # Convert to SSE format for consistent output
-                async for chunk in self._convert_response_to_sse(transformed_response):
-                    yield chunk
+            # Apply response transformers to full response
+            transformed_response = response
+            for transformer in self.response_transformers:
+                response_params = {
+                    'response': transformed_response,
+                    'request': current_request,
+                    'final_headers': current_headers,
+                    'provider_config': self.config,
+                    'original_request': original_request,
+                }
+                transformed_response = await transformer.transform_response(response_params)
 
-        except Exception as e:
-            logger.error(f"Error processing request in provider '{self.config.name}': {e}", exc_info=True)
-            # Yield error in SSE format
-            error_chunk = self._format_error_as_sse('\n'.join(traceback.format_exception(e)))
-            yield error_chunk
+            # Convert to SSE format for consistent output
+            async for chunk in self._convert_response_to_sse(transformed_response):
+                yield chunk
 
     async def _stream_request(self, request_data: Dict[str, Any], headers: Dict[str, Any]) -> AsyncIterator[bytes]:
         """Make a streaming HTTP request to the provider."""
@@ -177,11 +175,6 @@ class Provider:
         # Create message_stop event
         message_stop = {'type': 'message_stop'}
         yield f'event: message_stop\ndata: {orjson.dumps(message_stop).decode()}\n\n'.encode()
-
-    def _format_error_as_sse(self, error_message: str) -> bytes:
-        """Format an error as SSE event."""
-        error_data = {'type': 'error', 'error': {'type': 'api_error', 'message': error_message}}
-        return f'event: error\ndata: {orjson.dumps(error_data).decode()}\n\n'.encode()
 
     def supports_model(self, model_id: str) -> bool:
         """Check if this provider supports the given model."""

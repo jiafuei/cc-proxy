@@ -156,7 +156,7 @@ class SimpleRouter:
         provider = self.provider_manager.get_provider_for_model(model_id)
         if provider:
             logger.info(f'Routed request: {routing_key} -> {model_id} -> {provider.config.name}')
-            return provider
+            return provider, routing_key
 
         # 4. Use default provider as fallback (guaranteed to exist)
         logger.info(f'Routed request to fallback: {routing_key} -> {model_id} -> {self.default_provider.config.name}')
