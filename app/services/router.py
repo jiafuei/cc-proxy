@@ -33,7 +33,12 @@ def _create_default_anthropic_config() -> ProviderConfig:
             'claude-3-5-haiku-20241022',
         ],
         transformers={
-            'request': [{'class': 'app.services.transformers.anthropic.AnthropicAuthTransformer', 'params': {'api_key': api_key, 'base_url': base_url}}] if api_key else [],
+            'request': [
+                {'class': 'app.services.transformers.anthropic.AnthropicCacheTransformer', 'params': {}},
+                {'class': 'app.services.transformers.anthropic.AnthropicAuthTransformer', 'params': {'api_key': api_key, 'base_url': base_url}},
+            ]
+            if api_key
+            else [],
             'response': [],
         },
         timeout=300,
