@@ -8,8 +8,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import ORJSONResponse
 
+from app.common.dumper import Dumper
 from app.config import get_config, setup_config
-from app.config.log import configure_structlog
+from app.config.log import configure_structlog, get_logger
 from app.dependencies.service_container import get_service_container
 from app.middlewares.context import ContextMiddleware
 from app.middlewares.correlation_id import CorrelationIdMiddleware
@@ -54,15 +55,25 @@ app.add_middleware(SecurityHeadersMiddleware)
 app.add_middleware(CorrelationIdMiddleware)
 app.add_middleware(ContextMiddleware)
 
+logger = get_logger(__name__)
+dumper = Dumper(config)
 
 @app.exception_handler(HTTPException)
 async def http_exception_handler(request: Request, exc: HTTPException):
-    return ORJSONResponse(status_code=exc.status_code, content={'type': 'error', 'error': {'type': 'invalid_request_error', 'message': traceback.format_exception(exc)}})
+    return ORJSONResponse(status_code=exc.status_code, content={'type': 'error', 'error': {'type': 'invalid_request_error', 'message': 'http exception: '+traceback.format_exception(exc)}})
 
 
 @app.exception_handler(RequestValidationError)
 async def request_validation_error_handler(request: Request, exc: RequestValidationError):
-    return ORJSONResponse(status_code=400, content={'type': 'error', 'error': {'type': 'invalid_request_error', 'message': str(exc.errors())}})
+    req_body = await request.json()
+    handles = dumper.begin(request=request, payload=req_body)
+    logger.debug("validation error", body=req_body)
+    try:
+        error_msg = f"request validation error: {str(exc.errors())}" 
+        dumper.write_chunk(handles, error_msg)
+        return ORJSONResponse(status_code=400, content={'type': 'error', 'error': {'type': 'invalid_request_error', 'message': error_msg}})
+    finally:
+        dumper.close(handles)
 
 
 if __name__ == '__main__':

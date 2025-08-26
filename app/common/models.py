@@ -92,35 +92,6 @@ class Message(BaseModel):
     content: Union[List[ContentBlockType], str]
 
 
-class ToolProperty(BaseModel):
-    """Tool property schema."""
-
-    model_config = ConfigDict(extra='allow')
-
-    type: str
-    description: Optional[str] = None
-    default: Optional[Any] = None
-    enum: Optional[List[str]] = None
-    items: Optional[Dict[str, Any]] = None
-    properties: Optional[Dict[str, Any]] = None
-    required: Optional[List[str]] = None
-    additionalProperties: Optional[bool] = None
-    minItems: Optional[int] = None
-    minLength: Optional[int] = None
-
-
-class ToolInputSchema(BaseModel):
-    """Tool input schema model."""
-
-    model_config = ConfigDict(validate_by_alias=True, extra='allow')
-
-    type: str
-    properties: Dict[str, ToolProperty]
-    required: Optional[List[str]] = None
-    additionalProperties: bool = False
-    schema_: str = Field(alias='$schema', serialization_alias='$schema', default='http://json-schema.org/draft-07/schema#')
-
-
 class Tool(BaseModel):
     """Tool definition model."""
 
@@ -128,7 +99,7 @@ class Tool(BaseModel):
 
     name: str
     description: str
-    input_schema: ToolInputSchema
+    input_schema: dict[str, Any] = Field(description="JSON schema object defining expected parameters for the tool")
 
 
 class ThinkingConfig(BaseModel):

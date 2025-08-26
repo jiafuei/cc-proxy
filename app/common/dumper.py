@@ -84,7 +84,7 @@ class Dumper:
             response_file=response_file,
         )
 
-    def write_chunk(self, handles: DumpHandles, chunk: bytes) -> None:
+    def write_chunk(self, handles: DumpHandles, chunk: bytes|str) -> None:
         f = handles.response_file
         if not f or not chunk:
             return
