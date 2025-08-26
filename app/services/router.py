@@ -52,7 +52,7 @@ class RequestInspector:
         """Initialize with routing keyword configuration."""
         self.routing_keywords = {
             'planning': ['plan', 'strategy', 'approach', 'steps', 'methodology', 'design', 'architecture', 'roadmap', 'timeline'],
-            'background': ['analyze', 'review', 'summarize', 'extract', 'process', 'batch', 'bulk', 'generate report', 'data analysis'],
+            # 'background': ['analyze', 'review', 'summarize', 'extract', 'process', 'batch', 'bulk', 'generate report', 'data analysis'],
         }
 
     def determine_routing_key(self, request: AnthropicRequest) -> str:
@@ -64,6 +64,8 @@ class RequestInspector:
         Returns:
             Routing key ('default', 'planning', 'background')
         """
+        if request.max_tokens < 768:
+            return 'background'
         # Extract all text content from the request
         request_text = self._extract_request_text(request)
 

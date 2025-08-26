@@ -76,7 +76,7 @@ class AnthropicCacheTransformer(RequestTransformer):
 
     """
 
-    def __init__(self, logger, max_tools_breakpoints: int = 2):
+    def __init__(self, logger, max_tools_breakpoints: int = 1):
         self.logger = logger
         self.id = random.random() * 100_000
         self.max_tools_breakpoints = max_tools_breakpoints
