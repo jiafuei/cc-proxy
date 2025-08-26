@@ -1,11 +1,10 @@
 """Anthropic transformers - pure passthrough implementations."""
 
-from typing import Any, Dict, Mapping, Tuple
+from typing import Any, Dict, Tuple
 from urllib.parse import urlparse
 
-from fastapi import Request
+from httpx import Headers
 
-from app.config.user_models import ProviderConfig
 from app.services.transformers.interfaces import RequestTransformer, ResponseTransformer
 
 
@@ -27,9 +26,25 @@ class AnthropicAuthTransformer(RequestTransformer):
         self.base_url = base_url
         self.host = urlparse(base_url).hostname
 
-    async def transform(self, request: Dict[str, Any], headers: Mapping[str, Any], config: ProviderConfig, original_request: Request) -> Tuple[Dict[str, Any], Dict[str, str]]:
+    async def transform(self, params: Dict[str, Any]) -> Tuple[Dict[str, Any], Dict[str, str]]:
         """Pure passthrough - incoming format is already Anthropic format."""
-        final_headers = {k:v for k,v in headers.items() if any((k.startswith(prefix) for prefix in ('x-', 'anthropic', 'user-', )))}
+        request: dict[str, Any] = params['request']
+        headers: dict[str, str] = params['headers']
+
+        final_headers = {
+            k: v
+            for k, v in headers.items()
+            if any(
+                (
+                    k.startswith(prefix)
+                    for prefix in (
+                        'x-',
+                        'anthropic',
+                        'user-',
+                    )
+                )
+            )
+        }
         final_headers = final_headers | {'authorization': f'Bearer {self.api_key}'}
         return request, final_headers
 
@@ -37,10 +52,10 @@ class AnthropicAuthTransformer(RequestTransformer):
 class AnthropicResponseTransformer(ResponseTransformer):
     """Pure passthrough transformer for Anthropic responses."""
 
-    async def transform_chunk(self, chunk: bytes) -> bytes:
+    async def transform_chunk(self, params: Dict[str, Any]) -> bytes:
         """Pure passthrough - response is already in correct format."""
-        return chunk
+        return params['chunk']
 
-    async def transform_response(self, response: Dict[str, Any]) -> Dict[str, Any]:
+    async def transform_response(self, params: Dict[str, Any]) -> Dict[str, Any]:
         """Pure passthrough - response is already in correct format."""
-        return response
+        return params['response']

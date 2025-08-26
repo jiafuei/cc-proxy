@@ -1,11 +1,7 @@
 """Enhanced transformer interfaces for the simplified architecture."""
 
 from abc import ABC, abstractmethod
-from typing import Any, Dict, Mapping, Tuple
-
-from fastapi import Request
-
-from app.config.user_models import ProviderConfig
+from typing import Any, Dict, Tuple
 
 
 class RequestTransformer(ABC):
@@ -19,17 +15,18 @@ class RequestTransformer(ABC):
     """
 
     @abstractmethod
-    async def transform(self, request: Dict[str, Any], headers: Mapping[str, Any], provider_config: ProviderConfig, original_request: Request) -> Tuple[Dict[str, Any], Dict[str, str]]:
+    async def transform(self, params: Dict[str, Any]) -> Tuple[Dict[str, Any], Dict[str, str]]:
         """Transform the outgoing request and headers.
 
         Args:
-            request: Request data as dictionary
-            headers: Current headers to be modified
-            provider_config: The current provider config
-            original_request: The original request object
+            params: Dictionary containing:
+                - request: Request data as dictionary `dict`
+                - headers: Current headers to be modified `dict`
+                - provider_config: The current provider config `ProviderConfig`
+                - original_request: The original request object `fastapi.Request`
 
         Returns:
-            Tuple of (transformed_request, updated_headers)
+            Tuple of (transformed_request, updated_headers) `Tuple[dict,dict]
 
         Note:
             Transformers can modify the stream flag, which can also affect how
@@ -46,11 +43,16 @@ class ResponseTransformer(ABC):
     """
 
     @abstractmethod
-    async def transform_chunk(self, chunk: bytes) -> bytes:
+    async def transform_chunk(self, params: Dict[str, Any]) -> bytes:
         """Transform a streaming response chunk.
 
         Args:
-            chunk: Raw bytes from streaming response
+            params: Dictionary containing:
+                - chunk: Raw bytes from streaming response `bytes`
+                - request: Request data as dictionary `dict`
+                - final_headers: Final headers after request transformation `dict`
+                - provider_config: The current provider config `ProviderConfig`
+                - original_request: The original request  object `fastapi.Request`
 
         Returns:
             Transformed chunk bytes
@@ -62,11 +64,16 @@ class ResponseTransformer(ABC):
         pass
 
     @abstractmethod
-    async def transform_response(self, response: Dict[str, Any]) -> Dict[str, Any]:
+    async def transform_response(self, params: Dict[str, Any]) -> Dict[str, Any]:
         """Transform a complete non-streaming response.
 
         Args:
-            response: Full response dictionary from provider
+            params: Dictionary containing:
+                - response: Full response dictionary from provider `dict`
+                - request: Request data as dictionary `dict`
+                - final_headers: Final headers after request transformation `dict`
+                - provider_config: The current provider config `ProviderConfig`
+                - original_request: The original request object `fastapi.Request`
 
         Returns:
             Transformed response dictionary

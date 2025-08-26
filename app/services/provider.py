@@ -57,10 +57,11 @@ class Provider:
             # 1. Convert AnthropicRequest to Dict and apply request transformers sequentially
             current_request = request.to_dict()  # Use to_dict() method
             current_headers = dict(original_request.headers)  # Copy headers
-            
-            logger.debug(f"Before transform, headers={current_headers}")
+
+            logger.debug(f'Before transform, headers={current_headers}')
             for transformer in self.request_transformers:
-                current_request, current_headers = await transformer.transform(current_request, current_headers, self.config, original_request)
+                transform_params = {'request': current_request, 'headers': current_headers, 'provider_config': self.config, 'original_request': original_request}
+                current_request, current_headers = await transformer.transform(transform_params)
 
             logger.debug(f'Request transformed, stream={current_request.get("stream", False)}, headers={current_headers}')
 
@@ -74,7 +75,14 @@ class Provider:
                     # Apply response transformers to each chunk
                     transformed_chunk = chunk
                     for transformer in self.response_transformers:
-                        transformed_chunk = await transformer.transform_chunk(transformed_chunk)
+                        chunk_params = {
+                            'chunk': transformed_chunk,
+                            'request': current_request,
+                            'final_headers': current_headers,
+                            'provider_config': self.config,
+                            'original_request': original_request,
+                        }
+                        transformed_chunk = await transformer.transform_chunk(chunk_params)
                     yield transformed_chunk
             else:
                 # Non-streaming request
@@ -83,7 +91,14 @@ class Provider:
                 # Apply response transformers to full response
                 transformed_response = response
                 for transformer in self.response_transformers:
-                    transformed_response = await transformer.transform_response(transformed_response)
+                    response_params = {
+                        'response': transformed_response,
+                        'request': current_request,
+                        'final_headers': current_headers,
+                        'provider_config': self.config,
+                        'original_request': original_request,
+                    }
+                    transformed_response = await transformer.transform_response(response_params)
 
                 # Convert to SSE format for consistent output
                 async for chunk in self._convert_response_to_sse(transformed_response):

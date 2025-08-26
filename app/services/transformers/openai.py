@@ -1,12 +1,9 @@
 """OpenAI transformers with real format conversion."""
 
 import json
-from typing import Any, Dict, List, Mapping, Tuple
-
-from fastapi import Request
+from typing import Any, Dict, List, Tuple
 
 from app.config.log import get_logger
-from app.config.user_models import ProviderConfig
 from app.services.transformers.interfaces import RequestTransformer, ResponseTransformer
 
 logger = get_logger(__name__)
@@ -25,8 +22,10 @@ class OpenAIRequestTransformer(RequestTransformer):
         self.api_key = api_key
         self.base_url = base_url
 
-    async def transform(self, request: Dict[str, Any], headers: Mapping[str, Any], config: ProviderConfig, original_request: Request) -> Tuple[Dict[str, Any], Dict[str, str]]:
+    async def transform(self, params: Dict[str, Any]) -> Tuple[Dict[str, Any], Dict[str, str]]:
         """Convert Claude request format to OpenAI format."""
+        request = params['request']
+        config = params['provider_config']
 
         # Convert messages format
         openai_messages = self._convert_messages(request.get('messages', []))
@@ -98,8 +97,10 @@ class OpenAIRequestTransformer(RequestTransformer):
 class OpenAIResponseTransformer(ResponseTransformer):
     """Transformer to convert OpenAI responses to Claude format."""
 
-    async def transform_chunk(self, chunk: bytes) -> bytes:
+    async def transform_chunk(self, params: Dict[str, Any]) -> bytes:
         """Convert OpenAI streaming chunk to Claude format."""
+        chunk = params['chunk']
+
         try:
             chunk_str = chunk.decode('utf-8')
 
@@ -127,8 +128,10 @@ class OpenAIResponseTransformer(ResponseTransformer):
             logger.error(f'Failed to convert OpenAI chunk: {e}')
             return chunk
 
-    async def transform_response(self, response: Dict[str, Any]) -> Dict[str, Any]:
+    async def transform_response(self, params: Dict[str, Any]) -> Dict[str, Any]:
         """Convert OpenAI non-streaming response to Claude format."""
+        response = params['response']
+
         try:
             # Convert OpenAI response structure to Claude format
             choices = response.get('choices', [])
