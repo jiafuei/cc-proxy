@@ -1,8 +1,10 @@
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
 
+from app.common.dumper import Dumper
 from app.common.models import AnthropicRequest
 from app.config.log import get_logger
+from app.dependencies.dumper import get_dumper
 from app.dependencies.service_container import get_service_container
 
 router = APIRouter()
@@ -10,7 +12,7 @@ logger = get_logger(__name__)
 
 
 @router.post('/v1/messages')
-async def messages(payload: AnthropicRequest, request: Request) -> StreamingResponse:
+async def messages(payload: AnthropicRequest, request: Request, dumper: Dumper = Depends(get_dumper)) -> StreamingResponse:
     """Handle Anthropic API messages with simplified routing and provider system."""
 
     # Get the service container (router + providers)
@@ -28,13 +30,13 @@ async def messages(payload: AnthropicRequest, request: Request) -> StreamingResp
     logger.info(f'Request routed to provider: {provider.config.name}, route: {routing_key}')
 
     # Start dumping for debugging/logging
-    dumper_handles = service_container.dumper.begin(request, payload.to_dict())
+    dumper_handles = dumper.begin(request, payload.to_dict())
 
     async def generate():
         try:
             # Process through provider (handles transformers + HTTP + streaming)
-            async for chunk in provider.process_request(payload, request, routing_key):
-                service_container.dumper.write_chunk(dumper_handles, chunk)
+            async for chunk in provider.process_request(payload, request, routing_key, dumper, dumper_handles):
+                dumper.write_response_chunk(dumper_handles, chunk)
                 yield chunk
 
         except Exception as e:
@@ -44,10 +46,10 @@ async def messages(payload: AnthropicRequest, request: Request) -> StreamingResp
             error_message = f'Request processing failed: {str(e)}'
             error_chunk = f'event: error\ndata: {{"type": "error", "error": {{"type": "api_error", "message": "{error_message}"}}}}\n\n'
 
-            service_container.dumper.write_chunk(dumper_handles, error_chunk.encode())
+            dumper.write_response_chunk(dumper_handles, error_chunk.encode())
             yield error_chunk.encode()
 
         finally:
-            service_container.dumper.close(dumper_handles)
+            dumper.close(dumper_handles)
 
     return StreamingResponse(generate(), media_type='text/event-stream')
