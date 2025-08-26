@@ -1,7 +1,7 @@
 """Simple router system for the simplified architecture."""
 
 import os
-from typing import Optional
+from typing import Optional, Tuple
 
 from app.common.models import AnthropicRequest
 from app.config.log import get_logger
@@ -129,14 +129,14 @@ class SimpleRouter:
         self.default_provider = Provider(default_config, self.transformer_loader)
         logger.info(f"Loaded default provider '{default_config.name}' with {len(default_config.models)} models")
 
-    def get_provider_for_request(self, request: AnthropicRequest) -> Provider:
+    def get_provider_for_request(self, request: AnthropicRequest) -> Tuple[Provider, str]:
         """Get the appropriate provider for a request.
 
         Args:
             request: Anthropic API request
 
         Returns:
-            Provider instance (never None)
+            Tuple (Provider, routing_key)
         """
         # 1. Determine routing key based on request content
         routing_key = self.inspector.determine_routing_key(request)
@@ -153,7 +153,7 @@ class SimpleRouter:
 
         # 4. Use default provider as fallback (guaranteed to exist)
         logger.info(f'Routed request to fallback: {routing_key} -> {model_id} -> {self.default_provider.config.name}')
-        return self.default_provider
+        return self.default_provider, routing_key
 
     def _get_model_for_key(self, routing_key: str) -> str:
         """Get model ID for a routing key."""

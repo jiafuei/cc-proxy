@@ -44,7 +44,7 @@ class Provider:
             logger.error(f"Failed to load transformers for provider '{self.config.name}': {e}")
             # Continue with empty transformer lists
 
-    async def process_request(self, request: AnthropicRequest, original_request: Request) -> AsyncIterator[bytes]:
+    async def process_request(self, request: AnthropicRequest, original_request: Request, routing_key: str) -> AsyncIterator[bytes]:
         """Process a request through the provider with transformer support.
 
         Args:
@@ -60,7 +60,7 @@ class Provider:
 
             logger.debug(f'Before transform, headers={current_headers}')
             for transformer in self.request_transformers:
-                transform_params = {'request': current_request, 'headers': current_headers, 'provider_config': self.config, 'original_request': original_request}
+                transform_params = {'request': current_request, 'headers': current_headers, 'provider_config': self.config, 'original_request': original_request, 'routing_key': routing_key}
                 current_request, current_headers = await transformer.transform(transform_params)
 
             logger.debug(f'Request transformed, stream={current_request.get("stream", False)}, headers={current_headers}')

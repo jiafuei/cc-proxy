@@ -67,7 +67,7 @@ def test_simple_router_success():
     # Create a request
     request = AnthropicRequest(model='claude-3-sonnet', messages=[{'role': 'user', 'content': 'Hello'}])
 
-    provider = router.get_provider_for_request(request)
+    provider, _ = router.get_provider_for_request(request)
     assert provider == mock_provider
     mock_provider_manager.get_provider_for_model.assert_called_once_with('claude-3-sonnet')
 
@@ -92,7 +92,7 @@ def test_simple_router_no_provider():
 
             request = AnthropicRequest(model='claude-3-sonnet', messages=[{'role': 'user', 'content': 'Hello'}])
 
-            provider = router.get_provider_for_request(request)
+            provider, _ = router.get_provider_for_request(request)
             # Should always return a provider (fallback provider in this case)
             assert provider == mock_default_provider
             assert provider is not None
@@ -114,7 +114,7 @@ def test_simple_router_planning_request():
     # Create a planning request
     request = AnthropicRequest(model='claude-3-sonnet', messages=[{'role': 'user', 'content': 'Create a detailed plan for this project'}])
 
-    provider = router.get_provider_for_request(request)
+    provider, _ = router.get_provider_for_request(request)
     assert provider == mock_provider
     # Should route to planning model, not the model in the request
     mock_provider_manager.get_provider_for_model.assert_called_once_with('claude-3-opus')
@@ -193,7 +193,7 @@ def test_simple_router_default_provider_fallback():
             request = AnthropicRequest(model='test', messages=[{'role': 'user', 'content': 'Hello'}])
 
             # Should always return default provider since no configured provider found
-            provider = router.get_provider_for_request(request)
+            provider, _ = router.get_provider_for_request(request)
             assert provider == mock_default_provider
             assert provider is not None  # Never returns None
 
@@ -218,7 +218,7 @@ def test_simple_router_empty_routing_config():
             request = AnthropicRequest(model='test', messages=[{'role': 'user', 'content': 'Hello'}])
 
             # Should use fallback model and return default provider
-            provider = router.get_provider_for_request(request)
+            provider, _ = router.get_provider_for_request(request)
             assert provider == mock_default_provider
             assert provider is not None
 

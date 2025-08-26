@@ -20,12 +20,12 @@ async def messages(payload: AnthropicRequest, request: Request) -> StreamingResp
         raise HTTPException(status_code=500, detail={'error': {'type': 'api_error', 'message': 'Service configuration failed'}})
 
     # Get provider for request
-    provider = service_container.router.get_provider_for_request(payload)
+    provider, routing_key = service_container.router.get_provider_for_request(payload)
     if not provider:
         logger.error('No provider available for request')
         raise HTTPException(status_code=400, detail={'error': {'type': 'model_not_found', 'message': 'No suitable provider found for request'}})
 
-    logger.info(f'Request routed to provider: {provider.config.name}')
+    logger.info(f'Request routed to provider: {provider.config.name}, route: {routing_key}')
 
     # Start dumping for debugging/logging
     dumper_handles = service_container.dumper.begin(request, payload.to_dict())
@@ -33,7 +33,7 @@ async def messages(payload: AnthropicRequest, request: Request) -> StreamingResp
     async def generate():
         try:
             # Process through provider (handles transformers + HTTP + streaming)
-            async for chunk in provider.process_request(payload, request):
+            async for chunk in provider.process_request(payload, request, routing_key):
                 service_container.dumper.write_chunk(dumper_handles, chunk)
                 yield chunk
 
