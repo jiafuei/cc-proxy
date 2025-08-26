@@ -3,7 +3,7 @@
 import os
 from typing import Optional
 
-from app.common.models import ClaudeRequest
+from app.common.models import AnthropicRequest
 from app.config.log import get_logger
 from app.config.user_models import ProviderConfig, RoutingConfig
 from app.services.provider import Provider, ProviderManager
@@ -54,11 +54,11 @@ class RequestInspector:
             'background': ['analyze', 'review', 'summarize', 'extract', 'process', 'batch', 'bulk', 'generate report', 'data analysis']
         }
 
-    def determine_routing_key(self, request: ClaudeRequest) -> str:
+    def determine_routing_key(self, request: AnthropicRequest) -> str:
         """Determine routing key based on request content.
 
         Args:
-            request: Claude API request
+            request: Anthropic API request
 
         Returns:
             Routing key ('default', 'planning', 'background')
@@ -74,11 +74,11 @@ class RequestInspector:
         # Default routing
         return 'default'
 
-    def _extract_request_text(self, request: ClaudeRequest) -> str:
+    def _extract_request_text(self, request: AnthropicRequest) -> str:
         """Extract all text content from request for analysis.
         
         Args:
-            request: Claude API request
+            request: Anthropic API request
             
         Returns:
             Concatenated lowercase text from all messages
@@ -133,11 +133,11 @@ class SimpleRouter:
         self.default_provider = Provider(default_config, self.transformer_loader)
         logger.info(f"Loaded default provider '{default_config.name}' with {len(default_config.models)} models")
 
-    def get_provider_for_request(self, request: ClaudeRequest) -> Provider:
+    def get_provider_for_request(self, request: AnthropicRequest) -> Provider:
         """Get the appropriate provider for a request.
 
         Args:
-            request: Claude API request
+            request: Anthropic API request
 
         Returns:
             Provider instance (never None)

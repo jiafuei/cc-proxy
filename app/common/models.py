@@ -3,7 +3,7 @@ from typing import Any, Dict, List, Literal, Optional, Union
 from pydantic import BaseModel, ConfigDict, Field
 
 
-class ContentBlock(BaseModel):
+class AnthropicContentBlock(BaseModel):
     """Base content block model."""
 
     model_config = ConfigDict(extra='allow')
@@ -11,7 +11,7 @@ class ContentBlock(BaseModel):
     type: str
 
 
-class TextContent(ContentBlock):
+class AnthropicTextContent(AnthropicContentBlock):
     """Text content block."""
 
     model_config = ConfigDict(extra='allow')
@@ -21,7 +21,7 @@ class TextContent(ContentBlock):
     cache_control: Optional[Dict[str, Any]] = None
 
 
-class ThinkingContent(ContentBlock):
+class AnthropicThinkingContent(AnthropicContentBlock):
     """Thinking content block."""
 
     type: Literal['thinking']
@@ -29,7 +29,7 @@ class ThinkingContent(ContentBlock):
     signature: str
 
 
-class ToolUseContent(ContentBlock):
+class AnthropicToolUseContent(AnthropicContentBlock):
     """Tool use content block."""
 
     model_config = ConfigDict(extra='allow')
@@ -40,7 +40,7 @@ class ToolUseContent(ContentBlock):
     input: Dict[str, Any]
 
 
-class ToolResultContent(ContentBlock):
+class AnthropicToolResultContent(AnthropicContentBlock):
     """Tool result content block."""
 
     model_config = ConfigDict(extra='allow')
@@ -51,7 +51,7 @@ class ToolResultContent(ContentBlock):
     is_error: Optional[bool] = None
 
 
-class ImageSource(BaseModel):
+class AnthropicImageSource(BaseModel):
     """Image source model."""
 
     model_config = ConfigDict(extra='allow')
@@ -61,19 +61,19 @@ class ImageSource(BaseModel):
     media_type: str
 
 
-class ImageContent(ContentBlock):
+class AnthropicImageContent(AnthropicContentBlock):
     """Image content block."""
 
     model_config = ConfigDict(extra='allow')
 
     type: Literal['image']
-    source: ImageSource
+    source: AnthropicImageSource
 
 
-ContentBlockType = Union[TextContent, ThinkingContent, ToolUseContent, ToolResultContent, ImageContent]
+AnthropicContentBlockType = Union[AnthropicTextContent, AnthropicThinkingContent, AnthropicToolUseContent, AnthropicToolResultContent, AnthropicImageContent]
 
 
-class SystemMessage(BaseModel):
+class AnthropicSystemMessage(BaseModel):
     """System message model."""
 
     model_config = ConfigDict(extra='allow')
@@ -83,16 +83,16 @@ class SystemMessage(BaseModel):
     cache_control: Optional[Dict[str, Any]] = None
 
 
-class Message(BaseModel):
+class AnthropicMessage(BaseModel):
     """Message model."""
 
     model_config = ConfigDict(extra='allow')
 
     role: Literal['user', 'assistant']
-    content: Union[List[ContentBlockType], str]
+    content: Union[List[AnthropicContentBlockType], str]
 
 
-class Tool(BaseModel):
+class AnthropicTool(BaseModel):
     """Tool definition model."""
 
     model_config = ConfigDict(extra='allow')
@@ -102,7 +102,7 @@ class Tool(BaseModel):
     input_schema: dict[str, Any] = Field(description="JSON schema object defining expected parameters for the tool")
 
 
-class ThinkingConfig(BaseModel):
+class AnthropicThinkingConfig(BaseModel):
     """Thinking configuration model."""
 
     model_config = ConfigDict(extra='allow')
@@ -111,7 +111,7 @@ class ThinkingConfig(BaseModel):
     type: Literal['enabled']
 
 
-class Metadata(BaseModel):
+class AnthropicMetadata(BaseModel):
     """Request metadata model."""
 
     model_config = ConfigDict(extra='allow')
@@ -119,19 +119,19 @@ class Metadata(BaseModel):
     user_id: str
 
 
-class ClaudeRequest(BaseModel):
-    """Main Claude API request model."""
+class AnthropicRequest(BaseModel):
+    """Main Anthropic API request model."""
 
     model_config = ConfigDict(extra='allow')
 
     model: str
-    messages: List[Message]
+    messages: List[AnthropicMessage]
     temperature: Optional[float] = None
-    system: Optional[List[SystemMessage]] = None
-    tools: Optional[List[Tool]] = None
-    metadata: Optional[Metadata] = None
+    system: Optional[List[AnthropicSystemMessage]] = None
+    tools: Optional[List[AnthropicTool]] = None
+    metadata: Optional[AnthropicMetadata] = None
     max_tokens: int = Field(default=32000)
-    thinking: Optional[ThinkingConfig] = None
+    thinking: Optional[AnthropicThinkingConfig] = None
     stream: Optional[bool] = True
 
     def to_dict(self):

@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import StreamingResponse
 
-from app.common.models import ClaudeRequest
+from app.common.models import AnthropicRequest
 from app.config.log import get_logger
 from app.dependencies.service_container import get_service_container
 
@@ -10,8 +10,8 @@ logger = get_logger(__name__)
 
 
 @router.post('/v1/messages')
-async def messages(payload: ClaudeRequest, request: Request) -> StreamingResponse:
-    """Handle Claude API messages with simplified routing and provider system."""
+async def messages(payload: AnthropicRequest, request: Request) -> StreamingResponse:
+    """Handle Anthropic API messages with simplified routing and provider system."""
 
     # Get the service container (router + providers)
     service_container = get_service_container()

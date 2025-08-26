@@ -1,9 +1,9 @@
 """Anthropic transformers - pure passthrough implementations."""
 
 from typing import Any, Dict, Mapping, Tuple
+from urllib.parse import urlparse
 
 from fastapi import Request
-from urllib.parse import urlparse
 
 from app.config.user_models import ProviderConfig
 from app.services.transformers.interfaces import RequestTransformer, ResponseTransformer
@@ -29,9 +29,9 @@ class AnthropicAuthTransformer(RequestTransformer):
 
     async def transform(self, request: Dict[str, Any], headers: Mapping[str, Any], config: ProviderConfig, original_request: Request) -> Tuple[Dict[str, Any], Dict[str, str]]:
         """Pure passthrough - incoming format is already Anthropic format."""
-        headers = dict(headers | {'host': self.host, 'authorization': f'Bearer {self.api_key}'})
-        headers.pop('content-length', None)
-        return request, headers
+        final_headers = {k:v for k,v in headers.items() if any((k.startswith(prefix) for prefix in ('x-', 'anthropic', 'user-', )))}
+        final_headers = final_headers | {'authorization': f'Bearer {self.api_key}'}
+        return request, final_headers
 
 
 class AnthropicResponseTransformer(ResponseTransformer):

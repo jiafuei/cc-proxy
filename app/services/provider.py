@@ -1,12 +1,13 @@
 """Enhanced provider system for the simplified architecture."""
 
+import traceback
 from typing import Any, AsyncIterator, Dict, List, Optional
 
 import httpx
 import orjson
 from fastapi import Request
 
-from app.common.models import ClaudeRequest
+from app.common.models import AnthropicRequest
 from app.config.log import get_logger
 from app.config.user_models import ProviderConfig
 from app.services.transformer_loader import TransformerLoader
@@ -43,7 +44,7 @@ class Provider:
             logger.error(f"Failed to load transformers for provider '{self.config.name}': {e}")
             # Continue with empty transformer lists
 
-    async def process_request(self, request: ClaudeRequest, original_request: Request) -> AsyncIterator[bytes]:
+    async def process_request(self, request: AnthropicRequest, original_request: Request) -> AsyncIterator[bytes]:
         """Process a request through the provider with transformer support.
 
         Args:
@@ -53,7 +54,7 @@ class Provider:
             SSE-formatted response chunks
         """
         try:
-            # 1. Convert ClaudeRequest to Dict and apply request transformers sequentially
+            # 1. Convert AnthropicRequest to Dict and apply request transformers sequentially
             current_request = request.to_dict()  # Use to_dict() method
             current_headers = dict(original_request.headers)  # Copy headers
             
@@ -91,7 +92,7 @@ class Provider:
         except Exception as e:
             logger.error(f"Error processing request in provider '{self.config.name}': {e}", exc_info=True)
             # Yield error in SSE format
-            error_chunk = self._format_error_as_sse(str(e))
+            error_chunk = self._format_error_as_sse('\n'.join(traceback.format_exception(e)))
             yield error_chunk
 
     async def _stream_request(self, request_data: Dict[str, Any], headers: Dict[str, Any]) -> AsyncIterator[bytes]:

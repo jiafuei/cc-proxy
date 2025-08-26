@@ -2,7 +2,7 @@
 
 from unittest.mock import Mock, patch
 
-from app.common.models import ClaudeRequest
+from app.common.models import AnthropicRequest
 from app.config.user_models import RoutingConfig
 from app.services.router import RequestInspector, SimpleRouter
 from app.services.transformer_loader import TransformerLoader
@@ -22,7 +22,7 @@ def test_request_inspector_planning():
     inspector = RequestInspector()
 
     # Create a planning request
-    request = ClaudeRequest(model='claude-3-sonnet', messages=[{'role': 'user', 'content': 'Please create a detailed plan for implementing this feature'}])
+    request = AnthropicRequest(model='claude-3-sonnet', messages=[{'role': 'user', 'content': 'Please create a detailed plan for implementing this feature'}])
 
     routing_key = inspector.determine_routing_key(request)
     assert routing_key == 'planning'
@@ -33,7 +33,7 @@ def test_request_inspector_background():
     inspector = RequestInspector()
 
     # Create a background request
-    request = ClaudeRequest(model='claude-3-sonnet', messages=[{'role': 'user', 'content': 'Please analyze this data and generate a report'}])
+    request = AnthropicRequest(model='claude-3-sonnet', messages=[{'role': 'user', 'content': 'Please analyze this data and generate a report'}])
 
     routing_key = inspector.determine_routing_key(request)
     assert routing_key == 'background'
@@ -44,7 +44,7 @@ def test_request_inspector_default():
     inspector = RequestInspector()
 
     # Create a regular request
-    request = ClaudeRequest(model='claude-3-sonnet', messages=[{'role': 'user', 'content': 'Hello, how are you?'}])
+    request = AnthropicRequest(model='claude-3-sonnet', messages=[{'role': 'user', 'content': 'Hello, how are you?'}])
 
     routing_key = inspector.determine_routing_key(request)
     assert routing_key == 'default'
@@ -65,7 +65,7 @@ def test_simple_router_success():
     router = SimpleRouter(mock_provider_manager, routing_config, mock_transformer_loader)
 
     # Create a request
-    request = ClaudeRequest(model='claude-3-sonnet', messages=[{'role': 'user', 'content': 'Hello'}])
+    request = AnthropicRequest(model='claude-3-sonnet', messages=[{'role': 'user', 'content': 'Hello'}])
 
     provider = router.get_provider_for_request(request)
     assert provider == mock_provider
@@ -90,7 +90,7 @@ def test_simple_router_no_provider():
             
             router = SimpleRouter(mock_provider_manager, routing_config, mock_transformer_loader)
 
-            request = ClaudeRequest(model='claude-3-sonnet', messages=[{'role': 'user', 'content': 'Hello'}])
+            request = AnthropicRequest(model='claude-3-sonnet', messages=[{'role': 'user', 'content': 'Hello'}])
 
             provider = router.get_provider_for_request(request)
             # Should always return a provider (fallback provider in this case)
@@ -112,7 +112,7 @@ def test_simple_router_planning_request():
     router = SimpleRouter(mock_provider_manager, routing_config, mock_transformer_loader)
 
     # Create a planning request
-    request = ClaudeRequest(model='claude-3-sonnet', messages=[{'role': 'user', 'content': 'Create a detailed plan for this project'}])
+    request = AnthropicRequest(model='claude-3-sonnet', messages=[{'role': 'user', 'content': 'Create a detailed plan for this project'}])
 
     provider = router.get_provider_for_request(request)
     assert provider == mock_provider
@@ -190,7 +190,7 @@ def test_simple_router_default_provider_fallback():
             router = SimpleRouter(mock_provider_manager, routing_config, transformer_loader)
             
             # Create a request
-            request = ClaudeRequest(model='test', messages=[{'role': 'user', 'content': 'Hello'}])
+            request = AnthropicRequest(model='test', messages=[{'role': 'user', 'content': 'Hello'}])
             
             # Should always return default provider since no configured provider found
             provider = router.get_provider_for_request(request)
@@ -215,7 +215,7 @@ def test_simple_router_empty_routing_config():
             routing_config = RoutingConfig(default='', planning='', background='')
             router = SimpleRouter(mock_provider_manager, routing_config, mock_transformer_loader)
             
-            request = ClaudeRequest(model='test', messages=[{'role': 'user', 'content': 'Hello'}])
+            request = AnthropicRequest(model='test', messages=[{'role': 'user', 'content': 'Hello'}])
             
             # Should use fallback model and return default provider
             provider = router.get_provider_for_request(request)
