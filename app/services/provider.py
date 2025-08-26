@@ -6,6 +6,7 @@ import httpx
 import orjson
 from fastapi import Request
 
+from app.common.dumper import Dumper, DumpHandles
 from app.common.models import AnthropicRequest
 from app.config.log import get_logger
 from app.config.user_models import ProviderConfig
@@ -43,7 +44,7 @@ class Provider:
             logger.error(f"Failed to load transformers for provider '{self.config.name}': {e}")
             # Continue with empty transformer lists
 
-    async def process_request(self, request: AnthropicRequest, original_request: Request, routing_key: str) -> AsyncIterator[bytes]:
+    async def process_request(self, request: AnthropicRequest, original_request: Request, routing_key: str, dumper: Dumper, dumper_handles: DumpHandles) -> AsyncIterator[bytes]:
         """Process a request through the provider with transformer support.
 
         Args:
@@ -69,6 +70,9 @@ class Provider:
 
         logger.debug(f'Request transformed, stream={current_request.get("stream", False)}, headers={current_headers}')
 
+        # Dump transformed request after all transformers are applied
+        dumper.write_transformed_request(dumper_handles, current_request)
+
         # 2. Check final stream flag after transformations
         should_stream = current_request.get('stream', False)
 
@@ -76,6 +80,9 @@ class Provider:
         if should_stream:
             # Stream from provider
             async for chunk in self._stream_request(current_request, current_headers):
+                # Dump pre-transformed response chunk
+                dumper.write_pretransformed_response(dumper_handles, chunk)
+
                 # Apply response transformers to each chunk
                 transformed_chunk = chunk
                 for transformer in self.response_transformers:
@@ -91,6 +98,10 @@ class Provider:
         else:
             # Non-streaming request
             response = await self._send_request(current_request, current_headers)
+
+            # Dump pre-transformed response
+            response_bytes = orjson.dumps(response)
+            dumper.write_pretransformed_response(dumper_handles, response_bytes)
 
             # Apply response transformers to full response
             transformed_response = response
