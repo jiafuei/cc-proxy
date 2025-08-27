@@ -1,7 +1,8 @@
 """OpenAI transformers with real format conversion."""
 
-import json
 from typing import Any, Dict, List, Tuple
+
+import orjson
 
 from app.config.log import get_logger
 from app.services.transformers.interfaces import RequestTransformer, ResponseTransformer
@@ -192,7 +193,7 @@ class OpenAIRequestTransformer(RequestTransformer):
                         tool_call = {
                             'id': block.get('id', ''),
                             'type': 'function',
-                            'function': {'name': block.get('name', ''), 'arguments': json.dumps(block.get('input', {}))},
+                            'function': {'name': block.get('name', ''), 'arguments': orjson.dumps(block.get('input', {})).decode('utf-8')},
                         }
                         tool_calls.append(tool_call)
                 elif isinstance(block, str):
@@ -326,7 +327,7 @@ class OpenAIRequestTransformer(RequestTransformer):
                         # Convert tool use to a readable format for OpenAI
                         tool_name = block.get('name', '')
                         tool_input = block.get('input', {})
-                        text_parts.append(f'[Tool: {tool_name} with input: {json.dumps(tool_input)}]')
+                        text_parts.append(f'[Tool: {tool_name} with input: {orjson.dumps(tool_input).decode("utf-8")}]')
                     elif block_type == 'tool_result':
                         # Convert tool result to readable format
                         tool_id = block.get('tool_use_id', '')
@@ -419,14 +420,14 @@ class OpenAIResponseTransformer(ResponseTransformer):
                 if data_part == '[DONE]':
                     # Convert OpenAI completion to Claude format
                     claude_done = {'type': 'message_stop'}
-                    return f'data: {json.dumps(claude_done)}\n\n'.encode('utf-8')
+                    return f'data: {orjson.dumps(claude_done).decode("utf-8")}\n\n'.encode('utf-8')
 
                 # Parse OpenAI chunk
                 try:
-                    openai_chunk = json.loads(data_part)
+                    openai_chunk = orjson.loads(data_part)
                     claude_chunk = self._convert_openai_chunk_to_claude(openai_chunk)
-                    return f'data: {json.dumps(claude_chunk)}\n\n'.encode('utf-8')
-                except json.JSONDecodeError:
+                    return f'data: {orjson.dumps(claude_chunk).decode("utf-8")}\n\n'.encode('utf-8')
+                except orjson.JSONDecodeError:
                     logger.warning(f'Failed to parse OpenAI chunk JSON: {data_part[:100]}')
                     return chunk
 
@@ -463,8 +464,8 @@ class OpenAIResponseTransformer(ResponseTransformer):
             for tool_call in tool_calls:
                 function = tool_call.get('function', {})
                 try:
-                    arguments = json.loads(function.get('arguments', '{}'))
-                except json.JSONDecodeError:
+                    arguments = orjson.loads(function.get('arguments', '{}'))
+                except orjson.JSONDecodeError:
                     arguments = {}
 
                 claude_content.append({'type': 'tool_use', 'id': tool_call.get('id', ''), 'name': function.get('name', ''), 'input': arguments})

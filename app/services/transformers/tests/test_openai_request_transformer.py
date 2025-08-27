@@ -94,7 +94,7 @@ class TestOpenAIRequestTransformer:
         tool_call = messages[2]['tool_calls'][0]
         assert tool_call['type'] == 'function'
         assert tool_call['function']['name'] == 'search'
-        assert '"query": "help"' in tool_call['function']['arguments']
+        assert '"query":"help"' in tool_call['function']['arguments']
 
         # Check tool result message (new behavior)
         assert messages[3]['role'] == 'tool'
@@ -148,7 +148,7 @@ class TestOpenAIRequestTransformer:
         lines = result.split('\n')
 
         assert 'Hello' in lines
-        assert '[Tool: search with input: {"q": "test"}]' in lines
+        assert '[Tool: search with input: {"q":"test"}]' in lines
         assert '[Tool Result for 1: result data]' in lines
         assert 'some thoughts' not in result  # Thinking blocks are skipped
 
