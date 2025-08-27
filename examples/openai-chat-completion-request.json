@@ -1,0 +1,113 @@
+{
+  "model": "gpt-5",
+  "max_completion_tokens": 32000,
+  "reasoning_effort": "high",
+  "temperature": 1.0,
+  "top_p": 0.7,
+  "messages": [
+    {
+      "role": "system",
+      "content": ""
+    },
+    {
+      "role": "user",
+      "content": [
+        {
+          "type": "text",
+          "text": ""
+        },
+        {
+          "type": "image_url",
+          "image_url": {
+            "url": "",
+            "detail": ""
+          }
+        }
+      ]
+    },
+    {
+      "role": "assistant",
+      "content": null,
+      "tool_calls": [
+        {
+          "type": "function",
+          "id": "call_001",
+          "function": {
+            "name": "",
+            "arguments": ""
+          }
+        },
+        {
+          "type": "function",
+          "id": "call_999",
+          "function": {
+            "name": "",
+            "arguments": ""
+          }
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "content": "",
+      "tool_call_id": "call_001"
+    },
+    {
+      "role": "tool",
+      "content": [
+        {
+          "type": "text",
+          "text": ""
+        }
+      ],
+      "tool_call_id": "call_999"
+    },
+    {
+      "role": "assistant",
+      "content": [
+        {
+          "type": "text",
+          "text": ""
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "content": ""
+    },
+    {
+      "role": "assistant",
+      "content": [
+        {
+          "type": "refusal",
+          "refusal": ""
+        }
+      ]
+    }
+  ],
+  "tools": [
+    {
+      "type": "function",
+      "function": {
+        "name": "",
+        "description": "",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "property_name": {
+              "type": "string",
+              "description": ""
+            }
+          },
+          "required": ["property_name"],
+          "additionalProperties": false
+        },
+        "strict": true
+      }
+    }
+  ],
+  "stream": true,
+  "stream_options": {
+    "include_usage": true
+  }
+}

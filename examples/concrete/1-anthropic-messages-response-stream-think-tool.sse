@@ -1,0 +1,195 @@
+event: message_start
+data: {"type":"message_start","message":{"id":"msg_011wsYQ4ToyTpHuTibB25AU9","type":"message","role":"assistant","model":"claude-sonnet-4-20250514","content":[],"stop_reason":null,"stop_sequence":null,"usage":{"input_tokens":10,"cache_creation_input_tokens":1026,"cache_read_input_tokens":17409,"cache_creation":{"ephemeral_5m_input_tokens":1026,"ephemeral_1h_input_tokens":0},"output_tokens":8,"service_tier":"standard"}}            }
+
+event: content_block_start
+data: {"type":"content_block_start","index":0,"content_block":{"type":"thinking","thinking":"","signature":""}       }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":"The user is asking me to \""} }
+
+event: ping
+data: {"type": "ping"}
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":"ultrathink todays date. use task tool to plan\"."}    }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":" This seems like they want me to plan something relate"}              }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":"d to today's date. \n\nFrom the environment"}        }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":" information I have:\n- Today's date: 2025-08"}             }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":"-27\n\nThe user wants me to use"}        }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":" the task tool to plan, which means I shoul"}            }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":"d use the TodoWrite tool to create a plan."}               }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":" However, I'm not entirely sure what exactly"}   }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":" they want me to plan regarding today's date."} }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":" \n\nLet me think about what \""}           }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":"ultrathink todays date\" coul"}    }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":"d mean:\n1. They"}  }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":" want me to think deeply about what today's date means"}              }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":"\n2. They want me to plan"}               }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":" tasks for today\n3. They want me to analyze"}  }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":" something about the current date\n4. This"}               }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":" could be a test or example of"}               }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":" using the task planning tool\n\nSince they specifically"}            }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":" asked me to \"use task tool to plan\","}               }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":" I should use the TodoWrite tool to create some"}  }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":" kind of plan. But"}              }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":" I need to figure out what to plan."}         }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":"\n\nGiven the amb"}  }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":"iguity, I should probably"}         }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":" ask for clarification,"}           }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":" but"}          }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":" they di"} }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":"d explicitly ask me to use the task tool,"}       }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":" so maybe I"} }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":" should create a basic"}               }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":" plan around thinking about today's date an"}           }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":"d then ask for more"}    }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":" specifics.\n\nLet"}          }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":" me create a simple todo list for thinking"}           }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":" about today's date and then ask what"}  }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":" specific planning they want me to do."}         }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"signature_delta","signature":"EucKCkYIBxgCKkDNK03nlqHgkNhunzWmHTRree7Bvjt8elwXpCL6z+Oov6GFngaO4RVSJbluXWljRw33jTPYfFJrf4MY1BzEwvqwEgyZCLBxBUuMrWg0si0aDMHDLUORpDeryaFsPCIwJR+yvvzE25DWbIGQpKTTqDF9IM0kZywA+s0ic4budczzYPeoreiTsU82MwyMcVOWKs4JduCC2mC+tJJEFP+oG0lxvHJ50gHPSRlHgtJHTXtj0ELQZuyOI1wWEJfICHEKwBChV+mhShrlwYVN/RHob6oCEUdgNt1XE36Tc1qWGjA3rdHCiEl9XYQwp5dkcKCxil/CohItYsAA8V2EjjQ7ohM51RAUN6ZdOKFAXyyQQMk+Qp3gZaWA+s6huK+0lvZJz7zcTT0UY1W+8DcfhDGNJax5WnYhZik9nQ4soJe/G5RTUFIy1Ze7+0F8X69KdArGqHdJL5fFItcMkncVyJ/v9HrK/o0/2w22hf6gaO8Nam1htGwQpVvVNNtGRQuJd2khLC8ucu0OvtdAFkFlDC3esrrhhL+tlEkBe0oPH1YhC+0hV8zEm2hqOmQdEs5HgJn54EDfbpHW5vKB7DCQy+Ekz+GqKc29Z3QAsjZK7JBjxKD9ibL27UD9rZUR7G3csGxXlL7lOrbhrjf64YXU0P/B9dwkrby/VUcfctxGwa7Ly4nrwDrfpSRqO6+HCgBapWgAUva/GJ6n4MNK1Zn5ecKz3Y+x0kMCoggz9lWO5PkTCGe0PYCEmeDStPJPbUW5ytAUSelfgfM4/81o9Xzb8Re4XiQsY5od1j1XGJMFV4rAaGqV1IUz4GNslBImuhDOKsoZ7JL+3eiNioa2KEw0hhO70dUofuO8AD5k7hxYKRuu0+bsDdfiC7psx7Jz8/o/eClcMttUZZMQCmrMSep0EIreksUp8BSuhe4Lwc6acliJdNSY8S2AKvxc7FKWTII+yvyyLuxPmLf/UPHDN3a2XryD2AQ8MRF/aNwPd90GbclhCn1/0q99Wq/AayC++XDqSbRorDRD/W4siFMmR+Gqyis/Xw2bPs47gpI8Y/kwovZHnmDAUydpIPqA3gY9zSFkPQxKO2/f5PCbP0m0tiKEhwyI5Cmbb52SLGM5StZF81NZiyCNJeK9fY2jaG1M60JT9hzfbgkIguO8W6eRmBNf09C8+9Y1Jhlt0q/rEDpfIocmY8lh/U0Gje112Xco6LRXHLfOX4vfGzlU5+CO+pOYTBmcndnWS78inj062oIAOzTNl66Fy0Qj4nkvhTTx69wFZvE6I8A2YYkV3cQmM8/RhXAjtXSt0PMukW1McRweJ5NXEx9kD5KINalVsL8d+lCfbRCglFtm8u8Pd7HQA9LafDCD4iuU5x74jDTT7W29XwOf7m6Gi0GGBNdwHP6s7miSfb15mCzbjQ3XWOlOpLu6G8Q2CiczEQYVqK6KFOc0F6NVqbl9nlLT0aZN5j3oq+vn7Ffuh3oZuAXtLQxqvltDTxOuO2/0pLHNd3Ahb2dpLbPqHuzOAkV/TOrzH520HGM/YYSnEPCvRRk464hqcBDH88QUZaqLVgqndeHZqV6uDtROwEqan4qzOiG6I1MwoWvgCc8wITLQ5KLcKgu27Iq08wH4dAlvmXBPl60+UoZbnv2dY9KYcQftpOQybL7ZKO3Yk9xCDEKHM0ikiOV4+XUtwMITf8H8CxLPMCJvo5G8xfskWGiqh2syQwQDHTlFOLqZphtcy2sk70Ul6rMuVyJc50DT9sZS5FftVuE77y2FVvfNAq/4IgfkfPTXVn9bM3+xRkEJ9SXwSZR93gOPCO7SlXjEtp749CegjDa+tkgA0DTOKVxfGAE="}    }
+
+event: content_block_stop
+data: {"type":"content_block_stop","index":0               }
+
+event: content_block_start
+data: {"type":"content_block_start","index":1,"content_block":{"type":"text","text":""}              }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"I'll create a plan to think about today's date ("}    }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"2025-08-27) using"}        }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" the task tool."}   }
+
+event: content_block_stop
+data: {"type":"content_block_stop","index":1         }
+
+event: content_block_start
+data: {"type":"content_block_start","index":2,"content_block":{"type":"tool_use","id":"toolu_01J3WX6NUzVF7YjLbYbC2Wa8","name":"TodoWrite","input":{}}         }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":2,"delta":{"type":"input_json_delta","partial_json":""}      }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":2,"delta":{"type":"input_json_delta","partial_json":"{\"todos\": [\n  {\n    \"content\": \"Analyze today's date (2025-08-27)\",\n    \"status\": \"pending"}             }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":2,"delta":{"type":"input_json_delta","partial_json":"\",\n    \"activeForm\": \""}          }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":2,"delta":{"type":"input_json_delta","partial_json":"Analyzing today's date (2025-08-27)\""}         }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":2,"delta":{"type":"input_json_delta","partial_json":"\n  },\n  {\n    \"content\": \"Consider"}          }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":2,"delta":{"type":"input_json_delta","partial_json":" date significance and context\",\n    \"status\": \"pending"}     }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":2,"delta":{"type":"input_json_delta","partial_json":"\", \n    \"activeForm\": \""} }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":2,"delta":{"type":"input_json_delta","partial_json":"Considering date significance and context\""}          }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":2,"delta":{"type":"input_json_delta","partial_json":"\n  },\n  {\n    \""}          }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":2,"delta":{"type":"input_json_delta","partial_json":"content\": \"Determine what specific planning is"}    }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":2,"delta":{"type":"input_json_delta","partial_json":" needed\",\n    \"status\": \""} }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":2,"delta":{"type":"input_json_delta","partial_json":"pending\",\n    \"activeForm\": \"Determining what specific planning is neede"}   }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":2,"delta":{"type":"input_json_delta","partial_json":"d\"\n  }\n]"}               }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":2,"delta":{"type":"input_json_delta","partial_json":"}"}   }
+
+event: content_block_stop
+data: {"type":"content_block_stop","index":2            }
+
+event: message_delta
+data: {"type":"message_delta","delta":{"stop_reason":"tool_use","stop_sequence":null},"usage":{"input_tokens":10,"cache_creation_input_tokens":1026,"cache_read_input_tokens":17409,"output_tokens":514}           }
+
+event: message_stop
+data: {"type":"message_stop"               }
+

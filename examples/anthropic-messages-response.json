@@ -1,0 +1,36 @@
+{
+  "id": "",
+  "type": "message",
+  "role": "assistant",
+  "model": "",
+  "content": [
+    {
+      "type": "thinking",
+      "thinking": "",
+      "signature": ""
+    },
+    {
+      "type": "text",
+      "text": ""
+    },
+    {
+      "type": "tool_use",
+      "id": "",
+      "name": "",
+      "input": { "parameter": "value" }
+    }
+  ],
+  "stop_reason": "end_turn|max_tokens|tool_use|pause_turn|refusal",
+  "stop_sequence": null,
+  "usage": {
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "cache_creation_input_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 0
+    },
+    "service_tier": "standard"
+  }
+}

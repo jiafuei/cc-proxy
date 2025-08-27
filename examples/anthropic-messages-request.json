@@ -1,0 +1,407 @@
+{
+  "model": "claude-sonnet-4-20250514",
+  "messages": [
+    {
+      "role": "user",
+      "content": [
+        {
+          "type": "text",
+          "text":""
+        },
+        {
+          "type": "text",
+          "text":""
+        },
+        {
+          "type": "image",
+          "source": {
+            "type": "base64",
+            "data": "/9j/....",
+            "media_type": "image/jpeg"
+          }
+        },
+        {
+          "type": "text",
+          "text":""
+        },
+        {
+          "type": "text",
+          "text":""
+        }
+      ]
+    },
+    {
+      "role": "assistant",
+      "content": [
+        {
+          "type": "thinking",
+          "thinking":"",
+          "signature":""
+        },
+        {
+          "type": "text",
+          "text":""
+        },
+        {
+          "type": "tool_use",
+          "id": "toolu_01TWm8jthhQ9RDDRTy1UKiXr",
+          "name": "Read",
+          "input": {
+            "file_path":""
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "content": [
+        {
+          "type": "tool_result",
+          "tool_use_id": "toolu_01TWm8jthhQ9RDDRTy1UKiXr",
+          "content":""
+        }
+      ]
+    },
+    {
+      "role": "assistant",
+      "content": [
+        {
+          "type": "thinking",
+          "thinking":"",
+          "signature":""
+        },
+        {
+          "type": "tool_use",
+          "id": "toolu_01NynpWYtGGQeyrNdeVhN99Q",
+          "name": "Read",
+          "input": {
+            "file_path":""
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "content": [
+        {
+          "type": "tool_result",
+          "tool_use_id": "toolu_01NynpWYtGGQeyrNdeVhN99Q",
+          "content":""
+        }
+      ]
+    },
+    {
+      "role": "assistant",
+      "content": [
+        {
+          "type": "thinking",
+          "thinking":"",
+          "signature":""
+        },
+        {
+          "type": "tool_use",
+          "id": "toolu_01EtefPzznkfoHtnk7Avvyp9",
+          "name": "Glob",
+          "input": {
+            "pattern": "app/services/provider*"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "content": [
+        {
+          "type": "tool_result",
+          "tool_use_id": "toolu_01EtefPzznkfoHtnk7Avvyp9",
+          "content":""
+        }
+      ]
+    },
+    {
+      "role": "assistant",
+      "content": [
+        {
+          "type": "thinking",
+          "thinking":"",
+          "signature":""
+        },
+        {
+          "type": "tool_use",
+          "id": "toolu_01YE1ihUnxZF7AEtv33oRa4u",
+          "name": "Read",
+          "input": {
+            "file_path":""
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "content": [
+        {
+          "type": "tool_result",
+          "tool_use_id": "toolu_01YE1ihUnxZF7AEtv33oRa4u",
+          "content":""
+        }
+      ]
+    },
+    {
+      "role": "assistant",
+      "content": [
+        {
+          "type": "thinking",
+          "thinking":"",
+          "signature":""
+        },
+        {
+          "type": "tool_use",
+          "id": "toolu_0156yox8aNSjuQKZKWEngUND",
+          "name": "Glob",
+          "input": {
+            "pattern": "**/main.py"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "content": [
+        {
+          "type": "tool_result",
+          "tool_use_id": "toolu_0156yox8aNSjuQKZKWEngUND",
+          "content":""
+        }
+      ]
+    },
+    {
+      "role": "assistant",
+      "content": [
+        {
+          "type": "thinking",
+          "thinking":"",
+          "signature":""
+        },
+        {
+          "type": "tool_use",
+          "id": "toolu_01ChqCvF3pdjUbLSN3cFH7Md",
+          "name": "Read",
+          "input": {
+            "file_path":""
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "content": [
+        {
+          "type": "tool_result",
+          "tool_use_id": "toolu_01ChqCvF3pdjUbLSN3cFH7Md",
+          "content":""
+        }
+      ]
+    },
+    {
+      "role": "assistant",
+      "content": [
+        {
+          "type": "thinking",
+          "thinking":"",
+          "signature":""
+        },
+        {
+          "type": "tool_use",
+          "id": "toolu_01L3bCqZLSsDWC3Md7349jEV",
+          "name": "Read",
+          "input": {
+            "file_path":""
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "content": [
+        {
+          "type": "tool_result",
+          "tool_use_id": "toolu_01L3bCqZLSsDWC3Md7349jEV",
+          "content":""
+        }
+      ]
+    },
+    {
+      "role": "assistant",
+      "content": [
+        {
+          "type": "thinking",
+          "thinking":"",
+          "signature":""
+        },
+        {
+          "type": "text",
+          "text":""
+        },
+        {
+          "type": "tool_use",
+          "id": "toolu_01BQshShbYWd9eV72jsyyWNC",
+          "name": "ExitPlanMode",
+          "input": {
+            "plan":""
+          },
+          "cache_control": {
+            "type": "ephemeral"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "content": [
+        {
+          "type": "tool_result",
+          "tool_use_id": "toolu_01BQshShbYWd9eV72jsyyWNC",
+          "content":"",
+          "is_error": true
+        },
+        {
+          "type": "text",
+          "text":""
+        },
+        {
+          "type": "text",
+          "text":"",
+          "cache_control": {
+            "type": "ephemeral"
+          }
+        }
+      ]
+    }
+  ],
+  "temperature": 1.0,
+  "system": [
+    {
+      "type": "text",
+      "text":"",
+      "cache_control": {
+        "type": "ephemeral"
+      }
+    },
+    {
+      "type": "text",
+      "text":"",
+      "cache_control": {
+        "type": "ephemeral"
+      }
+    }
+  ],
+  "tools": [
+    {
+      "name": "Task",
+      "description":"",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "description": {
+            "type": "string",
+            "description":""
+          },
+          "prompt": {
+            "type": "string",
+            "description":""
+          },
+          "subagent_type": {
+            "type": "string",
+            "description":""
+          }
+        },
+        "required": [
+          "description",
+          "prompt",
+          "subagent_type"
+        ],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "Bash",
+      "description":"",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "command": {
+            "type": "string",
+            "description":""
+          },
+          "timeout": {
+            "type": "number",
+            "description":""
+          },
+          "description": {
+            "type": "string",
+            "description":""
+          },
+          "run_in_background": {
+            "type": "boolean",
+            "description":""
+          }
+        },
+        "required": [
+          "command"
+        ],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "Glob",
+      "description":"",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "pattern": {
+            "type": "string",
+            "description":""
+          },
+          "path": {
+            "type": "string",
+            "description":""
+          }
+        },
+        "required": [
+          "pattern"
+        ],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "mcp__ide__executeCode",
+      "description":"",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "description":""
+          }
+        },
+        "required": [
+          "code"
+        ],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    }
+  ],
+  "metadata": {
+    "user_id": "user_7f3c055fbddd72134135dbcd0af16ea9ce6a3afc4dbe13de3e5b48841505d91d_account__session_ff1a49ca-ad18-4799-a58f-eeb07e8ebd78"
+  },
+  "thinking": {
+    "type": "enabled",
+    "budget_tokens": 31999
+  },
+  "max_tokens": 32000,
+  "stream": true
+}

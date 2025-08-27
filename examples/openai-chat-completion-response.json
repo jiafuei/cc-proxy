@@ -1,0 +1,65 @@
+{
+  "id": "",
+  "object": "chat.completion",
+  "created": 0,
+  "model": "",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "",
+        "refusal": null
+      },
+      "finish_reason": "stop"
+    },
+    {
+      "index": 1,
+      "message": {
+        "role": "assistant",
+        "content": null,
+        "tool_calls": [
+          {
+            "id": "",
+            "type": "function",
+            "function": {
+              "name": "",
+              "arguments": ""
+            }
+          }
+        ]
+      },
+      "finish_reason": "tool_calls"
+    },
+    {
+      "index": 2,
+      "message": {
+        "role": "assistant",
+        "content": null,
+        "refusal": ""
+      },
+      "finish_reason": "content_filter"
+    },
+    {
+      "index": 3,
+      "message": {
+        "role": "assistant",
+        "content": "",
+        "refusal": null
+      },
+      "finish_reason": "length"
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 0,
+    "completion_tokens": 0,
+    "total_tokens": 0,
+    "prompt_tokens_details": {
+      "cached_tokens": 0
+    },
+    "completion_tokens_details": {
+      "reasoning_tokens": 0
+    }
+  },
+  "system_fingerprint": ""
+}

@@ -1,0 +1,38 @@
+{
+  "model": "gpt-5-nano",
+  "messages": [
+    {
+      "role": "developer",
+      "content": "You are a helpful assistant."
+    },
+    {
+      "role": "user",
+      "content": "Hello! What is the meaning of yellow sunsets. Use the get meaning tool"
+    }
+  ],
+  "tools": [
+    {
+      "type": "function",
+      "function": {
+        "name": "get_meaning",
+        "description": "Returns meaning of things",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "subject": {
+              "type": "string",
+              "description": "The subject"
+            }
+          },
+          "required": [
+            "subject"
+          ],
+          "additionalProperties": false
+        },
+        "strict": false
+      }
+    }
+  ],
+  "reasoning_effort": "low",
+  "stream": false
+}

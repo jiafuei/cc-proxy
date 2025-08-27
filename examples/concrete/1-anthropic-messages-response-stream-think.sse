@@ -1,0 +1,51 @@
+event: message_start
+data: {"type":"message_start","message":{"id":"msg_01TD2PwrxUyGVWwynnPmu9Ez","type":"message","role":"assistant","model":"claude-sonnet-4-20250514","content":[],"stop_reason":null,"stop_sequence":null,"usage":{"input_tokens":13,"cache_creation_input_tokens":298,"cache_read_input_tokens":20087,"cache_creation":{"ephemeral_5m_input_tokens":298,"ephemeral_1h_input_tokens":0},"output_tokens":6,"service_tier":"standard"}}               }
+
+event: content_block_start
+data: {"type":"content_block_start","index":0,"content_block":{"type":"thinking","thinking":"","signature":""}           }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":"I've completed the basic"}   }
+
+event: ping
+data: {"type": "ping"}
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":" planning around thinking about today's date. I"}      }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":"'ve analyzed the date (2025-08-27),"}        }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":" considered its context and significance, and determined that I need clar"}       }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":"ification on what specific planning the user wants me to do.\n\nThe"} }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":" user asked me to \"ultrathink todays"}     }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":" date\" and \"use task tool to plan\","}   }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":" which I've done. I've created a plan,"}    }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":" executed it, and now I'm asking for more"}               }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":" specific direction since the original request was quite vague."}      }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"signature_delta","signature":"EvUECkYIBxgCKkAQ0NGWEauTvCpHtT9sjaDeggCq/HNfs9tugnbkCtKZOQImyhkyHkHZnO02ICNQE+EnA3ckCaoKrDDPLEFQZrx0EgzcTxW0/0VsFSsA3T8aDHpe6gY8ywYwToppxCIwvG18nPn+nAMnVR2w1HTGOj18/YLW8P/9W69C6StUac84mCN9NfcEgus4pH9xkreKKtwDZLK/g8xmI56PaOt1rbzXx0GnFZ67fWSSjINwQDl7NkRTWyhnIw9ZmV6ozFNZv00+fJXlzlaMpRXLlC5D42tvq09PcETFh1rhoHgRsy33/Qz1eBRPiODKFi1ZIMQXbK90f2lWhVtPSiUnPbBLmeuoCMAyEPHgu5JNY1AAeLHQCwHmg8B1Kv5hOZqbgYlzTy+FmYTvwCvJxu1aty0iznVFH/XnfIla3YbmxSb/j8Q1QutNzuaIHdfv9RVV3zhoOxhiHpxe0LLHMe+AgCDXVMkoJ+twZmocYMe3PPxqjUhtbi6sFzwkN5tdA2SHs0HR6KBSBhDpOBpxhUA4+QaixBT6336nAWGp+L3c9yRXEAB/jSQqph/aaDH5P4KuXWlxe8gQm+Rmobecyvp4B/rxqOunPbmrgs3xGZNwV9UZ4xuGv2C7MJT+7gQ3gJOwcLF6GhAdPEAeJSHi3qRwPfvP9QgGv9Gp7T/J8Rl7/e/9OBTfv9n/Xp9sFXD5omViCG+5k0v2y5XJmQRkH+fAWEJOAJorCRDYIYswa3XdwEtNglwjgbho5mCEkz7xuNKm9eNVEfz/A/tN6VscYG5BGlXoJiMejgrbhqjh1vEUD3lnTx+xGDAvljwucs9jyrZYE/AYAQ=="}  }
+
+event: content_block_stop
+data: {"type":"content_block_stop","index":0          }
+
+event: message_delta
+data: {"type":"message_delta","delta":{"stop_reason":"end_turn","stop_sequence":null},"usage":{"input_tokens":13,"cache_creation_input_tokens":298,"cache_read_input_tokens":20087,"output_tokens":115}}
+
+event: message_stop
+data: {"type":"message_stop"     }
+
