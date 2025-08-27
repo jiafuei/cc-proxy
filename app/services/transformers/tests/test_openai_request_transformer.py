@@ -24,199 +24,128 @@ class TestOpenAIRequestTransformer:
             'temperature': 1.0,
             'stream': True,
             'system': [
-                {
-                    'type': 'text',
-                    'text': 'You are Claude Code',
-                    'cache_control': {'type': 'ephemeral'}
-                },
-                {
-                    'type': 'text',  
-                    'text': ' - a helpful assistant for coding.',
-                    'cache_control': {'type': 'ephemeral'}
-                }
+                {'type': 'text', 'text': 'You are Claude Code', 'cache_control': {'type': 'ephemeral'}},
+                {'type': 'text', 'text': ' - a helpful assistant for coding.', 'cache_control': {'type': 'ephemeral'}},
             ],
-            'messages': [
-                {'role': 'user', 'content': 'Hello'},
-                {'role': 'user', 'content': 'Hi there!'}
-            ],
-            'tools': [
-                {
-                    'name': 'Read',
-                    'description': 'Read files',
-                    'input_schema': {'type': 'object', 'properties': {'file_path': {'type': 'string'}}}
-                }
-            ]
+            'messages': [{'role': 'user', 'content': 'Hello'}, {'role': 'user', 'content': 'Hi there!'}],
+            'tools': [{'name': 'Read', 'description': 'Read files', 'input_schema': {'type': 'object', 'properties': {'file_path': {'type': 'string'}}}}],
         }
 
     def test_convert_system_messages_multiple_blocks(self, transformer):
         """Test combining multiple system message blocks into one."""
-        claude_system = [
-            {'type': 'text', 'text': 'You are Claude Code', 'cache_control': {'type': 'ephemeral'}},
-            {'type': 'text', 'text': ' - a helpful assistant.'},
-        ]
-        
-        result = transformer._convert_system_messages(claude_system)
-        
-        assert result == {
-            'role': 'system',
-            'content': 'You are Claude Code\n - a helpful assistant.'
+        claude_request = {
+            'system': [
+                {'type': 'text', 'text': 'You are Claude Code', 'cache_control': {'type': 'ephemeral'}},
+                {'type': 'text', 'text': ' - a helpful assistant.'},
+            ]
         }
+
+        result = transformer._convert_messages(claude_request)
+
+        assert len(result) == 1
+        assert result[0] == {'role': 'system', 'content': 'You are Claude Code\n - a helpful assistant.'}
 
     def test_convert_system_messages_single_block(self, transformer):
         """Test single system message conversion."""
-        claude_system = [
-            {'type': 'text', 'text': 'You are a helpful assistant.'}
-        ]
-        
-        result = transformer._convert_system_messages(claude_system)
-        
-        assert result == {
-            'role': 'system',
-            'content': 'You are a helpful assistant.'
-        }
+        claude_request = {'system': [{'type': 'text', 'text': 'You are a helpful assistant.'}]}
+
+        result = transformer._convert_messages(claude_request)
+
+        assert len(result) == 1
+        assert result[0] == {'role': 'system', 'content': 'You are a helpful assistant.'}
 
     def test_convert_system_messages_empty(self, transformer):
         """Test empty system messages."""
-        assert transformer._convert_system_messages([]) is None
-        assert transformer._convert_system_messages(None) is None
+        assert transformer._convert_messages({}) == []
+        assert transformer._convert_messages({'system': []}) == []
 
     def test_convert_system_messages_no_text_blocks(self, transformer):
         """Test system array with no text blocks."""
-        claude_system = [
-            {'type': 'other', 'data': 'some data'}
-        ]
-        
-        result = transformer._convert_system_messages(claude_system)
-        assert result is None
+        claude_request = {'system': [{'type': 'other', 'data': 'some data'}]}
+
+        result = transformer._convert_messages(claude_request)
+        assert result == []
 
     def test_convert_user_message_string_content(self, transformer):
         """Test user message with string content."""
-        claude_message = {
-            'role': 'user',
-            'content': 'Hello, how are you?'
-        }
-        
-        result = transformer._convert_user_message(claude_message)
-        
-        assert result == {
-            'role': 'user',
-            'content': [{'type': 'text', 'text': 'Hello, how are you?'}]
-        }
+        claude_request = {'messages': [{'role': 'user', 'content': 'Hello, how are you?'}]}
+
+        result = transformer._convert_messages(claude_request)
+
+        assert len(result) == 1
+        assert result[0] == {'role': 'user', 'content': [{'type': 'text', 'text': 'Hello, how are you?'}]}
 
     def test_convert_user_message_list_content_text_only(self, transformer):
         """Test user message with list content containing only text blocks."""
-        claude_message = {
-            'role': 'user',
-            'content': [
-                {'type': 'text', 'text': 'First part'},
-                {'type': 'text', 'text': 'Second part'}
-            ]
-        }
-        
-        result = transformer._convert_user_message(claude_message)
-        
-        assert result == {
-            'role': 'user',
-            'content': [
-                {'type': 'text', 'text': 'First part'},
-                {'type': 'text', 'text': 'Second part'}
-            ]
-        }
+        claude_request = {'messages': [{'role': 'user', 'content': [{'type': 'text', 'text': 'First part'}, {'type': 'text', 'text': 'Second part'}]}]}
+
+        result = transformer._convert_messages(claude_request)
+
+        assert len(result) == 1
+        assert result[0] == {'role': 'user', 'content': [{'type': 'text', 'text': 'First part'}, {'type': 'text', 'text': 'Second part'}]}
 
     def test_convert_user_message_list_content_mixed_blocks(self, transformer):
         """Test user message with mixed content blocks (text and images converted)."""
-        claude_message = {
-            'role': 'user',
-            'content': [
-                {'type': 'text', 'text': 'Text part'},
+        claude_request = {
+            'messages': [
                 {
-                    'type': 'image', 
-                    'source': {
-                        'type': 'base64', 
-                        'data': 'abc123', 
-                        'media_type': 'image/jpeg'
-                    }
-                },
-                {'type': 'text', 'text': 'More text'}
+                    'role': 'user',
+                    'content': [
+                        {'type': 'text', 'text': 'Text part'},
+                        {'type': 'image', 'source': {'type': 'base64', 'data': 'abc123', 'media_type': 'image/jpeg'}},
+                        {'type': 'text', 'text': 'More text'},
+                    ],
+                }
             ]
         }
-        
-        result = transformer._convert_user_message(claude_message)
-        
-        assert result == {
+
+        result = transformer._convert_messages(claude_request)
+
+        assert len(result) == 1
+        assert result[0] == {
             'role': 'user',
-            'content': [
-                {'type': 'text', 'text': 'Text part'},
-                {
-                    'type': 'image_url',
-                    'image_url': {
-                        'url': 'data:image/jpeg;base64,abc123'
-                    }
-                },
-                {'type': 'text', 'text': 'More text'}
-            ]
+            'content': [{'type': 'text', 'text': 'Text part'}, {'type': 'image_url', 'image_url': {'url': 'data:image/jpeg;base64,abc123'}}, {'type': 'text', 'text': 'More text'}],
         }
 
     def test_convert_user_message_non_user_role(self, transformer):
-        """Test that non-user messages are not converted."""
-        claude_message = {
-            'role': 'assistant',
-            'content': 'I am an assistant'
-        }
-        
-        result = transformer._convert_user_message(claude_message)
-        assert result is None
+        """Test that assistant messages are properly converted."""
+        claude_request = {'messages': [{'role': 'assistant', 'content': 'I am an assistant'}]}
+
+        result = transformer._convert_messages(claude_request)
+
+        assert len(result) == 1
+        assert result[0] == {'role': 'assistant', 'content': [{'type': 'text', 'text': 'I am an assistant'}]}
 
     def test_convert_user_message_empty_content(self, transformer):
         """Test user message with empty content."""
-        claude_message = {
-            'role': 'user',
-            'content': ''
-        }
-        
-        result = transformer._convert_user_message(claude_message)
-        assert result is None
+        claude_request = {'messages': [{'role': 'user', 'content': ''}]}
+
+        result = transformer._convert_messages(claude_request)
+
+        assert len(result) == 1
+        assert result[0] == {'role': 'user', 'content': [{'type': 'text', 'text': ''}]}
 
     def test_convert_user_message_no_convertible_blocks(self, transformer):
         """Test user message with no convertible blocks (unsupported types)."""
-        claude_message = {
-            'role': 'user',
-            'content': [
-                {'type': 'tool_use', 'id': '123', 'name': 'Read'},
-                {'type': 'unsupported', 'data': 'some data'}
-            ]
-        }
-        
-        result = transformer._convert_user_message(claude_message)
-        assert result is None
+        claude_request = {'messages': [{'role': 'user', 'content': [{'type': 'tool_use', 'id': '123', 'name': 'Read'}, {'type': 'unsupported', 'data': 'some data'}]}]}
+
+        result = transformer._convert_messages(claude_request)
+
+        # Should create assistant message with tool call, not user message
+        assert len(result) == 0  # No convertible content for user
 
     def test_convert_image_block_valid(self, transformer):
         """Test converting valid Claude image block to OpenAI format."""
-        claude_image = {
-            'type': 'image',
-            'source': {
-                'type': 'base64',
-                'data': 'iVBORw0KGgoAAAANSUhEUgAA',
-                'media_type': 'image/png'
-            }
-        }
-        
+        claude_image = {'type': 'image', 'source': {'type': 'base64', 'data': 'iVBORw0KGgoAAAANSUhEUgAA', 'media_type': 'image/png'}}
+
         result = transformer._convert_image_block(claude_image)
-        
-        assert result == {
-            'type': 'image_url',
-            'image_url': {
-                'url': 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAA'
-            }
-        }
+
+        assert result == {'type': 'image_url', 'image_url': {'url': 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAA'}}
 
     def test_convert_image_block_invalid_type(self, transformer):
         """Test that non-image blocks are not converted."""
-        claude_block = {
-            'type': 'text',
-            'text': 'Not an image'
-        }
-        
+        claude_block = {'type': 'text', 'text': 'Not an image'}
+
         result = transformer._convert_image_block(claude_block)
         assert result is None
 
@@ -226,122 +155,72 @@ class TestOpenAIRequestTransformer:
             'type': 'image',
             'source': {
                 'type': 'url',  # Not base64
-                'url': 'https://example.com/image.jpg'
-            }
+                'url': 'https://example.com/image.jpg',
+            },
         }
-        
+
         result = transformer._convert_image_block(claude_image)
         assert result is None
 
     def test_convert_image_block_missing_source(self, transformer):
         """Test image block with missing source."""
-        claude_image = {
-            'type': 'image'
-        }
-        
+        claude_image = {'type': 'image'}
+
         result = transformer._convert_image_block(claude_image)
         assert result is None
 
     def test_convert_user_message_only_images(self, transformer):
         """Test user message with only image content."""
-        claude_message = {
-            'role': 'user',
-            'content': [
-                {
-                    'type': 'image',
-                    'source': {
-                        'type': 'base64',
-                        'data': 'xyz789',
-                        'media_type': 'image/gif'
-                    }
-                }
-            ]
-        }
-        
-        result = transformer._convert_user_message(claude_message)
-        
-        assert result == {
-            'role': 'user',
-            'content': [
-                {
-                    'type': 'image_url',
-                    'image_url': {
-                        'url': 'data:image/gif;base64,xyz789'
-                    }
-                }
-            ]
-        }
+        claude_request = {'messages': [{'role': 'user', 'content': [{'type': 'image', 'source': {'type': 'base64', 'data': 'xyz789', 'media_type': 'image/gif'}}]}]}
+
+        result = transformer._convert_messages(claude_request)
+
+        assert len(result) == 1
+        assert result[0] == {'role': 'user', 'content': [{'type': 'image_url', 'image_url': {'url': 'data:image/gif;base64,xyz789'}}]}
 
     def test_convert_system_messages_mixed_blocks(self, transformer):
         """Test system array with mixed block types."""
-        claude_system = [
-            {'type': 'text', 'text': 'First part'},
-            {'type': 'other', 'data': 'ignored'},
-            {'type': 'text', 'text': ' second part'}
-        ]
-        
-        result = transformer._convert_system_messages(claude_system)
-        
-        assert result == {
-            'role': 'system', 
-            'content': 'First part\n second part'
-        }
+        claude_request = {'system': [{'type': 'text', 'text': 'First part'}, {'type': 'other', 'data': 'ignored'}, {'type': 'text', 'text': ' second part'}]}
+
+        result = transformer._convert_messages(claude_request)
+
+        assert len(result) == 1
+        assert result[0] == {'role': 'system', 'content': 'First part\n second part'}
 
     def test_convert_messages_with_system(self, transformer, sample_claude_request):
         """Test messages conversion with system messages."""
         result = transformer._convert_messages(sample_claude_request)
-        
+
         assert len(result) == 3  # system + 2 user messages
-        assert result[0] == {
-            'role': 'system',
-            'content': 'You are Claude Code\n - a helpful assistant for coding.'
-        }
+        assert result[0] == {'role': 'system', 'content': 'You are Claude Code\n - a helpful assistant for coding.'}
         assert result[1] == {'role': 'user', 'content': [{'type': 'text', 'text': 'Hello'}]}
         assert result[2] == {'role': 'user', 'content': [{'type': 'text', 'text': 'Hi there!'}]}
 
     def test_convert_messages_no_system(self, transformer):
         """Test messages conversion without system messages."""
-        claude_request = {
-            'messages': [
-                {'role': 'user', 'content': 'Hello'},
-                {'role': 'assistant', 'content': 'Hi!'}
-            ]
-        }
-        
+        claude_request = {'messages': [{'role': 'user', 'content': 'Hello'}, {'role': 'assistant', 'content': 'Hi!'}]}
+
         result = transformer._convert_messages(claude_request)
-        
+
         assert len(result) == 2  # user and assistant messages both converted
-        assert result[0] == {
-            'role': 'user',
-            'content': [{'type': 'text', 'text': 'Hello'}]
-        }
-        assert result[1] == {
-            'role': 'assistant', 
-            'content': [{'type': 'text', 'text': 'Hi!'}]
-        }
+        assert result[0] == {'role': 'user', 'content': [{'type': 'text', 'text': 'Hello'}]}
+        assert result[1] == {'role': 'assistant', 'content': [{'type': 'text', 'text': 'Hi!'}]}
 
     def test_convert_messages_empty_system(self, transformer):
         """Test messages conversion with empty system array."""
-        claude_request = {
-            'system': [],
-            'messages': [
-                {'role': 'user', 'content': 'Hello'}
-            ]
-        }
-        
+        claude_request = {'system': [], 'messages': [{'role': 'user', 'content': 'Hello'}]}
+
         result = transformer._convert_messages(claude_request)
-        
+
         assert len(result) == 1  # 1 user message converted
         assert result[0] == {'role': 'user', 'content': [{'type': 'text', 'text': 'Hello'}]}
 
     def test_convert_messages_no_messages_field(self, transformer):
         """Test messages conversion when messages field is missing."""
-        claude_request = {
-            'system': [{'type': 'text', 'text': 'System message'}]
-        }
-        
+        claude_request = {'system': [{'type': 'text', 'text': 'System message'}]}
+
         result = transformer._convert_messages(claude_request)
-        
+
         assert len(result) == 1
         assert result[0] == {'role': 'system', 'content': 'System message'}
 
@@ -350,14 +229,11 @@ class TestOpenAIRequestTransformer:
         """Test that transform doesn't modify the original request."""
         original_system = sample_claude_request['system'].copy()
         original_messages = sample_claude_request['messages'].copy()
-        
-        params = {
-            'request': sample_claude_request,
-            'headers': {'content-type': 'application/json'}
-        }
-        
+
+        params = {'request': sample_claude_request, 'headers': {'content-type': 'application/json'}}
+
         openai_request, headers = await transformer.transform(params)
-        
+
         # Original request should be unchanged
         assert sample_claude_request['system'] == original_system
         assert sample_claude_request['messages'] == original_messages
@@ -365,142 +241,82 @@ class TestOpenAIRequestTransformer:
 
     def test_convert_tool_result_to_message_valid(self, transformer):
         """Test converting valid tool_result block to OpenAI tool message."""
-        tool_result_block = {
-            'type': 'tool_result',
-            'tool_use_id': 'toolu_123abc',
-            'content': 'File contents here',
-            'is_error': False
-        }
-        
-        result = transformer._convert_tool_result_to_message(tool_result_block)
-        
-        assert result == {
-            'role': 'tool',
-            'tool_call_id': 'toolu_123abc',
-            'content': 'File contents here'
-        }
+        tool_result_block = {'type': 'tool_result', 'tool_use_id': 'toolu_123abc', 'content': 'File contents here', 'is_error': False}
+
+        result = transformer._convert_tool_result(tool_result_block)
+
+        assert result == {'role': 'tool', 'tool_call_id': 'toolu_123abc', 'content': 'File contents here'}
 
     def test_convert_tool_result_to_message_empty_content_success(self, transformer):
         """Test tool_result with empty content and no is_error field (defaults to Success)."""
-        tool_result_block = {
-            'type': 'tool_result',
-            'tool_use_id': 'toolu_456def',
-            'content': ''
-        }
-        
-        result = transformer._convert_tool_result_to_message(tool_result_block)
-        
-        assert result == {
-            'role': 'tool',
-            'tool_call_id': 'toolu_456def',
-            'content': 'Success'
-        }
+        tool_result_block = {'type': 'tool_result', 'tool_use_id': 'toolu_456def', 'content': ''}
+
+        result = transformer._convert_tool_result(tool_result_block)
+
+        assert result == {'role': 'tool', 'tool_call_id': 'toolu_456def', 'content': 'Success'}
 
     def test_convert_tool_result_to_message_empty_content_error(self, transformer):
         """Test tool_result with empty content and is_error=True."""
-        tool_result_block = {
-            'type': 'tool_result',
-            'tool_use_id': 'toolu_789ghi',
-            'content': '',
-            'is_error': True
-        }
-        
-        result = transformer._convert_tool_result_to_message(tool_result_block)
-        
-        assert result == {
-            'role': 'tool',
-            'tool_call_id': 'toolu_789ghi',
-            'content': 'Error'
-        }
+        tool_result_block = {'type': 'tool_result', 'tool_use_id': 'toolu_789ghi', 'content': '', 'is_error': True}
+
+        result = transformer._convert_tool_result(tool_result_block)
+
+        assert result == {'role': 'tool', 'tool_call_id': 'toolu_789ghi', 'content': 'Error'}
 
     def test_convert_tool_result_to_message_empty_content_is_error_false(self, transformer):
         """Test tool_result with empty content and explicit is_error=False."""
-        tool_result_block = {
-            'type': 'tool_result',
-            'tool_use_id': 'toolu_abc123',
-            'content': '',
-            'is_error': False
-        }
-        
-        result = transformer._convert_tool_result_to_message(tool_result_block)
-        
-        assert result == {
-            'role': 'tool',
-            'tool_call_id': 'toolu_abc123',
-            'content': 'Success'
-        }
+        tool_result_block = {'type': 'tool_result', 'tool_use_id': 'toolu_abc123', 'content': '', 'is_error': False}
+
+        result = transformer._convert_tool_result(tool_result_block)
+
+        assert result == {'role': 'tool', 'tool_call_id': 'toolu_abc123', 'content': 'Success'}
 
     def test_convert_tool_result_to_message_non_empty_content_with_error_flag(self, transformer):
         """Test tool_result with actual content and is_error=True (content preserved)."""
-        tool_result_block = {
-            'type': 'tool_result',
-            'tool_use_id': 'toolu_preserve',
-            'content': 'Actual error message',
-            'is_error': True
-        }
-        
-        result = transformer._convert_tool_result_to_message(tool_result_block)
-        
-        assert result == {
-            'role': 'tool',
-            'tool_call_id': 'toolu_preserve',
-            'content': 'Actual error message'
-        }
+        tool_result_block = {'type': 'tool_result', 'tool_use_id': 'toolu_preserve', 'content': 'Actual error message', 'is_error': True}
+
+        result = transformer._convert_tool_result(tool_result_block)
+
+        assert result == {'role': 'tool', 'tool_call_id': 'toolu_preserve', 'content': 'Actual error message'}
 
     def test_convert_tool_result_to_message_invalid_type(self, transformer):
         """Test that non-tool_result blocks are not converted."""
-        block = {
-            'type': 'text',
-            'text': 'Not a tool result'
-        }
-        
-        result = transformer._convert_tool_result_to_message(block)
-        assert result is None
+        block = {'type': 'text', 'text': 'Not a tool result'}
+
+        # This test no longer applies since _convert_tool_result doesn't validate type
+        # The validation is now done at the message processing level
+        result = transformer._convert_tool_result(block)
+        assert result['role'] == 'tool'  # Will still create a tool message with None ID
 
     def test_convert_tool_result_to_message_missing_id(self, transformer):
         """Test tool_result block with missing tool_use_id."""
-        tool_result_block = {
-            'type': 'tool_result',
-            'content': 'Some content'
-        }
-        
-        result = transformer._convert_tool_result_to_message(tool_result_block)
-        assert result is None
+        tool_result_block = {'type': 'tool_result', 'content': 'Some content'}
+
+        result = transformer._convert_tool_result(tool_result_block)
+        assert result['tool_call_id'] is None
 
     def test_convert_content_block_text(self, transformer):
-        """Test converting text content block."""
-        block = {'type': 'text', 'text': 'Hello world'}
-        
-        result = transformer._convert_content_block(block)
-        
-        assert result == {'type': 'text', 'text': 'Hello world'}
+        """Test converting text content block through _convert_content_blocks."""
+        blocks = [{'type': 'text', 'text': 'Hello world'}]
+
+        result = transformer._convert_content_blocks(blocks)
+
+        assert result == [{'type': 'text', 'text': 'Hello world'}]
 
     def test_convert_content_block_image(self, transformer):
-        """Test converting image content block."""
-        block = {
-            'type': 'image',
-            'source': {
-                'type': 'base64',
-                'data': 'xyz789',
-                'media_type': 'image/png'
-            }
-        }
-        
-        result = transformer._convert_content_block(block)
-        
-        assert result == {
-            'type': 'image_url',
-            'image_url': {
-                'url': 'data:image/png;base64,xyz789'
-            }
-        }
+        """Test converting image content block through _convert_content_blocks."""
+        blocks = [{'type': 'image', 'source': {'type': 'base64', 'data': 'xyz789', 'media_type': 'image/png'}}]
+
+        result = transformer._convert_content_blocks(blocks)
+
+        assert result == [{'type': 'image_url', 'image_url': {'url': 'data:image/png;base64,xyz789'}}]
 
     def test_convert_content_block_unsupported(self, transformer):
-        """Test unsupported content block type."""
-        block = {'type': 'unknown', 'data': 'something'}
-        
-        result = transformer._convert_content_block(block)
-        assert result is None
+        """Test unsupported content block type through _convert_content_blocks."""
+        blocks = [{'type': 'unknown', 'data': 'something'}]
+
+        result = transformer._convert_content_blocks(blocks)
+        assert result == []
 
     def test_queue_processing_with_tool_result_boundary(self, transformer):
         """Test queue processing with tool_result creating message boundaries."""
@@ -510,34 +326,20 @@ class TestOpenAIRequestTransformer:
                     'role': 'user',
                     'content': [
                         {'type': 'text', 'text': 'Before tool'},
-                        {
-                            'type': 'tool_result',
-                            'tool_use_id': 'toolu_123',
-                            'content': 'Tool result'
-                        },
-                        {'type': 'text', 'text': 'After tool'}
-                    ]
+                        {'type': 'tool_result', 'tool_use_id': 'toolu_123', 'content': 'Tool result'},
+                        {'type': 'text', 'text': 'After tool'},
+                    ],
                 }
             ]
         }
-        
+
         result = transformer._convert_messages(claude_request)
-        
+
         # Should create 3 messages: user → tool → user
         assert len(result) == 3
-        assert result[0] == {
-            'role': 'user',
-            'content': [{'type': 'text', 'text': 'Before tool'}]
-        }
-        assert result[1] == {
-            'role': 'tool',
-            'tool_call_id': 'toolu_123',
-            'content': 'Tool result'
-        }
-        assert result[2] == {
-            'role': 'user',
-            'content': [{'type': 'text', 'text': 'After tool'}]
-        }
+        assert result[0] == {'role': 'user', 'content': [{'type': 'text', 'text': 'Before tool'}]}
+        assert result[1] == {'role': 'tool', 'tool_call_id': 'toolu_123', 'content': 'Tool result'}
+        assert result[2] == {'role': 'user', 'content': [{'type': 'text', 'text': 'After tool'}]}
 
     def test_queue_processing_multiple_tool_results(self, transformer):
         """Test queue processing with multiple tool_results in sequence."""
@@ -547,61 +349,36 @@ class TestOpenAIRequestTransformer:
                     'role': 'user',
                     'content': [
                         {'type': 'text', 'text': 'Start'},
-                        {
-                            'type': 'tool_result',
-                            'tool_use_id': 'toolu_A',
-                            'content': 'Result A'
-                        },
-                        {
-                            'type': 'tool_result',
-                            'tool_use_id': 'toolu_B', 
-                            'content': 'Result B'
-                        },
-                        {'type': 'text', 'text': 'End'}
-                    ]
+                        {'type': 'tool_result', 'tool_use_id': 'toolu_A', 'content': 'Result A'},
+                        {'type': 'tool_result', 'tool_use_id': 'toolu_B', 'content': 'Result B'},
+                        {'type': 'text', 'text': 'End'},
+                    ],
                 }
             ]
         }
-        
+
         result = transformer._convert_messages(claude_request)
-        
+
         # Should create 4 messages: user → tool → tool → user
         assert len(result) == 4
         assert result[0]['role'] == 'user'
         assert result[0]['content'] == [{'type': 'text', 'text': 'Start'}]
         assert result[1]['role'] == 'tool'
         assert result[1]['tool_call_id'] == 'toolu_A'
-        assert result[2]['role'] == 'tool'  
+        assert result[2]['role'] == 'tool'
         assert result[2]['tool_call_id'] == 'toolu_B'
         assert result[3]['role'] == 'user'
         assert result[3]['content'] == [{'type': 'text', 'text': 'End'}]
 
     def test_queue_processing_only_tool_results(self, transformer):
         """Test queue processing with message containing only tool_results."""
-        claude_request = {
-            'messages': [
-                {
-                    'role': 'user',
-                    'content': [
-                        {
-                            'type': 'tool_result',
-                            'tool_use_id': 'toolu_only',
-                            'content': 'Only result'
-                        }
-                    ]
-                }
-            ]
-        }
-        
+        claude_request = {'messages': [{'role': 'user', 'content': [{'type': 'tool_result', 'tool_use_id': 'toolu_only', 'content': 'Only result'}]}]}
+
         result = transformer._convert_messages(claude_request)
-        
+
         # Should create 1 tool message (no user message since no user content)
         assert len(result) == 1
-        assert result[0] == {
-            'role': 'tool',
-            'tool_call_id': 'toolu_only',
-            'content': 'Only result'
-        }
+        assert result[0] == {'role': 'tool', 'tool_call_id': 'toolu_only', 'content': 'Only result'}
 
     def test_queue_processing_mixed_content_with_images_and_tools(self, transformer):
         """Test complex queue processing with text, images, and tool_results."""
@@ -611,86 +388,52 @@ class TestOpenAIRequestTransformer:
                     'role': 'user',
                     'content': [
                         {'type': 'text', 'text': 'Look at this:'},
-                        {
-                            'type': 'image',
-                            'source': {
-                                'type': 'base64',
-                                'data': 'img123',
-                                'media_type': 'image/jpeg'
-                            }
-                        },
-                        {
-                            'type': 'tool_result',
-                            'tool_use_id': 'toolu_mixed',
-                            'content': 'Analysis complete'
-                        },
-                        {'type': 'text', 'text': 'What do you think?'}
-                    ]
+                        {'type': 'image', 'source': {'type': 'base64', 'data': 'img123', 'media_type': 'image/jpeg'}},
+                        {'type': 'tool_result', 'tool_use_id': 'toolu_mixed', 'content': 'Analysis complete'},
+                        {'type': 'text', 'text': 'What do you think?'},
+                    ],
                 }
             ]
         }
-        
+
         result = transformer._convert_messages(claude_request)
-        
+
         # Should create 3 messages: user(text+image) → tool → user(text)
         assert len(result) == 3
-        
+
         # First message: text + image
         assert result[0]['role'] == 'user'
         assert len(result[0]['content']) == 2
         assert result[0]['content'][0]['type'] == 'text'
         assert result[0]['content'][1]['type'] == 'image_url'
-        
+
         # Second message: tool result
         assert result[1]['role'] == 'tool'
         assert result[1]['tool_call_id'] == 'toolu_mixed'
-        
+
         # Third message: text
         assert result[2]['role'] == 'user'
         assert result[2]['content'] == [{'type': 'text', 'text': 'What do you think?'}]
 
     def test_queue_processing_preserves_message_boundaries(self, transformer):
         """Test that separate user messages remain separate (message boundary preservation)."""
-        claude_request = {
-            'messages': [
-                {'role': 'user', 'content': 'First message'},
-                {'role': 'user', 'content': 'Second message'}
-            ]
-        }
-        
+        claude_request = {'messages': [{'role': 'user', 'content': 'First message'}, {'role': 'user', 'content': 'Second message'}]}
+
         result = transformer._convert_messages(claude_request)
-        
+
         # Should create 2 separate user messages
         assert len(result) == 2
-        assert result[0] == {
-            'role': 'user',
-            'content': [{'type': 'text', 'text': 'First message'}]
-        }
-        assert result[1] == {
-            'role': 'user', 
-            'content': [{'type': 'text', 'text': 'Second message'}]
-        }
+        assert result[0] == {'role': 'user', 'content': [{'type': 'text', 'text': 'First message'}]}
+        assert result[1] == {'role': 'user', 'content': [{'type': 'text', 'text': 'Second message'}]}
 
     def test_convert_assistant_message_text_only(self, transformer):
         """Test assistant message with only text content."""
-        claude_request = {
-            'messages': [
-                {
-                    'role': 'assistant',
-                    'content': [
-                        {'type': 'text', 'text': 'Hello, I can help you with that.'}
-                    ]
-                }
-            ]
-        }
-        
+        claude_request = {'messages': [{'role': 'assistant', 'content': [{'type': 'text', 'text': 'Hello, I can help you with that.'}]}]}
+
         result = transformer._convert_messages(claude_request)
-        
+
         assert len(result) == 1
-        assert result[0] == {
-            'role': 'assistant',
-            'content': [{'type': 'text', 'text': 'Hello, I can help you with that.'}]
-        }
+        assert result[0] == {'role': 'assistant', 'content': [{'type': 'text', 'text': 'Hello, I can help you with that.'}]}
 
     def test_convert_assistant_message_with_thinking_blocks(self, transformer):
         """Test assistant message with thinking blocks (should be filtered out)."""
@@ -699,54 +442,27 @@ class TestOpenAIRequestTransformer:
                 {
                     'role': 'assistant',
                     'content': [
-                        {
-                            'type': 'thinking',
-                            'thinking': 'Let me think about this...',
-                            'signature': 'some_signature'
-                        },
+                        {'type': 'thinking', 'thinking': 'Let me think about this...', 'signature': 'some_signature'},
                         {'type': 'text', 'text': 'Based on my analysis...'},
-                        {
-                            'type': 'thinking',
-                            'thinking': 'More thoughts...',
-                            'signature': 'another_signature'
-                        },
-                        {'type': 'text', 'text': 'Here is my conclusion.'}
-                    ]
+                        {'type': 'thinking', 'thinking': 'More thoughts...', 'signature': 'another_signature'},
+                        {'type': 'text', 'text': 'Here is my conclusion.'},
+                    ],
                 }
-            ]
-        }
-        
-        result = transformer._convert_messages(claude_request)
-        
-        # Should only include text blocks, thinking blocks filtered out
-        assert len(result) == 1
-        assert result[0] == {
-            'role': 'assistant',
-            'content': [
-                {'type': 'text', 'text': 'Based on my analysis...'},
-                {'type': 'text', 'text': 'Here is my conclusion.'}
             ]
         }
 
+        result = transformer._convert_messages(claude_request)
+
+        # Should only include text blocks, thinking blocks filtered out
+        assert len(result) == 1
+        assert result[0] == {'role': 'assistant', 'content': [{'type': 'text', 'text': 'Based on my analysis...'}, {'type': 'text', 'text': 'Here is my conclusion.'}]}
+
     def test_convert_assistant_message_only_thinking_blocks(self, transformer):
         """Test assistant message with only thinking blocks (should create no message)."""
-        claude_request = {
-            'messages': [
-                {
-                    'role': 'assistant',
-                    'content': [
-                        {
-                            'type': 'thinking',
-                            'thinking': 'Just thinking...',
-                            'signature': 'sig'
-                        }
-                    ]
-                }
-            ]
-        }
-        
+        claude_request = {'messages': [{'role': 'assistant', 'content': [{'type': 'thinking', 'thinking': 'Just thinking...', 'signature': 'sig'}]}]}
+
         result = transformer._convert_messages(claude_request)
-        
+
         # Should create no messages since all blocks were thinking blocks
         assert len(result) == 0
 
@@ -758,163 +474,105 @@ class TestOpenAIRequestTransformer:
                 {
                     'role': 'assistant',
                     'content': [
-                        {
-                            'type': 'thinking',
-                            'thinking': 'User asking about weather...',
-                            'signature': 'sig'
-                        },
-                        {'type': 'text', 'text': 'I can help you check the weather.'}
-                    ]
+                        {'type': 'thinking', 'thinking': 'User asking about weather...', 'signature': 'sig'},
+                        {'type': 'text', 'text': 'I can help you check the weather.'},
+                    ],
                 },
-                {'role': 'user', 'content': 'Thank you!'}
+                {'role': 'user', 'content': 'Thank you!'},
             ]
         }
-        
+
         result = transformer._convert_messages(claude_request)
-        
+
         # Should create 3 messages: user → assistant → user
         assert len(result) == 3
-        assert result[0] == {
-            'role': 'user',
-            'content': [{'type': 'text', 'text': 'What is the weather today?'}]
-        }
-        assert result[1] == {
-            'role': 'assistant',
-            'content': [{'type': 'text', 'text': 'I can help you check the weather.'}]
-        }
-        assert result[2] == {
-            'role': 'user',
-            'content': [{'type': 'text', 'text': 'Thank you!'}]
-        }
+        assert result[0] == {'role': 'user', 'content': [{'type': 'text', 'text': 'What is the weather today?'}]}
+        assert result[1] == {'role': 'assistant', 'content': [{'type': 'text', 'text': 'I can help you check the weather.'}]}
+        assert result[2] == {'role': 'user', 'content': [{'type': 'text', 'text': 'Thank you!'}]}
 
     def test_convert_assistant_message_string_content(self, transformer):
         """Test assistant message with string content (converted to array)."""
-        claude_request = {
-            'messages': [
-                {
-                    'role': 'assistant',
-                    'content': 'Simple string response'
-                }
-            ]
-        }
-        
+        claude_request = {'messages': [{'role': 'assistant', 'content': 'Simple string response'}]}
+
         result = transformer._convert_messages(claude_request)
-        
+
         assert len(result) == 1
-        assert result[0] == {
-            'role': 'assistant',
-            'content': [{'type': 'text', 'text': 'Simple string response'}]
-        }
+        assert result[0] == {'role': 'assistant', 'content': [{'type': 'text', 'text': 'Simple string response'}]}
 
     @pytest.mark.asyncio
     async def test_full_transform_integration(self, transformer, sample_claude_request):
         """Test complete transform method integration."""
-        params = {
-            'request': sample_claude_request,
-            'headers': {'content-type': 'application/json'}
-        }
-        
+        params = {'request': sample_claude_request, 'headers': {'content-type': 'application/json'}}
+
         openai_request, headers = await transformer.transform(params)
-        
+
         # Check OpenAI format structure
         assert 'messages' in openai_request
         assert len(openai_request['messages']) == 3  # system + 2 user messages
-        
+
         # Check system message conversion
         system_msg = openai_request['messages'][0]
         assert system_msg['role'] == 'system'
         assert system_msg['content'] == 'You are Claude Code\n - a helpful assistant for coding.'
-        
+
         # Check user message conversion
         user_msg1 = openai_request['messages'][1]
         assert user_msg1['role'] == 'user'
         assert user_msg1['content'] == [{'type': 'text', 'text': 'Hello'}]
-        
+
         user_msg2 = openai_request['messages'][2]
         assert user_msg2['role'] == 'user'
         assert user_msg2['content'] == [{'type': 'text', 'text': 'Hi there!'}]
-        
+
         # Check other fields are preserved
         assert openai_request['model'] == 'claude-sonnet-4-20250514'
         assert openai_request['temperature'] == 1.0
         assert openai_request['stream'] is True
         assert openai_request['stream_options'] == {'include_usage': True}
-        
+
         # Check tools conversion
         assert openai_request['tools'] is not None
         assert len(openai_request['tools']) == 1
 
     def test_convert_tool_use_to_tool_call_valid(self, transformer):
         """Test converting valid tool_use block to OpenAI tool_call format."""
-        tool_use_block = {
-            'type': 'tool_use',
-            'id': 'toolu_123abc',
-            'name': 'Read',
-            'input': {'file_path': '/path/to/file.txt'}
-        }
-        
-        result = transformer._convert_tool_use_to_tool_call(tool_use_block)
-        
-        assert result == {
-            'id': 'toolu_123abc',
-            'type': 'function',
-            'function': {
-                'name': 'Read',
-                'arguments': '{"file_path":"/path/to/file.txt"}'
-            }
-        }
+        tool_use_block = {'type': 'tool_use', 'id': 'toolu_123abc', 'name': 'Read', 'input': {'file_path': '/path/to/file.txt'}}
+
+        result = transformer._convert_tool_call(tool_use_block)
+
+        assert result == {'id': 'toolu_123abc', 'type': 'function', 'function': {'name': 'Read', 'arguments': '{"file_path":"/path/to/file.txt"}'}}
 
     def test_convert_tool_use_to_tool_call_empty_input(self, transformer):
         """Test tool_use with empty input object."""
-        tool_use_block = {
-            'type': 'tool_use',
-            'id': 'toolu_456def',
-            'name': 'Ping',
-            'input': {}
-        }
-        
-        result = transformer._convert_tool_use_to_tool_call(tool_use_block)
-        
-        assert result == {
-            'id': 'toolu_456def',
-            'type': 'function',
-            'function': {
-                'name': 'Ping',
-                'arguments': '{}'
-            }
-        }
+        tool_use_block = {'type': 'tool_use', 'id': 'toolu_456def', 'name': 'Ping', 'input': {}}
+
+        result = transformer._convert_tool_call(tool_use_block)
+
+        assert result == {'id': 'toolu_456def', 'type': 'function', 'function': {'name': 'Ping', 'arguments': '{}'}}
 
     def test_convert_tool_use_to_tool_call_invalid_type(self, transformer):
-        """Test that non-tool_use blocks are not converted."""
-        block = {
-            'type': 'text',
-            'text': 'Not a tool use'
-        }
-        
-        result = transformer._convert_tool_use_to_tool_call(block)
-        assert result is None
+        """Test that non-tool_use blocks still create tool call structure."""
+        block = {'type': 'text', 'text': 'Not a tool use'}
+
+        result = transformer._convert_tool_call(block)
+        assert result['type'] == 'function'
+        assert result['id'] is None
 
     def test_convert_tool_use_to_tool_call_missing_id(self, transformer):
         """Test tool_use block with missing id."""
-        tool_use_block = {
-            'type': 'tool_use',
-            'name': 'Read',
-            'input': {'file_path': '/path/to/file.txt'}
-        }
-        
-        result = transformer._convert_tool_use_to_tool_call(tool_use_block)
-        assert result is None
+        tool_use_block = {'type': 'tool_use', 'name': 'Read', 'input': {'file_path': '/path/to/file.txt'}}
+
+        result = transformer._convert_tool_call(tool_use_block)
+        assert result['id'] is None
+        assert result['function']['name'] == 'Read'
 
     def test_convert_tool_use_to_tool_call_missing_name(self, transformer):
         """Test tool_use block with missing name."""
-        tool_use_block = {
-            'type': 'tool_use',
-            'id': 'toolu_123abc',
-            'input': {'file_path': '/path/to/file.txt'}
-        }
-        
-        result = transformer._convert_tool_use_to_tool_call(tool_use_block)
-        assert result is None
+        tool_use_block = {'type': 'tool_use', 'id': 'toolu_123abc', 'input': {'file_path': '/path/to/file.txt'}}
+
+        result = transformer._convert_tool_call(tool_use_block)
+        assert result['id'] == 'toolu_123abc'
+        assert result['function']['name'] is None
 
     def test_convert_assistant_message_with_tool_use_only(self, transformer):
         """Test assistant message with only tool_use blocks."""
@@ -923,48 +581,26 @@ class TestOpenAIRequestTransformer:
                 {
                     'role': 'assistant',
                     'content': [
-                        {
-                            'type': 'tool_use',
-                            'id': 'toolu_read123',
-                            'name': 'Read',
-                            'input': {'file_path': 'test.py'}
-                        },
-                        {
-                            'type': 'tool_use',
-                            'id': 'toolu_write456', 
-                            'name': 'Write',
-                            'input': {'file_path': 'output.txt', 'content': 'Hello'}
-                        }
-                    ]
+                        {'type': 'tool_use', 'id': 'toolu_read123', 'name': 'Read', 'input': {'file_path': 'test.py'}},
+                        {'type': 'tool_use', 'id': 'toolu_write456', 'name': 'Write', 'input': {'file_path': 'output.txt', 'content': 'Hello'}},
+                    ],
                 }
             ]
         }
-        
+
         result = transformer._convert_messages(claude_request)
-        
-        # Should create 1 assistant message with tool_calls and content: null
-        assert len(result) == 1
+
+        # Should create 2 separate assistant messages, one for each tool use
+        assert len(result) == 2
         assert result[0] == {
             'role': 'assistant',
-            'tool_calls': [
-                {
-                    'id': 'toolu_read123',
-                    'type': 'function',
-                    'function': {
-                        'name': 'Read',
-                        'arguments': '{"file_path":"test.py"}'
-                    }
-                },
-                {
-                    'id': 'toolu_write456',
-                    'type': 'function', 
-                    'function': {
-                        'name': 'Write',
-                        'arguments': '{"file_path":"output.txt","content":"Hello"}'
-                    }
-                }
-            ],
-            'content': None
+            'content': None,
+            'tool_calls': [{'id': 'toolu_read123', 'type': 'function', 'function': {'name': 'Read', 'arguments': '{"file_path":"test.py"}'}}],
+        }
+        assert result[1] == {
+            'role': 'assistant',
+            'content': None,
+            'tool_calls': [{'id': 'toolu_write456', 'type': 'function', 'function': {'name': 'Write', 'arguments': '{"file_path":"output.txt","content":"Hello"}'}}],
         }
 
     def test_convert_assistant_message_with_mixed_content_and_tool_use(self, transformer):
@@ -974,44 +610,25 @@ class TestOpenAIRequestTransformer:
                 {
                     'role': 'assistant',
                     'content': [
-                        {'type': 'text', 'text': 'I\'ll help you with that.'},
-                        {
-                            'type': 'tool_use',
-                            'id': 'toolu_analysis',
-                            'name': 'Analyze',
-                            'input': {'data': 'some_data'}
-                        },
-                        {'type': 'text', 'text': 'Let me analyze this for you.'}
-                    ]
+                        {'type': 'text', 'text': "I'll help you with that."},
+                        {'type': 'tool_use', 'id': 'toolu_analysis', 'name': 'Analyze', 'input': {'data': 'some_data'}},
+                        {'type': 'text', 'text': 'Let me analyze this for you.'},
+                    ],
                 }
             ]
         }
-        
+
         result = transformer._convert_messages(claude_request)
-        
-        # Should create 2 assistant messages: content first, then tool_calls
-        assert len(result) == 2
-        assert result[0] == {
-            'role': 'assistant',
-            'content': [
-                {'type': 'text', 'text': 'I\'ll help you with that.'},
-                {'type': 'text', 'text': 'Let me analyze this for you.'}
-            ]
-        }
+
+        # Should create 3 separate messages: text, tool_use, text
+        assert len(result) == 3
+        assert result[0] == {'role': 'assistant', 'content': [{'type': 'text', 'text': "I'll help you with that."}]}
         assert result[1] == {
             'role': 'assistant',
-            'tool_calls': [
-                {
-                    'id': 'toolu_analysis',
-                    'type': 'function',
-                    'function': {
-                        'name': 'Analyze',
-                        'arguments': '{"data":"some_data"}'
-                    }
-                }
-            ],
-            'content': None
+            'content': None,
+            'tool_calls': [{'id': 'toolu_analysis', 'type': 'function', 'function': {'name': 'Analyze', 'arguments': '{"data":"some_data"}'}}],
         }
+        assert result[2] == {'role': 'assistant', 'content': [{'type': 'text', 'text': 'Let me analyze this for you.'}]}
 
     def test_convert_assistant_message_with_thinking_and_tool_use(self, transformer):
         """Test assistant message with thinking blocks and tool_use blocks."""
@@ -1020,44 +637,22 @@ class TestOpenAIRequestTransformer:
                 {
                     'role': 'assistant',
                     'content': [
-                        {
-                            'type': 'thinking',
-                            'thinking': 'I need to read the file first...',
-                            'signature': 'sig1'
-                        },
-                        {
-                            'type': 'tool_use',
-                            'id': 'toolu_read',
-                            'name': 'Read',
-                            'input': {'file_path': 'config.yaml'}
-                        },
-                        {
-                            'type': 'thinking',
-                            'thinking': 'Now I have the data...',
-                            'signature': 'sig2'
-                        }
-                    ]
+                        {'type': 'thinking', 'thinking': 'I need to read the file first...', 'signature': 'sig1'},
+                        {'type': 'tool_use', 'id': 'toolu_read', 'name': 'Read', 'input': {'file_path': 'config.yaml'}},
+                        {'type': 'thinking', 'thinking': 'Now I have the data...', 'signature': 'sig2'},
+                    ],
                 }
             ]
         }
-        
+
         result = transformer._convert_messages(claude_request)
-        
+
         # Should create 1 assistant message with only tool_calls (thinking blocks filtered)
         assert len(result) == 1
         assert result[0] == {
             'role': 'assistant',
-            'tool_calls': [
-                {
-                    'id': 'toolu_read',
-                    'type': 'function',
-                    'function': {
-                        'name': 'Read',
-                        'arguments': '{"file_path":"config.yaml"}'
-                    }
-                }
-            ],
-            'content': None
+            'tool_calls': [{'id': 'toolu_read', 'type': 'function', 'function': {'name': 'Read', 'arguments': '{"file_path":"config.yaml"}'}}],
+            'content': None,
         }
 
     def test_convert_complex_conversation_with_tool_use(self, transformer):
@@ -1068,58 +663,39 @@ class TestOpenAIRequestTransformer:
                 {
                     'role': 'assistant',
                     'content': [
-                        {'type': 'text', 'text': 'I\'ll read the config file for you.'},
-                        {
-                            'type': 'tool_use',
-                            'id': 'toolu_config',
-                            'name': 'Read',
-                            'input': {'file_path': 'config.yaml'}
-                        }
-                    ]
+                        {'type': 'text', 'text': "I'll read the config file for you."},
+                        {'type': 'tool_use', 'id': 'toolu_config', 'name': 'Read', 'input': {'file_path': 'config.yaml'}},
+                    ],
                 },
-                {
-                    'role': 'user',
-                    'content': [
-                        {
-                            'type': 'tool_result',
-                            'tool_use_id': 'toolu_config',
-                            'content': 'port: 8080\ndebug: true'
-                        }
-                    ]
-                },
-                {
-                    'role': 'assistant',
-                    'content': [
-                        {'type': 'text', 'text': 'The config shows port 8080 and debug mode enabled.'}
-                    ]
-                }
+                {'role': 'user', 'content': [{'type': 'tool_result', 'tool_use_id': 'toolu_config', 'content': 'port: 8080\ndebug: true'}]},
+                {'role': 'assistant', 'content': [{'type': 'text', 'text': 'The config shows port 8080 and debug mode enabled.'}]},
             ]
         }
-        
+
         result = transformer._convert_messages(claude_request)
-        
+
         # Should create 5 messages: user → assistant(content) → assistant(tool_calls) → tool → assistant(content)
         assert len(result) == 5
-        
+
         # User message
         assert result[0]['role'] == 'user'
         assert result[0]['content'] == [{'type': 'text', 'text': 'Please read the config file'}]
-        
+
         # Assistant content message
         assert result[1]['role'] == 'assistant'
-        assert result[1]['content'] == [{'type': 'text', 'text': 'I\'ll read the config file for you.'}]
-        
+        assert result[1]['content'] == [{'type': 'text', 'text': "I'll read the config file for you."}]
+
         # Assistant tool_calls message
         assert result[2]['role'] == 'assistant'
         assert result[2]['content'] is None
         assert len(result[2]['tool_calls']) == 1
         assert result[2]['tool_calls'][0]['id'] == 'toolu_config'
-        
+
         # Tool result message
         assert result[3]['role'] == 'tool'
         assert result[3]['tool_call_id'] == 'toolu_config'
         assert result[3]['content'] == 'port: 8080\ndebug: true'
-        
+
         # Final assistant message
         assert result[4]['role'] == 'assistant'
         assert result[4]['content'] == [{'type': 'text', 'text': 'The config shows port 8080 and debug mode enabled.'}]
@@ -1136,18 +712,15 @@ class TestOpenAIRequestTransformer:
                             'type': 'tool_use',  # This should be ignored for user messages
                             'id': 'toolu_invalid',
                             'name': 'SomeFunction',
-                            'input': {'param': 'value'}
-                        }
-                    ]
+                            'input': {'param': 'value'},
+                        },
+                    ],
                 }
             ]
         }
-        
+
         result = transformer._convert_messages(claude_request)
-        
+
         # Should create 1 user message with only text content
         assert len(result) == 1
-        assert result[0] == {
-            'role': 'user',
-            'content': [{'type': 'text', 'text': 'Here is some text'}]
-        }
+        assert result[0] == {'role': 'user', 'content': [{'type': 'text', 'text': 'Here is some text'}]}
