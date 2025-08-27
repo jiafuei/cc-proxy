@@ -59,39 +59,39 @@ class Dumper:
         response_file = transformed_request_file = pretransformed_response_file = None
 
         if dump_dir and self.cfg.dump_headers:
-            headers_path = os.path.join(dump_dir, f'{ts}_{corr_id}_headers.json')
+            headers_path = os.path.join(dump_dir, f'{ts}_{corr_id}_1headers.json')
             try:
                 hdrs = dict(request.headers)
                 sanitized = self._sanitize_headers(hdrs)
-                with open(headers_path, 'wb', encoding='utf-8') as f:
+                with open(headers_path, 'wb') as f:
                     f.write(orjson.dumps(sanitized, option=orjson.OPT_INDENT_2))
             except Exception:
                 headers_path = None
 
         if dump_dir and self.cfg.dump_requests:
-            request_path = os.path.join(dump_dir, f'{ts}_{corr_id}_request.json')
+            request_path = os.path.join(dump_dir, f'{ts}_{corr_id}_2request.json')
             try:
-                with open(request_path, 'wb', encoding='utf-8') as f:
+                with open(request_path, 'wb') as f:
                     f.write(orjson.dumps(payload, option=orjson.OPT_INDENT_2))
             except Exception:
                 request_path = None
 
         if dump_dir and self.cfg.dump_responses:
-            response_path = os.path.join(dump_dir, f'{ts}_{corr_id}_response.sse')
+            response_path = os.path.join(dump_dir, f'{ts}_{corr_id}_5response.sse')
             try:
                 response_file = open(response_path, 'wb')
             except Exception:
                 response_file = None
 
         if dump_dir and self.cfg.dump_transformed_requests:
-            transformed_request_path = os.path.join(dump_dir, f'{ts}_{corr_id}_transformed_request.json')
+            transformed_request_path = os.path.join(dump_dir, f'{ts}_{corr_id}_3transformed_request.json')
             try:
-                transformed_request_file = open(transformed_request_path, 'wb', encoding='utf-8')
+                transformed_request_file = open(transformed_request_path, 'wb')
             except Exception:
                 transformed_request_file = None
 
         if dump_dir and self.cfg.dump_pretransformed_responses:
-            pretransformed_response_path = os.path.join(dump_dir, f'{ts}_{corr_id}_pretransformed_response.sse')
+            pretransformed_response_path = os.path.join(dump_dir, f'{ts}_{corr_id}_4pretransformed_response.sse')
             try:
                 pretransformed_response_file = open(pretransformed_response_path, 'wb')
             except Exception:
