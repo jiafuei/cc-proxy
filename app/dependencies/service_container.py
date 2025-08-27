@@ -41,7 +41,7 @@ class ServiceContainer:
             self.transformer_loader = TransformerLoader(user_config.transformer_paths)
 
             # Initialize provider manager
-            self.provider_manager = ProviderManager(user_config.providers, self.transformer_loader)
+            self.provider_manager = ProviderManager(user_config.providers, user_config.models, self.transformer_loader)
 
             # Initialize router
             routing_config = user_config.routing if user_config.routing else self._get_default_routing()
@@ -53,7 +53,7 @@ class ServiceContainer:
             logger.error(f'Failed to initialize service container: {e}', exc_info=True)
             # Initialize with empty configs as fallback
             self.transformer_loader = TransformerLoader([])
-            self.provider_manager = ProviderManager([], self.transformer_loader)
+            self.provider_manager = ProviderManager([], [], self.transformer_loader)
             self.router = SimpleRouter(self.provider_manager, self._get_default_routing(), self.transformer_loader)
 
     def _get_default_routing(self) -> RoutingConfig:
@@ -94,7 +94,7 @@ class ServiceContainer:
 
             # Reinitialize with new config
             self.transformer_loader = TransformerLoader(new_config.transformer_paths)
-            self.provider_manager = ProviderManager(new_config.providers, self.transformer_loader)
+            self.provider_manager = ProviderManager(new_config.providers, new_config.models, self.transformer_loader)
 
             routing_config = new_config.routing if new_config.routing else self._get_default_routing()
             self.router = SimpleRouter(self.provider_manager, routing_config, self.transformer_loader)

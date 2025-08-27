@@ -24,7 +24,6 @@ class ProviderConfig(BaseModel):
     name: str = Field(description='Unique provider name')
     url: str = Field(description='Base URL for the provider API')
     api_key: str = Field(default='', description='API key for the provider')
-    models: List[str] = Field(default_factory=list, description='Models supported by this provider')
     transformers: dict = Field(default_factory=dict, description='Transformer configurations')
     timeout: int = Field(default=300, description='Request timeout in seconds')
 

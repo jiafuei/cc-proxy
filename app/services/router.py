@@ -27,11 +27,6 @@ def _create_default_anthropic_config() -> ProviderConfig:
         name='default-anthropic (fallback)',
         url=base_url,
         api_key=api_key,
-        models=[
-            OPUS_MODEL_ID,
-            SONNET_MODEL_ID,
-            'claude-3-5-haiku-20241022',
-        ],
         transformers={
             'request': [
                 {'class': 'app.services.transformers.anthropic.AnthropicCacheTransformer', 'params': {}},
@@ -141,7 +136,7 @@ class SimpleRouter:
         """Load the default Anthropic provider as fallback."""
         default_config = _create_default_anthropic_config()
         self.default_provider = Provider(default_config, self.transformer_loader)
-        logger.info(f"Loaded default provider '{default_config.name}' with {len(default_config.models)} models")
+        logger.info(f"Loaded default provider '{default_config.name}'")
 
     def get_provider_for_request(self, request: AnthropicRequest) -> Tuple[Provider, str]:
         """Get the appropriate provider for a request.

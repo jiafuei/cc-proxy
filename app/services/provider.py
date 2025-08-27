@@ -9,7 +9,7 @@ from fastapi import Request
 from app.common.dumper import Dumper, DumpHandles
 from app.common.models import AnthropicRequest
 from app.config.log import get_logger
-from app.config.user_models import ProviderConfig
+from app.config.user_models import ModelConfig, ProviderConfig
 from app.services.transformer_loader import TransformerLoader
 from app.services.transformers import RequestTransformer, ResponseTransformer
 
@@ -256,25 +256,22 @@ class Provider:
                 delta = {'type': 'content_block_delta', 'index': index, 'delta': {'type': 'input_json_delta', 'partial_json': chunk_text}}
                 yield f'event: content_block_delta\ndata: {orjson.dumps(delta).decode()}\n\n'.encode()
 
-    def supports_model(self, model_id: str) -> bool:
-        """Check if this provider supports the given model."""
-        return model_id in self.config.models
-
     async def close(self):
         """Clean up resources."""
         await self.http_client.aclose()
 
     def __str__(self) -> str:
-        return f'Provider(name={self.config.name}, models={len(self.config.models)})'
+        return f'Provider(name={self.config.name}, url={self.config.url})'
 
 
 class ProviderManager:
     """Manages multiple providers."""
 
-    def __init__(self, providers_config: List[ProviderConfig], transformer_loader: TransformerLoader):
+    def __init__(self, providers_config: List[ProviderConfig], models_config: List[ModelConfig], transformer_loader: TransformerLoader):
         self.providers: Dict[str, Provider] = {}
         self.model_to_provider: Dict[str, str] = {}
         self._load_providers(providers_config, transformer_loader)
+        self._build_model_mapping(models_config)
 
     def _load_providers(self, providers_config: List[ProviderConfig], transformer_loader: TransformerLoader):
         """Load providers from configuration."""
@@ -283,14 +280,18 @@ class ProviderManager:
                 provider = Provider(provider_config, transformer_loader)
                 self.providers[provider_config.name] = provider
 
-                # Build model-to-provider mapping
-                for model in provider_config.models:
-                    self.model_to_provider[model] = provider_config.name
-
-                logger.info(f"Loaded provider '{provider_config.name}' with {len(provider_config.models)} models")
+                logger.info(f"Loaded provider '{provider_config.name}'")
 
             except Exception as e:
                 logger.error(f"Failed to load provider '{provider_config.name}': {e}", exc_info=True)
+
+    def _build_model_mapping(self, models_config: List[ModelConfig]):
+        """Build model-to-provider mapping from top-level models configuration."""
+        for model_config in models_config:
+            if model_config.provider in self.providers:
+                self.model_to_provider[model_config.id] = model_config.provider
+            else:
+                logger.warning(f"Model '{model_config.id}' references unknown provider '{model_config.provider}'")
 
     def get_provider_for_model(self, model_id: str) -> Optional[Provider]:
         """Get the provider that supports the given model."""

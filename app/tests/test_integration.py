@@ -7,7 +7,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.common.dumper import DumpHandles
-from app.config.user_models import ProviderConfig, RoutingConfig, UserConfig
+from app.config.user_models import ModelConfig, ProviderConfig, RoutingConfig, UserConfig
 from app.main import app
 
 
@@ -134,7 +134,8 @@ class TestConfigurationIntegration:
     def sample_config(self):
         """Create a sample user configuration."""
         return UserConfig(
-            providers=[ProviderConfig(name='test-provider', url='https://api.example.com', api_key='test-key', models=['claude-3-sonnet-20240229'])],
+            providers=[ProviderConfig(name='test-provider', url='https://api.example.com', api_key='test-key')],
+            models=[ModelConfig(id='claude-3-sonnet-20240229', provider='test-provider')],
             routing=RoutingConfig(default='claude-3-sonnet-20240229', planning='claude-3-sonnet-20240229', background='claude-3-sonnet-20240229'),
             transformer_paths=[],
         )
@@ -169,8 +170,6 @@ providers:
   - name: test-provider
     url: https://api.example.com
     api_key: test-key
-    models:
-      - claude-3-sonnet-20240229
 
 models:
   - id: claude-3-sonnet-20240229
@@ -197,7 +196,6 @@ routing:
 providers:
   - name: ""  # Invalid empty name
     url: not-a-url  # Invalid URL
-    models: []  # Empty models list
 
 models:
   - id: invalid-model

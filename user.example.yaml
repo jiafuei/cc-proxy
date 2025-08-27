@@ -13,7 +13,6 @@ providers:
   - name: 'anthropic-provider'
     api_key: 'sk-ant-api03-...'  # Your Anthropic API key
     url: 'https://api.anthropic.com/v1/messages'
-    models: ['claude-3-5-sonnet-20241022', 'claude-3-5-haiku-20241022', 'claude-3-opus-20240229']
     timeout: 300  # Request timeout in seconds
     transformers:
       request:
@@ -38,7 +37,6 @@ providers:
   - name: 'openai-provider'
     api_key: 'sk-proj-...'  # Your OpenAI API key
     url: 'https://api.openai.com/v1/chat/completions'
-    models: ['gpt-4o', 'gpt-4o-mini', 'o1-preview', 'o1-mini']
     timeout: 300
     transformers:
       request:
@@ -62,7 +60,6 @@ providers:
   - name: 'custom-provider'
     api_key: 'custom-api-key-here'
     url: 'https://custom-api.example.com/v1'
-    models: ['custom-model-1', 'custom-model-2']
     timeout: 300
     transformers:
       request:
