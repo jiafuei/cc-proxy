@@ -1,38 +1,50 @@
-# Example configuration file for cc-proxy
+# Server configuration file for cc-proxy
 # Copy this file to ~/.cc-proxy/config.yaml and modify as needed
+# This is the main server configuration (different from user.yaml which contains dynamic user settings)
 
-# CORS settings
+# Configuration version
+version: "1"
+
+# Server settings
+host: "127.0.0.1"  # Server bind address
+port: 8000          # Server port (1-65535)
+
+# Development mode - enables debug features and verbose logging
+dev: false
+
+# CORS (Cross-Origin Resource Sharing) settings
+# List of allowed origins for browser requests
 cors_allow_origins:
   - "http://localhost:8000"
   - "https://yourdomain.com"
 
-# Server settings
-host: "127.0.0.1"
-port: 8000
+# Request/Response Dumping - for debugging and development
+# Dumps follow the request flow order and are saved to dump_dir with timestamps
+dump_headers: false                     # Include HTTP headers in dumps  
+dump_requests: false                    # Dump original incoming requests
+dump_transformed_requests: false        # Dump requests after transformer processing
+dump_pretransformed_responses: false    # Dump responses before transformer processing
+dump_responses: false                   # Dump final outgoing responses
+dump_dir: "~/.cc-proxy/dumps"           # Directory to save dump files
 
-# Development mode
-dev: false
-
-# Dump settings
-dump_requests: false
-dump_responses: false
-dump_headers: false
-dump_dir: "~/.cc-proxy/dumps"
+# Headers to redact in dumps for security
 redact_headers:
-  - authorization
-  - x-api-key
-  - cookie
-  - set-cookie
+  - authorization    # Bearer tokens, API keys
+  - x-api-key       # API key headers  
+  - cookie          # Session cookies
+  - set-cookie      # Response cookies
 
-fallback_api_url: null
-fallback_api_key: null
+# Fallback provider configuration
+# Used when no user configuration is available or as emergency backup
+fallback_api_url: "https://api.anthropic.com/v1/messages"  # Default to Anthropic API
+fallback_api_key: null                                      # Set your fallback API key here
 
 # Logging configuration
 logging:
-  level: "INFO" # (DEBUG, INFO, WARNING, ERROR, CRITICAL)
-  console_enabled: true
-  file_enabled: true
-  log_file_dir: ''  # defaults to ~/.cc-proxy/logs/
-  max_file_size: "10MB"
-  backup_count: 5
-  rotation_when: "midnight"
+  level: "INFO"                    # Log level: DEBUG, INFO, WARNING, ERROR, CRITICAL
+  console_enabled: true            # Enable console (stdout) logging
+  file_enabled: true              # Enable file logging
+  log_file_dir: ""                # Log directory (empty = ~/.cc-proxy/logs/)
+  max_file_size: "10MB"           # Maximum size before log rotation
+  backup_count: 4                 # Number of backup files to keep
+  rotation_when: "midnight"        # Rotation schedule: midnight, hourly, daily, weekly

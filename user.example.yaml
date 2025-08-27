@@ -1,38 +1,113 @@
+# User configuration for cc-proxy
+# Copy this file to ~/.cc-proxy/user.yaml and modify as needed
+
 # Directory paths to search for external transformer modules
+# These paths will be searched for custom transformer classes
 transformer_paths:
   - '/path/to/custom/transformers'
   - '/another/transformer/directory'
 
 providers:
-  - name: 'example-provider'
-    api_key: 'api-key-here'
-    url: 'https://example.com/v1'
-    models: ['gpt-5-nano', 'opus-4-1', 'sonnet-4']  # Models supported by this provider
+  # Anthropic/Claude provider example
+  # Handles requests to Anthropic's Claude API
+  - name: 'anthropic-provider'
+    api_key: 'sk-ant-api03-...'  # Your Anthropic API key
+    url: 'https://api.anthropic.com/v1/messages'
+    models: ['claude-3-5-sonnet-20241022', 'claude-3-5-haiku-20241022', 'claude-3-opus-20240229']
     timeout: 300  # Request timeout in seconds
+    transformers:
+      request:
+        # Optimizes cache breakpoints for Anthropic API (uses 4 max breakpoints)
+        # - Removes cache from 'You are Claude' system message
+        # - Adds cache to last system message and tools
+        # - Adds cache breakpoints every 20 content blocks
+        - class: 'app.services.transformers.anthropic.AnthropicCacheTransformer'
+          params:
+            max_tools_breakpoints: 1  # Maximum cache breakpoints for tools (default: 1)
+        # Handles authentication headers for Anthropic API
+        # API key is automatically taken from provider config
+        - class: 'app.services.transformers.anthropic.AnthropicAuthTransformer'
+          params: {}  # API key and URL are taken from provider config
+      response:
+        # Passthrough transformer for Anthropic responses (no conversion needed)
+        - class: 'app.services.transformers.anthropic.AnthropicResponseTransformer'
+          params: {}
+
+  # OpenAI provider example
+  # Converts Claude API format to/from OpenAI API format
+  - name: 'openai-provider'
+    api_key: 'sk-proj-...'  # Your OpenAI API key
+    url: 'https://api.openai.com/v1/chat/completions'
+    models: ['gpt-4o', 'gpt-4o-mini', 'o1-preview', 'o1-mini']
+    timeout: 300
+    transformers:
+      request:
+        # Converts Claude request format to OpenAI format
+        # - Handles multimodal content (images, text)
+        # - Converts tools and tool_choice
+        # - Converts thinking budget to reasoning effort
+        # - Handles system message conversion
+        - class: 'app.services.transformers.openai.OpenAIRequestTransformer'
+          params:
+            api_key: ''  # Optional: defaults to provider api_key
+            base_url: 'https://api.openai.com/v1/chat/completions'  # Optional: defaults to provider url
+      response:
+        # Converts OpenAI response format back to Claude format
+        # - Handles both streaming and non-streaming responses
+        # - Converts tool calls and tool results
+        # - Maps OpenAI finish reasons to Claude stop reasons
+        - class: 'app.services.transformers.openai.OpenAIResponseTransformer'
+          params: {}
+
+  # Custom provider with external transformers
+  # Example of using custom transformer classes from transformer_paths
+  - name: 'custom-provider'
+    api_key: 'custom-api-key-here'
+    url: 'https://custom-api.example.com/v1'
+    models: ['custom-model-1', 'custom-model-2']
+    timeout: 300
     transformers:
       request:
         - class: 'my_transformers.CustomAuthTransformer'
           params:
             api_key: 'custom-key'
             special_header: 'value-1'
-        - class: 'app.services.transformers.anthropic.AnthropicCacheTransformer'
-          params: {}  # No parameters needed, uses optimal cache breakpoint strategy
-        - class: 'app.services.transformers.anthropic.AnthropicAuthTransformer'
-          params: {}  # API key and URL are taken from provider config
       response:
         - class: 'my_transformers.CustomResponseTransformer'
           params:
             format_style: 'enhanced'
 
+# Model definitions - link model IDs to providers
+# Each model must reference a valid provider name
 models:
-  - id: 'gpt-5-nano'
-    provider: 'example-provider'
-  - id: 'opus-4-1'
-    provider: 'example-provider'
-  - id: 'sonnet-4'
-    provider: 'example-provider'
+  # Anthropic/Claude models
+  - id: 'claude-3-5-sonnet-20241022'
+    provider: 'anthropic-provider'
+  - id: 'claude-3-5-haiku-20241022'
+    provider: 'anthropic-provider'
+  - id: 'claude-3-opus-20240229'
+    provider: 'anthropic-provider'
+  
+  # OpenAI models
+  - id: 'gpt-4o'
+    provider: 'openai-provider'
+  - id: 'gpt-4o-mini'
+    provider: 'openai-provider'
+  - id: 'o1-preview'
+    provider: 'openai-provider'
+  - id: 'o1-mini'
+    provider: 'openai-provider'
+  
+  # Custom models
+  - id: 'custom-model-1'
+    provider: 'custom-provider'
+  - id: 'custom-model-2'
+    provider: 'custom-provider'
 
+# Request routing configuration
+# Routes different types of requests to appropriate models
+# All model IDs must be defined in the models section above
 routing:
-  default: 'sonnet-4'
-  planning: 'opus-4-1'
-  background: 'gpt-5-nano'
+  default: 'claude-3-5-sonnet-20241022'  # Default model for standard requests
+  planning: 'claude-3-opus-20240229'     # Model for complex planning/reasoning requests  
+  background: 'claude-3-5-haiku-20241022'  # Model for simple/background requests
