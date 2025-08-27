@@ -13,7 +13,9 @@ class TestOpenAIRequestTransformer:
     @pytest.fixture
     def transformer(self):
         """Create transformer instance."""
-        return OpenAIRequestTransformer(api_key='test-key')
+        from unittest.mock import Mock
+
+        return OpenAIRequestTransformer(logger=Mock())
 
     @pytest.fixture
     def provider_config(self):
@@ -58,11 +60,11 @@ class TestOpenAIRequestTransformer:
 
         assert result_request['model'] == 'claude-sonnet-4-20250514'  # Model used as-is
         assert result_request['messages'] == [{'role': 'user', 'content': 'Hello'}]
-        assert result_request['max_tokens'] == 100
+        assert result_request['max_completion_tokens'] == 100
         assert result_request['temperature'] == 0.7
         assert result_request['stream'] is True
 
-        assert result_headers['authorization'] == 'Bearer test-key'
+        assert result_headers['authorization'] == 'Bearer config-key'
         assert result_headers['content-type'] == 'application/json'
 
     @pytest.mark.asyncio
@@ -245,7 +247,7 @@ class TestOpenAIRequestTransformer:
         result_request, _ = await transformer.transform(params)
 
         # None values should not be present
-        assert 'max_tokens' not in result_request
+        assert 'max_completion_tokens' not in result_request
         assert 'tools' not in result_request
 
         # Non-None values should be present
@@ -253,9 +255,11 @@ class TestOpenAIRequestTransformer:
         assert 'stream' in result_request
 
     @pytest.mark.asyncio
-    async def test_api_key_precedence(self, provider_config):
-        """Test that transformer api_key takes precedence over config."""
-        transformer_with_key = OpenAIRequestTransformer(api_key='transformer-key')
+    async def test_provider_config_api_key_usage(self, provider_config):
+        """Test that transformer uses API key from provider config."""
+        from unittest.mock import Mock
+
+        transformer = OpenAIRequestTransformer(logger=Mock())
         claude_request = {'model': 'claude-sonnet-4-20250514', 'messages': [{'role': 'user', 'content': 'Hello'}]}
 
         params = {
@@ -263,10 +267,5 @@ class TestOpenAIRequestTransformer:
             'provider_config': provider_config,  # Has 'config-key'
         }
 
-        _, headers = await transformer_with_key.transform(params)
-        assert headers['authorization'] == 'Bearer transformer-key'
-
-        # Test fallback to config key
-        transformer_no_key = OpenAIRequestTransformer()
-        _, headers = await transformer_no_key.transform(params)
+        _, headers = await transformer.transform(params)
         assert headers['authorization'] == 'Bearer config-key'

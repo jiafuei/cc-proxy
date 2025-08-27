@@ -12,15 +12,12 @@ logger = get_logger(__name__)
 class OpenAIRequestTransformer(RequestTransformer):
     """Transformer to convert Claude format to OpenAI format."""
 
-    def __init__(self, api_key: str = '', base_url: str = 'https://api.openai.com/v1/chat/completions'):
-        """Initialize with OpenAI credentials.
+    def __init__(self, logger):
+        """Initialize transformer.
 
-        Args:
-            api_key: OpenAI API key
-            base_url: OpenAI API endpoint URL
+        API credentials are obtained from provider config during transform.
         """
-        self.api_key = api_key
-        self.base_url = base_url
+        self.logger = logger
 
     async def transform(self, params: Dict[str, Any]) -> Tuple[Dict[str, Any], Dict[str, str]]:
         """Convert Claude request format to OpenAI format."""
@@ -66,7 +63,7 @@ class OpenAIRequestTransformer(RequestTransformer):
         openai_request = {k: v for k, v in openai_request.items() if v is not None}
 
         # Add OpenAI authentication headers
-        auth_headers = {'authorization': f'Bearer {self.api_key or config.api_key}', 'content-type': 'application/json'}
+        auth_headers = {'authorization': f'Bearer {config.api_key}', 'content-type': 'application/json'}
 
         logger.debug(f'Converted Claude request to OpenAI format: {openai_model}')
 

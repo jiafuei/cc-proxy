@@ -48,9 +48,7 @@ providers:
         # - Converts thinking budget to reasoning effort
         # - Handles system message conversion
         - class: 'app.services.transformers.openai.OpenAIRequestTransformer'
-          params:
-            api_key: ''  # Optional: defaults to provider api_key
-            base_url: 'https://api.openai.com/v1/chat/completions'  # Optional: defaults to provider url
+          params: {}  # API key and URL are taken from provider config
       response:
         # Converts OpenAI response format back to Claude format
         # - Handles both streaming and non-streaming responses
