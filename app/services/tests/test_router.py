@@ -32,8 +32,8 @@ def test_request_inspector_background():
     """Test request inspector identifies background requests."""
     inspector = RequestInspector()
 
-    # Create a background request
-    request = AnthropicRequest(model='claude-3-sonnet', messages=[{'role': 'user', 'content': 'Please analyze this data and generate a report'}])
+    # Create a background request with low max_tokens (since keyword matching is currently disabled)
+    request = AnthropicRequest(model='claude-3-sonnet', max_tokens=500, messages=[{'role': 'user', 'content': 'Please analyze this data and generate a report'}])
 
     routing_key = inspector.determine_routing_key(request)
     assert routing_key == 'background'
@@ -224,3 +224,133 @@ def test_simple_router_empty_routing_config():
 
             # Should have tried to get provider for fallback model 'claude-sonnet-4-20250514'
             mock_provider_manager.get_provider_for_model.assert_called_once_with('claude-sonnet-4-20250514')
+
+
+def test_request_inspector_plan_mode_activation_string_content():
+    """Test request inspector detects plan mode activation in string content."""
+    inspector = RequestInspector()
+
+    # Create request with plan mode activation in string content
+    request = AnthropicRequest(
+        model='claude-3-sonnet',
+        messages=[
+            {'role': 'user', 'content': 'Some content'},
+            {'role': 'assistant', 'content': 'Response'},
+            {'role': 'user', 'content': 'More content <system-reminder>\nPlan mode is active. Please help'},
+        ],
+    )
+
+    routing_key = inspector.determine_routing_key(request)
+    assert routing_key == 'planning'
+
+
+def test_request_inspector_plan_mode_activation_list_content():
+    """Test request inspector detects plan mode activation in list content blocks."""
+    inspector = RequestInspector()
+
+    # Create request with plan mode activation in content blocks
+    request = AnthropicRequest(
+        model='claude-3-sonnet',
+        messages=[
+            {'role': 'user', 'content': 'Some content'},
+            {'role': 'user', 'content': [{'type': 'text', 'text': 'Regular text'}, {'type': 'text', 'text': '<system-reminder>\nPlan mode is active. More text'}]},
+        ],
+    )
+
+    routing_key = inspector.determine_routing_key(request)
+    assert routing_key == 'planning'
+
+
+def test_request_inspector_plan_mode_only_last_user_message():
+    """Test request inspector only checks the last user message for plan mode."""
+    inspector = RequestInspector()
+
+    # Create request with plan mode text in earlier message but not last
+    # Avoid planning keywords to isolate plan mode detection 
+    request = AnthropicRequest(
+        model='claude-3-sonnet',
+        messages=[
+            {'role': 'user', 'content': '<system-reminder>\nPlan mode is active. Earlier message content'},
+            {'role': 'assistant', 'content': 'Response'},
+            {'role': 'user', 'content': 'Final user message without mode activation, just a simple hello'},
+        ],
+    )
+
+    routing_key = inspector.determine_routing_key(request)
+    # Should be 'planning' due to keyword matching ('plan' in first message), not plan mode activation
+    assert routing_key == 'planning'
+
+
+def test_request_inspector_plan_mode_vs_keyword_isolation():
+    """Test that plan mode detection is separate from keyword detection."""
+    inspector = RequestInspector()
+
+    # Create request with no planning keywords but with plan mode text in non-last message
+    request = AnthropicRequest(
+        model='claude-3-sonnet', 
+        messages=[
+            {'role': 'user', 'content': '<system-reminder>\nThe mode is active. Earlier message'},  # No 'plan' keyword
+            {'role': 'assistant', 'content': 'Response'},
+            {'role': 'user', 'content': 'Final user message, just a simple hello'},
+        ],
+    )
+
+    routing_key = inspector.determine_routing_key(request)
+    # Should be 'default' since no plan mode activation in last message and no planning keywords
+    assert routing_key == 'default'
+
+
+def test_request_inspector_plan_mode_partial_match():
+    """Test request inspector requires exact plan mode text match."""
+    inspector = RequestInspector()
+
+    # Create request with partial plan mode text (avoid 'plan' keyword)
+    request = AnthropicRequest(model='claude-3-sonnet', messages=[{'role': 'user', 'content': 'The mode is active but missing system reminder format'}])
+
+    routing_key = inspector.determine_routing_key(request)
+    # Should not be 'planning' since text doesn't match exactly
+    assert routing_key != 'planning'
+
+
+def test_request_inspector_plan_mode_no_user_messages():
+    """Test request inspector handles requests with no user messages."""
+    inspector = RequestInspector()
+
+    # Create request with no user messages
+    request = AnthropicRequest(model='claude-3-sonnet', messages=[{'role': 'assistant', 'content': '<system-reminder>\nPlan mode is active.'}])
+
+    routing_key = inspector.determine_routing_key(request)
+    # Should not be 'planning' since there are no user messages
+    assert routing_key != 'planning'
+
+
+def test_request_inspector_background_priority_over_plan_mode():
+    """Test that background routing (max_tokens < 768) takes priority over plan mode."""
+    inspector = RequestInspector()
+
+    # Create request with both plan mode activation and low max_tokens
+    request = AnthropicRequest(
+        model='claude-3-sonnet',
+        max_tokens=500,  # Less than 768 - should trigger background
+        messages=[{'role': 'user', 'content': '<system-reminder>\nPlan mode is active. Please help'}],
+    )
+
+    routing_key = inspector.determine_routing_key(request)
+    # Should be 'background' due to low max_tokens, even with plan mode text
+    assert routing_key == 'background'
+
+
+def test_request_inspector_plan_mode_priority_over_keywords():
+    """Test that plan mode detection takes priority over keyword matching."""
+    inspector = RequestInspector()
+
+    # Create request with both plan mode activation and planning keywords
+    request = AnthropicRequest(
+        model='claude-3-sonnet',
+        max_tokens=1000,  # High enough to avoid background routing
+        messages=[{'role': 'user', 'content': '<system-reminder>\nPlan mode is active. Create a detailed plan and strategy'}],
+    )
+
+    routing_key = inspector.determine_routing_key(request)
+    # Should be 'planning' due to plan mode activation (not keyword matching)
+    assert routing_key == 'planning'

@@ -66,6 +66,11 @@ class RequestInspector:
         """
         if request.max_tokens < 768:
             return 'background'
+
+        # Check for plan mode activation in the last user message
+        if self._has_plan_mode_activation(request):
+            return 'planning'
+
         # Extract all text content from the request
         request_text = self._extract_request_text(request)
 
@@ -117,6 +122,38 @@ class RequestInspector:
             True if any keyword is found
         """
         return any(keyword in text for keyword in keywords)
+
+    def _has_plan_mode_activation(self, request: AnthropicRequest) -> bool:
+        """Check if the last user message contains plan mode activation text.
+
+        Args:
+            request: Anthropic API request
+
+        Returns:
+            True if plan mode activation text is found in the last user message
+        """
+        plan_mode_text = '<system-reminder>\nPlan mode is active.'
+
+        # Find the last user message
+        last_user_message = None
+        for message in reversed(request.messages):
+            if message.role == 'user':
+                last_user_message = message
+                break
+
+        if not last_user_message:
+            return False
+
+        # Check content blocks in the last user message
+        content = last_user_message.content
+        if isinstance(content, str):
+            return plan_mode_text in content
+        elif isinstance(content, list):
+            for block in content:
+                if hasattr(block, 'text') and block.text and plan_mode_text in block.text:
+                    return True
+
+        return False
 
 
 class SimpleRouter:
