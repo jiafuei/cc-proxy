@@ -74,35 +74,45 @@ providers:
 
 # Model definitions - link model IDs to providers
 # Each model must reference a valid provider name
+# Optional aliases provide short, memorable names for use in routing
 models:
   # Anthropic/Claude models
   - id: 'claude-3-5-sonnet-20241022'
     provider: 'anthropic-provider'
+    alias: 'sonnet'
   - id: 'claude-3-5-haiku-20241022'
     provider: 'anthropic-provider'
+    alias: 'haiku'
   - id: 'claude-3-opus-20240229'
     provider: 'anthropic-provider'
+    alias: 'opus'
   
   # OpenAI models
   - id: 'gpt-4o'
     provider: 'openai-provider'
+    alias: 'gpt4'
   - id: 'gpt-4o-mini'
     provider: 'openai-provider'
+    alias: 'gpt4-mini'
   - id: 'o1-preview'
     provider: 'openai-provider'
+    alias: 'o1'
   - id: 'o1-mini'
     provider: 'openai-provider'
+    alias: 'o1-mini'
   
   # Custom models
   - id: 'custom-model-1'
     provider: 'custom-provider'
+    alias: 'custom1'
   - id: 'custom-model-2'
     provider: 'custom-provider'
+    alias: 'custom2'
 
 # Request routing configuration
 # Routes different types of requests to appropriate models
-# All model IDs must be defined in the models section above
+# You can use either model IDs or aliases defined above
 routing:
-  default: 'claude-3-5-sonnet-20241022'  # Default model for standard requests
-  planning: 'claude-3-opus-20240229'     # Model for complex planning/reasoning requests  
-  background: 'claude-3-5-haiku-20241022'  # Model for simple/background requests
+  default: 'sonnet'     # Uses alias instead of 'claude-3-5-sonnet-20241022'
+  planning: 'opus'      # Uses alias instead of 'claude-3-opus-20240229'
+  background: 'haiku'   # Uses alias instead of 'claude-3-5-haiku-20241022'

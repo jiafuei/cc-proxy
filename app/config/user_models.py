@@ -1,10 +1,11 @@
 """User configuration models for dynamic reloading."""
 
+import re
 from pathlib import Path
 from typing import List, Optional
 
 import yaml
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.common.utils import get_app_dir
 
@@ -44,6 +45,21 @@ class ModelConfig(BaseModel):
 
     id: str = Field(description='Model identifier')
     provider: str = Field(description='Name of provider for this model')
+    alias: Optional[str] = Field(default=None, description='Optional short alias for this model')
+
+    @field_validator('alias')
+    @classmethod
+    def validate_alias(cls, v: Optional[str]) -> Optional[str]:
+        """Validate alias format."""
+        if v is None:
+            return v
+        if not re.match(r'^[a-zA-Z0-9_-]+$', v):
+            raise ValueError('Alias must contain only alphanumeric characters, hyphens, and underscores')
+        if len(v) < 1:
+            raise ValueError('Alias cannot be empty')
+        if len(v) > 50:
+            raise ValueError('Alias cannot be longer than 50 characters')
+        return v
 
 
 class RoutingConfig(BaseModel):
@@ -108,6 +124,20 @@ class UserConfig(BaseModel):
                 return model
         return None
 
+    def get_model_by_id_or_alias(self, model_id_or_alias: str) -> Optional[ModelConfig]:
+        """Get model configuration by ID or alias."""
+        # First try exact ID match
+        for model in self.models:
+            if model.id == model_id_or_alias:
+                return model
+
+        # Then try alias match
+        for model in self.models:
+            if model.alias == model_id_or_alias:
+                return model
+
+        return None
+
     def validate_references(self) -> None:
         """Validate that all references between components are valid."""
         errors = []
@@ -117,17 +147,33 @@ class UserConfig(BaseModel):
             if not self.get_provider_by_name(model.provider):
                 errors.append(f"Model '{model.id}' references unknown provider '{model.provider}'")
 
-        # Check that routing references valid models
+        # Check alias uniqueness
+        aliases_seen = set()
+        model_ids = {model.id for model in self.models}
+
+        for model in self.models:
+            if model.alias:
+                # Check if alias conflicts with existing model IDs
+                if model.alias in model_ids:
+                    errors.append(f"Model '{model.id}' has alias '{model.alias}' that conflicts with existing model ID")
+
+                # Check for duplicate aliases
+                if model.alias in aliases_seen:
+                    errors.append(f"Duplicate alias '{model.alias}' found (model '{model.id}')")
+                else:
+                    aliases_seen.add(model.alias)
+
+        # Check that routing references valid models or aliases
         if self.routing:
-            for routing_type, model_id in [
+            for routing_type, model_id_or_alias in [
                 ('default', self.routing.default),
                 ('planning', self.routing.planning),
                 ('background', self.routing.background),
                 ('thinking', self.routing.thinking),
                 ('plan_and_think', self.routing.plan_and_think),
             ]:
-                if model_id and not self.get_model_by_id(model_id):
-                    errors.append(f"Routing '{routing_type}' references unknown model '{model_id}'")
+                if model_id_or_alias and not self.get_model_by_id_or_alias(model_id_or_alias):
+                    errors.append(f"Routing '{routing_type}' references unknown model or alias '{model_id_or_alias}'")
 
         if errors:
             raise ValueError('Configuration validation failed:\n' + '\n'.join(errors))

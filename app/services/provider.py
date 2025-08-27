@@ -270,6 +270,8 @@ class ProviderManager:
     def __init__(self, providers_config: List[ProviderConfig], models_config: List[ModelConfig], transformer_loader: TransformerLoader):
         self.providers: Dict[str, Provider] = {}
         self.model_to_provider: Dict[str, str] = {}
+        self.alias_to_provider: Dict[str, str] = {}
+        self.alias_to_model: Dict[str, str] = {}  # Maps alias to actual model ID
         self._load_providers(providers_config, transformer_loader)
         self._build_model_mapping(models_config)
 
@@ -290,14 +292,37 @@ class ProviderManager:
         for model_config in models_config:
             if model_config.provider in self.providers:
                 self.model_to_provider[model_config.id] = model_config.provider
+                # Also build alias mapping if alias exists
+                if model_config.alias:
+                    self.alias_to_provider[model_config.alias] = model_config.provider
+                    self.alias_to_model[model_config.alias] = model_config.id
             else:
                 logger.warning(f"Model '{model_config.id}' references unknown provider '{model_config.provider}'")
 
-    def get_provider_for_model(self, model_id: str) -> Optional[Provider]:
-        """Get the provider that supports the given model."""
-        provider_name = self.model_to_provider.get(model_id)
+    def get_provider_for_model(self, model_id_or_alias: str) -> Optional[Provider]:
+        """Get the provider that supports the given model ID or alias."""
+        # First try exact model ID match
+        provider_name = self.model_to_provider.get(model_id_or_alias)
         if provider_name:
             return self.providers.get(provider_name)
+
+        # Then try alias match
+        provider_name = self.alias_to_provider.get(model_id_or_alias)
+        if provider_name:
+            return self.providers.get(provider_name)
+
+        return None
+
+    def resolve_model_id(self, model_id_or_alias: str) -> Optional[str]:
+        """Resolve a model ID or alias to the actual model ID."""
+        # First check if it's already a model ID
+        if model_id_or_alias in self.model_to_provider:
+            return model_id_or_alias
+
+        # Then check if it's an alias
+        if model_id_or_alias in self.alias_to_model:
+            return self.alias_to_model[model_id_or_alias]
+
         return None
 
     def get_provider_by_name(self, name: str) -> Optional[Provider]:

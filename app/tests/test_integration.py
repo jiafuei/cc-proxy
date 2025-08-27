@@ -135,8 +135,11 @@ class TestConfigurationIntegration:
         """Create a sample user configuration."""
         return UserConfig(
             providers=[ProviderConfig(name='test-provider', url='https://api.example.com', api_key='test-key')],
-            models=[ModelConfig(id='claude-3-sonnet-20240229', provider='test-provider')],
-            routing=RoutingConfig(default='claude-3-sonnet-20240229', planning='claude-3-sonnet-20240229', background='claude-3-sonnet-20240229'),
+            models=[
+                ModelConfig(id='claude-3-sonnet-20240229', provider='test-provider', alias='sonnet'),
+                ModelConfig(id='claude-3-haiku-20240229', provider='test-provider', alias='haiku'),
+            ],
+            routing=RoutingConfig(default='sonnet', planning='sonnet', background='haiku'),
             transformer_paths=[],
         )
 
@@ -348,3 +351,123 @@ class TestErrorHandling:
                 assert result['error']['type'] == 'api_error'
         finally:
             app.dependency_overrides.clear()
+
+
+class TestAliasSupport:
+    """Test model alias support functionality."""
+
+    def test_alias_validation_success(self):
+        """Test that valid aliases are accepted."""
+        config = UserConfig(
+            providers=[ProviderConfig(name='test-provider', url='https://api.example.com', api_key='test-key')],
+            models=[
+                ModelConfig(id='claude-3-sonnet-20240229', provider='test-provider', alias='sonnet'),
+                ModelConfig(id='claude-3-haiku-20240229', provider='test-provider', alias='haiku'),
+            ],
+            routing=RoutingConfig(default='sonnet', planning='sonnet', background='haiku'),
+        )
+        # Should not raise an exception
+        config.validate_references()
+
+    def test_alias_validation_duplicate_error(self):
+        """Test that duplicate aliases are rejected."""
+        config = UserConfig(
+            providers=[ProviderConfig(name='test-provider', url='https://api.example.com', api_key='test-key')],
+            models=[
+                ModelConfig(id='claude-3-sonnet-20240229', provider='test-provider', alias='duplicate'),
+                ModelConfig(id='claude-3-haiku-20240229', provider='test-provider', alias='duplicate'),
+            ],
+        )
+
+        with pytest.raises(ValueError) as exc_info:
+            config.validate_references()
+        assert "Duplicate alias 'duplicate'" in str(exc_info.value)
+
+    def test_alias_validation_conflict_with_model_id(self):
+        """Test that aliases cannot conflict with existing model IDs."""
+        config = UserConfig(
+            providers=[ProviderConfig(name='test-provider', url='https://api.example.com', api_key='test-key')],
+            models=[
+                ModelConfig(id='claude-3-sonnet-20240229', provider='test-provider'),
+                ModelConfig(id='claude-3-haiku-20240229', provider='test-provider', alias='claude-3-sonnet-20240229'),
+            ],
+        )
+
+        with pytest.raises(ValueError) as exc_info:
+            config.validate_references()
+        assert "alias 'claude-3-sonnet-20240229' that conflicts with existing model ID" in str(exc_info.value)
+
+    def test_alias_format_validation(self):
+        """Test alias format validation."""
+        with pytest.raises(ValueError) as exc_info:
+            ModelConfig(id='test-model', provider='test-provider', alias='invalid alias')
+        assert 'alphanumeric characters, hyphens, and underscores' in str(exc_info.value)
+
+        with pytest.raises(ValueError) as exc_info:
+            ModelConfig(id='test-model', provider='test-provider', alias='invalid@alias')
+        assert 'alphanumeric characters, hyphens, and underscores' in str(exc_info.value)
+
+        # Valid aliases should work
+        ModelConfig(id='test-model', provider='test-provider', alias='valid-alias_123')
+
+    def test_routing_with_alias(self):
+        """Test that routing works with aliases."""
+        config = UserConfig(
+            providers=[ProviderConfig(name='test-provider', url='https://api.example.com', api_key='test-key')],
+            models=[
+                ModelConfig(id='claude-3-sonnet-20240229', provider='test-provider', alias='sonnet'),
+                ModelConfig(id='claude-3-haiku-20240229', provider='test-provider', alias='haiku'),
+            ],
+            routing=RoutingConfig(default='sonnet', background='haiku'),
+        )
+
+        # Should not raise an exception
+        config.validate_references()
+
+        # Test lookup methods
+        assert config.get_model_by_id_or_alias('sonnet').id == 'claude-3-sonnet-20240229'
+        assert config.get_model_by_id_or_alias('haiku').id == 'claude-3-haiku-20240229'
+        assert config.get_model_by_id_or_alias('claude-3-sonnet-20240229').id == 'claude-3-sonnet-20240229'
+
+    def test_routing_with_unknown_alias(self):
+        """Test that routing fails with unknown aliases."""
+        config = UserConfig(
+            providers=[ProviderConfig(name='test-provider', url='https://api.example.com', api_key='test-key')],
+            models=[ModelConfig(id='claude-3-sonnet-20240229', provider='test-provider', alias='sonnet')],
+            routing=RoutingConfig(default='unknown-alias'),
+        )
+
+        with pytest.raises(ValueError) as exc_info:
+            config.validate_references()
+        assert "Routing 'default' references unknown model or alias 'unknown-alias'" in str(exc_info.value)
+
+    def test_config_validation_integration_with_aliases(self):
+        """Test configuration validation through API endpoint with aliases."""
+        client = TestClient(app)
+
+        valid_config_yaml = """
+providers:
+  - name: test-provider
+    url: https://api.example.com
+    api_key: test-key
+
+models:
+  - id: claude-3-sonnet-20240229
+    provider: test-provider
+    alias: sonnet
+  - id: claude-3-haiku-20240229
+    provider: test-provider
+    alias: haiku
+
+routing:
+  default: sonnet
+  planning: sonnet
+  background: haiku
+"""
+
+        response = client.post('/api/config/validate-yaml', json={'yaml_content': valid_config_yaml})
+
+        assert response.status_code == 200
+        result = response.json()
+        assert result['valid'] is True
+        assert result['stage'] == 'complete'
