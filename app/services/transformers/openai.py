@@ -1,6 +1,7 @@
 """OpenAI transformers with real format conversion."""
 
-from typing import Any, Dict, List, Tuple
+import copy
+from typing import Any, Dict, Tuple
 
 import orjson
 
@@ -23,384 +24,332 @@ class OpenAIRequestTransformer(RequestTransformer):
     async def transform(self, params: Dict[str, Any]) -> Tuple[Dict[str, Any], Dict[str, str]]:
         """Convert Claude request format to OpenAI format."""
         request = params['request']
-        config = params['provider_config']
+        headers = params['headers']
 
-        # Convert system messages and combine with regular messages
-        openai_messages = self._convert_messages_with_system(request.get('messages', []), request.get('system'))
-
-        # Convert model names
-        openai_model = self._convert_model_name(request.get('model', ''))
-
-        # Convert tools and tool_choice
-        openai_tools = self._convert_tools(request.get('tools'))
-        openai_tool_choice = self._convert_tool_choice(request.get('tool_choice'))
-
-        # Convert stop sequences
-        openai_stop = self._convert_stop_sequences(request.get('stop_sequences'))
-
-        # Convert thinking budget to reasoning effort
-        thinking_config = request.get('thinking', {})
-        reasoning_effort = self._convert_thinking_budget(thinking_config.get('budget_tokens'))
-
-        # Build OpenAI request (remove Claude-specific fields)
         openai_request = {
-            'model': openai_model,
-            'messages': openai_messages,
-            'max_completion_tokens': request.get('max_tokens'),
+            'model': request.get('model'),
             'temperature': request.get('temperature'),
-            'top_p': request.get('top_p'),
-            'stream': request.get('stream', False),
-            'tools': openai_tools,
-            'tool_choice': openai_tool_choice,
-            'stop': openai_stop,
-            'reasoning_effort': reasoning_effort,
+            'stream': request.get('stream'),
+            'tools': self._convert_tools(request.get('tools')),
+            'messages': self._convert_messages(request),
         }
 
-        # Add stream_options if streaming
-        if request.get('stream', False):
+        # Map max_tokens to max_completion_tokens for OpenAI
+        if 'max_tokens' in request:
+            openai_request['max_completion_tokens'] = request['max_tokens']
+
+        # Map thinking.budget_tokens to reasoning_effort for OpenAI
+        thinking = request.get('thinking')
+        if thinking and isinstance(thinking, dict):
+            budget_tokens = thinking.get('budget_tokens', 0)
+            if budget_tokens > 0:
+                if budget_tokens < 1024:
+                    openai_request['reasoning_effort'] = 'low'
+                elif budget_tokens < 8192:
+                    openai_request['reasoning_effort'] = 'medium'
+                else:
+                    openai_request['reasoning_effort'] = 'high'
+
+        # Add stream_options if stream is True
+        if request.get('stream') is True:
             openai_request['stream_options'] = {'include_usage': True}
 
-        # Remove None values
-        openai_request = {k: v for k, v in openai_request.items() if v is not None}
+        return openai_request, headers
 
-        # Add OpenAI authentication headers
-        auth_headers = {'authorization': f'Bearer {config.api_key}', 'content-type': 'application/json'}
-
-        logger.debug(f'Converted Claude request to OpenAI format: {openai_model}')
-
-        return openai_request, auth_headers
-
-    def _convert_messages_with_system(self, claude_messages: List[Dict[str, Any]], system: Any) -> List[Dict[str, Any]]:
-        """Convert Claude messages with system prompt to OpenAI format."""
-        openai_messages = []
-
-        # Convert system prompt first
-        if system:
-            system_content = self._convert_system_to_content(system)
-            if system_content:
-                openai_messages.append({'role': 'system', 'content': system_content})
-
-        # Convert regular messages with proper tool handling
-        i = 0
-        while i < len(claude_messages):
-            message = claude_messages[i]
-            role = message.get('role', 'user')
-            content = message.get('content', '')
-
-            if role == 'user':
-                # Handle user messages (may contain images or text)
-                converted_msg = self._convert_user_message(message)
-                if converted_msg:
-                    openai_messages.append(converted_msg)
-                i += 1
-            elif role == 'assistant':
-                # Handle assistant messages (may contain tool_use blocks)
-                assistant_msg, tool_messages, next_i = self._convert_assistant_with_tools(claude_messages, i)
-                if assistant_msg:
-                    openai_messages.append(assistant_msg)
-                # Add any tool result messages
-                openai_messages.extend(tool_messages)
-                i = next_i
-            else:
-                # Handle other message types normally
-                content_str = self._convert_content_blocks(content)
-                if content_str:
-                    openai_messages.append({'role': role, 'content': content_str})
-                i += 1
-
-        return openai_messages
-
-    def _convert_system_to_content(self, system: Any) -> str:
-        """Convert Anthropic system format to OpenAI system message content."""
-        if isinstance(system, str):
-            return system
-        elif isinstance(system, list):
-            # System is array of text blocks
-            text_parts = []
-            for block in system:
-                if isinstance(block, dict) and block.get('type') == 'text':
-                    text_parts.append(block.get('text', ''))
-                elif isinstance(block, str):
-                    text_parts.append(block)
-            return '\n'.join(text_parts)
-        else:
-            return str(system) if system else ''
-
-    def _convert_user_message(self, message: Dict[str, Any]) -> Dict[str, Any] | None:
-        """Convert Claude user message to OpenAI format (supports multimodal)."""
-        content = message.get('content', '')
-        name = message.get('name')
-
-        if isinstance(content, str):
-            # Simple text message
-            result = {'role': 'user', 'content': content}
-        elif isinstance(content, list):
-            # Multimodal message with text and/or images
-            openai_content = []
-            for block in content:
-                if isinstance(block, dict):
-                    block_type = block.get('type')
-                    if block_type == 'text':
-                        openai_content.append({'type': 'text', 'text': block.get('text', '')})
-                    elif block_type == 'image':
-                        # Convert Anthropic image to OpenAI format
-                        image_source = block.get('source', {})
-                        if image_source.get('type') == 'base64':
-                            media_type = image_source.get('media_type', 'image/jpeg')
-                            data = image_source.get('data', '')
-                            openai_content.append({'type': 'image_url', 'image_url': {'url': f'data:{media_type};base64,{data}'}})
-                elif isinstance(block, str):
-                    openai_content.append({'type': 'text', 'text': block})
-
-            if openai_content:
-                result = {'role': 'user', 'content': openai_content}
-            else:
-                return None
-        else:
-            # Fallback to string conversion
-            content_str = str(content) if content else ''
-            if not content_str:
-                return None
-            result = {'role': 'user', 'content': content_str}
-
-        # Add name if provided
-        if name:
-            result['name'] = name
-
-        return result
-
-    def _convert_assistant_with_tools(self, messages: List[Dict[str, Any]], start_idx: int) -> Tuple[Dict[str, Any] | None, List[Dict[str, Any]], int]:
-        """Convert assistant message and handle tool use/result pattern.
-
-        Returns: (assistant_message, tool_result_messages, next_message_index)
-        """
-        message = messages[start_idx]
-        content = message.get('content', '')
-        name = message.get('name')
-
-        # Separate text content and tool calls
-        text_parts = []
-        tool_calls = []
-
-        if isinstance(content, list):
-            for block in content:
-                if isinstance(block, dict):
-                    block_type = block.get('type')
-                    if block_type == 'text':
-                        text_parts.append(block.get('text', ''))
-                    elif block_type == 'tool_use':
-                        # Convert to OpenAI tool call format - use original ID as-is
-                        tool_call = {
-                            'id': block.get('id', ''),
-                            'type': 'function',
-                            'function': {'name': block.get('name', ''), 'arguments': orjson.dumps(block.get('input', {})).decode('utf-8')},
-                        }
-                        tool_calls.append(tool_call)
-                elif isinstance(block, str):
-                    text_parts.append(block)
-        elif isinstance(content, str):
-            text_parts.append(content)
-
-        # Build assistant message
-        assistant_msg = {'role': 'assistant'}
-
-        text_content = '\n'.join(text_parts).strip()
-        if text_content:
-            assistant_msg['content'] = text_content
-        elif not tool_calls:
-            # If no content and no tool calls, this is an empty message
-            return None, [], start_idx + 1
-        else:
-            # Tool calls only, content can be null
-            assistant_msg['content'] = None
-
-        if tool_calls:
-            assistant_msg['tool_calls'] = tool_calls
-
-        if name:
-            assistant_msg['name'] = name
-
-        # Look for tool results in subsequent messages
-        tool_result_messages = []
-        next_idx = start_idx + 1
-
-        # Check if next messages contain tool results
-        while next_idx < len(messages):
-            next_msg = messages[next_idx]
-            if next_msg.get('role') == 'user':
-                # Check if user message contains tool_result blocks
-                user_content = next_msg.get('content', '')
-                tool_results, remaining_content = self._extract_tool_results(user_content)
-
-                if tool_results:
-                    # Add tool result messages
-                    tool_result_messages.extend(tool_results)
-
-                    # If there's remaining user content, we'll process it in the next iteration
-                    if remaining_content and str(remaining_content).strip():
-                        # Create a new user message with remaining content
-                        messages[next_idx] = {**next_msg, 'content': remaining_content}
-                        break
-                    else:
-                        # This message was only tool results, continue to next
-                        next_idx += 1
-                        continue
-                else:
-                    # No tool results, this is a regular user message
-                    break
-            else:
-                # Different role, stop looking for tool results
-                break
-
-        return assistant_msg, tool_result_messages, next_idx
-
-    def _extract_tool_results(self, content: Any) -> Tuple[List[Dict[str, Any]], Any]:
-        """Extract tool_result blocks and return them as OpenAI tool messages.
-
-        Returns: (tool_result_messages, remaining_content)
-        """
-        tool_results = []
-        remaining_blocks = []
-
-        if isinstance(content, list):
-            for block in content:
-                if isinstance(block, dict) and block.get('type') == 'tool_result':
-                    # Convert to OpenAI tool message
-                    tool_use_id = block.get('tool_use_id', '')
-                    result_content = block.get('content', '')
-                    is_error = block.get('is_error', False)
-
-                    # Convert result content to string if it's complex
-                    if isinstance(result_content, list):
-                        content_parts = []
-                        for result_block in result_content:
-                            if isinstance(result_block, dict):
-                                if result_block.get('type') == 'text':
-                                    content_parts.append(result_block.get('text', ''))
-                                else:
-                                    # Handle other content types by converting to string
-                                    content_parts.append(str(result_block))
-                            else:
-                                content_parts.append(str(result_block))
-                        result_content = '\n'.join(content_parts)
-
-                    # Apply error handling logic
-                    content_str = str(result_content).strip()
-                    if not content_str:  # Empty content
-                        if is_error:
-                            final_content = 'Error'
-                        else:
-                            final_content = 'Success'
-                    else:  # Non-empty content
-                        if is_error:
-                            final_content = f'Error: {content_str}'
-                        else:
-                            final_content = content_str
-
-                    tool_result = {
-                        'role': 'tool',
-                        'content': final_content,
-                        'tool_call_id': tool_use_id,  # Use original tool_use_id as-is
-                    }
-                    tool_results.append(tool_result)
-                else:
-                    remaining_blocks.append(block)
-
-            return tool_results, remaining_blocks if remaining_blocks else ''
-        else:
-            # Not a list, no tool results
-            return [], content
-
-    def _convert_content_blocks(self, content: Any) -> str:
-        """Convert Claude content blocks to simple string format (fallback for non-tool content)."""
-        if isinstance(content, str):
-            return content
-        elif isinstance(content, list):
-            # Claude format: content is list of blocks
-            text_parts = []
-            for block in content:
-                if isinstance(block, dict):
-                    block_type = block.get('type')
-                    if block_type == 'text':
-                        text_parts.append(block.get('text', ''))
-                    elif block_type == 'tool_use':
-                        # Convert tool use to a readable format for OpenAI
-                        tool_name = block.get('name', '')
-                        tool_input = block.get('input', {})
-                        text_parts.append(f'[Tool: {tool_name} with input: {orjson.dumps(tool_input).decode("utf-8")}]')
-                    elif block_type == 'tool_result':
-                        # Convert tool result to readable format
-                        tool_id = block.get('tool_use_id', '')
-                        result_content = block.get('content', '')
-                        text_parts.append(f'[Tool Result for {tool_id}: {result_content}]')
-                    # Skip other block types like 'thinking'
-                elif isinstance(block, str):
-                    text_parts.append(block)
-            return '\n'.join(text_parts)
-        else:
-            return str(content) if content else ''
-
-    def _convert_tools(self, claude_tools: List[Dict[str, Any]]) -> List[Dict[str, Any]] | None:
+    def _convert_tools(self, claude_tools):
         """Convert Claude tools format to OpenAI functions format."""
         if not claude_tools:
             return None
 
         openai_tools = []
         for tool in claude_tools:
-            # Convert Anthropic tool to OpenAI function
-            function_def = {'type': 'function', 'function': {'name': tool.get('name', ''), 'description': tool.get('description', ''), 'parameters': tool.get('input_schema', {})}}
-            openai_tools.append(function_def)
+            openai_tool = {'type': 'function', 'function': {'name': tool.get('name', ''), 'description': tool.get('description', ''), 'parameters': tool.get('input_schema', {})}}
+            openai_tools.append(openai_tool)
 
-        return openai_tools if openai_tools else None
+        return openai_tools
 
-    def _convert_tool_choice(self, claude_tool_choice: Any) -> str | Dict[str, Any] | None:
-        """Convert Claude tool_choice to OpenAI format."""
-        if not claude_tool_choice:
+    def _convert_user_message(self, claude_message):
+        """Convert Claude user message to OpenAI format.
+
+        Only handles plain text content for now.
+
+        Args:
+            claude_message: Claude message dict with role 'user'
+
+        Returns:
+            OpenAI format message dict, or None if not convertible
+        """
+        if claude_message.get('role') != 'user':
             return None
 
-        if isinstance(claude_tool_choice, str):
-            # Simple string values
-            if claude_tool_choice == 'auto':
-                return 'auto'
-            elif claude_tool_choice == 'any':
-                return 'required'
-            elif claude_tool_choice == 'none':
-                return 'none'
-        elif isinstance(claude_tool_choice, dict):
-            # Specific tool choice
-            tool_type = claude_tool_choice.get('type')
-            if tool_type == 'tool':
-                tool_name = claude_tool_choice.get('name')
-                if tool_name:
-                    return {'type': 'function', 'function': {'name': tool_name}}
-            elif tool_type == 'any':
-                return 'required'
-
-        return 'auto'  # Default fallback
-
-    def _convert_stop_sequences(self, claude_stop_sequences: List[str]) -> List[str] | None:
-        """Convert Claude stop_sequences to OpenAI stop format."""
-        if not claude_stop_sequences or not isinstance(claude_stop_sequences, list):
+        content = claude_message.get('content')
+        if not content:
             return None
 
-        # OpenAI supports up to 4 stop sequences
-        return claude_stop_sequences[:4] if claude_stop_sequences else None
+        # Handle string content (simple case)
+        if isinstance(content, str):
+            return {'role': 'user', 'content': [{'type': 'text', 'text': content}]}
 
-    def _convert_thinking_budget(self, thinking_budget: int) -> str | None:
-        """Convert Claude thinking budget to OpenAI reasoning effort."""
-        if not thinking_budget:
+        # Handle list content - extract text and image blocks
+        if isinstance(content, list):
+            converted_blocks = []
+            for block in content:
+                if isinstance(block, dict):
+                    if block.get('type') == 'text':
+                        converted_blocks.append({'type': 'text', 'text': block.get('text', '')})
+                    elif block.get('type') == 'image':
+                        image_block = self._convert_image_block(block)
+                        if image_block:
+                            converted_blocks.append(image_block)
+
+            if converted_blocks:
+                return {'role': 'user', 'content': converted_blocks}
+
+        return None
+
+    def _convert_image_block(self, claude_image_block):
+        """Convert Claude image block to OpenAI format.
+
+        Args:
+            claude_image_block: Claude image block dict
+
+        Returns:
+            OpenAI format image block dict, or None if not convertible
+        """
+        if not isinstance(claude_image_block, dict) or claude_image_block.get('type') != 'image':
             return None
 
-        if thinking_budget <= 1024:
-            return 'low'
-        elif thinking_budget <= 8192:
-            return 'medium'
-        else:
-            return 'high'
+        source = claude_image_block.get('source')
+        if not source or source.get('type') != 'base64':
+            return None
 
-    def _convert_model_name(self, claude_model: str) -> str:
-        """Use incoming model name as-is since it will already be a GPT model."""
-        return claude_model
+        data = source.get('data', '')
+        media_type = source.get('media_type', 'image/jpeg')
+
+        # Convert to data URL format
+        data_url = f'data:{media_type};base64,{data}'
+
+        return {'type': 'image_url', 'image_url': {'url': data_url}}
+
+    def _convert_tool_result_to_message(self, tool_result_block):
+        """Convert Claude tool_result block to OpenAI tool message.
+
+        Args:
+            tool_result_block: Claude tool_result block dict
+
+        Returns:
+            OpenAI format tool message dict, or None if not convertible
+        """
+        if not isinstance(tool_result_block, dict) or tool_result_block.get('type') != 'tool_result':
+            return None
+
+        tool_use_id = tool_result_block.get('tool_use_id')
+        content = tool_result_block.get('content', '')
+        is_error = tool_result_block.get('is_error', False)
+
+        if not tool_use_id:
+            return None
+
+        # Apply empty content rules (content is always string)
+        if not content:  # Empty string
+            content = 'Error' if is_error else 'Success'
+        # else: use content as-is (already a string)
+
+        return {
+            'role': 'tool',
+            'tool_call_id': tool_use_id,  # Keep original ID format
+            'content': content,
+        }
+
+    def _convert_content_block(self, block):
+        """Convert individual content block (text or image) for user messages.
+
+        Args:
+            block: Individual content block dict
+
+        Returns:
+            Converted content block for OpenAI format, or None if not convertible
+        """
+        if not isinstance(block, dict):
+            return None
+
+        block_type = block.get('type')
+
+        if block_type == 'text':
+            return {'type': 'text', 'text': block.get('text', '')}
+        elif block_type == 'image':
+            return self._convert_image_block(block)
+
+        return None
+
+    def _convert_system_messages(self, claude_system):
+        """Convert Claude system messages to single OpenAI system message.
+
+        Args:
+            claude_system: List of system message blocks from Claude format
+
+        Returns:
+            Single OpenAI system message dict with combined content, or None if no system messages
+        """
+        if not claude_system:
+            return None
+
+        # Combine all system message texts with newlines
+        text_blocks = []
+        for system_block in claude_system:
+            if system_block.get('type') == 'text' and 'text' in system_block:
+                text_blocks.append(system_block['text'])
+
+        combined_text = '\n'.join(text_blocks)
+
+        if not combined_text:
+            return None
+
+        return {'role': 'system', 'content': combined_text}
+
+    def _convert_tool_use_to_tool_call(self, tool_use_block):
+        """Convert Claude tool_use block to OpenAI tool_call format.
+
+        Args:
+            tool_use_block: Claude tool_use block dict
+
+        Returns:
+            OpenAI format tool_call dict, or None if not convertible
+        """
+        if not isinstance(tool_use_block, dict) or tool_use_block.get('type') != 'tool_use':
+            return None
+
+        tool_use_id = tool_use_block.get('id')
+        name = tool_use_block.get('name')
+        input_data = tool_use_block.get('input', {})
+
+        if not tool_use_id or not name:
+            return None
+
+        return {'id': tool_use_id, 'type': 'function', 'function': {'name': name, 'arguments': orjson.dumps(input_data).decode('utf-8')}}
+
+    def _convert_messages(self, claude_request):
+        """Convert Claude request to OpenAI messages format.
+
+        Uses ultra-granular queue-based architecture processing one content block per loop iteration.
+        Maintains strict sequence by treating tool_results as message boundaries.
+
+        Args:
+            claude_request: Original Claude request dict
+
+        Returns:
+            List of OpenAI format messages
+        """
+        # Deep copy to avoid mutating original request
+        claude_messages = copy.deepcopy(claude_request.get('messages', []))
+        openai_messages = []
+
+        # Add combined system message first
+        system_message = self._convert_system_messages(claude_request.get('system'))
+        if system_message:
+            openai_messages.append(system_message)
+
+        # Build content block queue - flatten all content blocks from all messages
+        content_block_queue = []
+        for message in claude_messages:
+            if message.get('role') in ['user', 'assistant']:
+                content = message.get('content', [])
+                if isinstance(content, str):
+                    content = [{'type': 'text', 'text': content}]
+
+                # Add each content block to queue with original role context
+                for block in content:
+                    content_block_queue.append({'block': block, 'original_role': message.get('role')})
+
+                # Add message boundary marker after each message
+                content_block_queue.append({'type': 'message_boundary', 'original_role': message.get('role')})
+
+        # Process queue one content block at a time
+        current_user_content = []
+        current_assistant_content = []
+        current_assistant_tool_calls = []
+
+        while content_block_queue:
+            queue_item = content_block_queue.pop(0)  # Dequeue one content block
+
+            # Handle message boundary marker
+            if queue_item.get('type') == 'message_boundary':
+                role = queue_item.get('original_role')
+
+                # Flush accumulated content for this role at message boundary
+                if role == 'user' and current_user_content:
+                    openai_messages.append({'role': 'user', 'content': current_user_content})
+                    current_user_content = []
+                elif role == 'assistant':
+                    # Assistant messages: handle content and tool_calls exclusivity
+                    if current_assistant_content and current_assistant_tool_calls:
+                        # Both content and tool_calls exist - create two messages
+                        openai_messages.append({'role': 'assistant', 'content': current_assistant_content})
+                        openai_messages.append({'role': 'assistant', 'tool_calls': current_assistant_tool_calls, 'content': None})
+                    elif current_assistant_content:
+                        # Only content
+                        openai_messages.append({'role': 'assistant', 'content': current_assistant_content})
+                    elif current_assistant_tool_calls:
+                        # Only tool_calls
+                        openai_messages.append({'role': 'assistant', 'tool_calls': current_assistant_tool_calls, 'content': None})
+
+                    current_assistant_content = []
+                    current_assistant_tool_calls = []
+                continue
+
+            block = queue_item['block']
+            block_type = block.get('type')
+            original_role = queue_item.get('original_role')
+
+            if block_type == 'tool_result':
+                # Flush accumulated user content (tool_results only come from user messages)
+                if current_user_content:
+                    openai_messages.append({'role': 'user', 'content': current_user_content})
+                    current_user_content = []
+
+                # Convert tool result to separate message
+                tool_message = self._convert_tool_result_to_message(block)
+                if tool_message:
+                    openai_messages.append(tool_message)
+
+            elif block_type in ['text', 'image']:
+                # Accumulate content based on original message role
+                converted_block = self._convert_content_block(block)
+                if converted_block:
+                    if original_role == 'user':
+                        current_user_content.append(converted_block)
+                    elif original_role == 'assistant':
+                        current_assistant_content.append(converted_block)
+
+            elif block_type == 'thinking':
+                # Skip thinking blocks for OpenAI (not supported)
+                pass
+
+            elif block_type == 'tool_use':
+                # Convert tool_use block to OpenAI tool_call format
+                if original_role == 'assistant':
+                    # Only assistant messages can have tool_calls in OpenAI
+                    tool_call = self._convert_tool_use_to_tool_call(block)
+                    if tool_call:
+                        current_assistant_tool_calls.append(tool_call)
+
+        # Final flush of remaining content
+        if current_user_content:
+            openai_messages.append({'role': 'user', 'content': current_user_content})
+
+        # Final flush for assistant messages with content/tool_calls exclusivity
+        if current_assistant_content and current_assistant_tool_calls:
+            # Both content and tool_calls exist - create two messages
+            openai_messages.append({'role': 'assistant', 'content': current_assistant_content})
+            openai_messages.append({'role': 'assistant', 'tool_calls': current_assistant_tool_calls, 'content': None})
+        elif current_assistant_content:
+            # Only content
+            openai_messages.append({'role': 'assistant', 'content': current_assistant_content})
+        elif current_assistant_tool_calls:
+            # Only tool_calls
+            openai_messages.append({'role': 'assistant', 'tool_calls': current_assistant_tool_calls, 'content': None})
+
+        return openai_messages
 
 
 class OpenAIResponseTransformer(ResponseTransformer):
