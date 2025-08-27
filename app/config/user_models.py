@@ -53,6 +53,8 @@ class RoutingConfig(BaseModel):
     default: str = Field(description='Default model for standard requests')
     planning: str = Field(default='', description='Model for planning/complex reasoning requests')
     background: str = Field(default='', description='Model for background/simple requests')
+    thinking: str = Field(default='', description='Model for thinking-enabled requests')
+    plan_and_think: str = Field(default='', description='Model for combined planning and thinking requests')
 
 
 class UserConfig(BaseModel):
@@ -118,7 +120,13 @@ class UserConfig(BaseModel):
 
         # Check that routing references valid models
         if self.routing:
-            for routing_type, model_id in [('default', self.routing.default), ('planning', self.routing.planning), ('background', self.routing.background)]:
+            for routing_type, model_id in [
+                ('default', self.routing.default),
+                ('planning', self.routing.planning),
+                ('background', self.routing.background),
+                ('thinking', self.routing.thinking),
+                ('plan_and_think', self.routing.plan_and_think),
+            ]:
                 if model_id and not self.get_model_by_id(model_id):
                     errors.append(f"Routing '{routing_type}' references unknown model '{model_id}'")
 

@@ -49,11 +49,8 @@ class RequestInspector:
     """Analyzes requests to determine routing key."""
 
     def __init__(self):
-        """Initialize with routing keyword configuration."""
-        self.routing_keywords = {
-            'planning': ['plan', 'strategy', 'approach', 'steps', 'methodology', 'design', 'architecture', 'roadmap', 'timeline'],
-            # 'background': ['analyze', 'review', 'summarize', 'extract', 'process', 'batch', 'bulk', 'generate report', 'data analysis'],
-        }
+        """Initialize the request inspector."""
+        pass
 
     def determine_routing_key(self, request: AnthropicRequest) -> str:
         """Determine routing key based on request content.
@@ -62,66 +59,39 @@ class RequestInspector:
             request: Anthropic API request
 
         Returns:
-            Routing key ('default', 'planning', 'background')
+            Routing key ('default', 'planning', 'background', 'thinking', 'plan_and_think')
         """
         if request.max_tokens < 768:
             return 'background'
 
-        # Check for plan mode activation in the last user message
-        if self._has_plan_mode_activation(request):
+        # Check for combined plan mode + thinking
+        has_plan_mode = self._has_plan_mode_activation(request)
+        has_thinking = self._has_thinking_config(request)
+
+        if has_plan_mode and has_thinking:
+            return 'plan_and_think'
+
+        # Check for thinking only
+        if has_thinking:
+            return 'thinking'
+
+        # Check for plan mode only
+        if has_plan_mode:
             return 'planning'
-
-        # Extract all text content from the request
-        request_text = self._extract_request_text(request)
-
-        # Check for routing keywords in priority order
-        for routing_type, keywords in self.routing_keywords.items():
-            if self._contains_keywords(request_text, keywords):
-                return routing_type
 
         # Default routing
         return 'default'
 
-    def _extract_request_text(self, request: AnthropicRequest) -> str:
-        """Extract all text content from request for analysis.
+    def _has_thinking_config(self, request: AnthropicRequest) -> bool:
+        """Check if the request has thinking configuration with budget tokens > 0.
 
         Args:
             request: Anthropic API request
 
         Returns:
-            Concatenated lowercase text from all messages
+            True if thinking config exists and budget_tokens > 0
         """
-        texts = []
-
-        # Extract system message text
-        if request.system:
-            for msg in request.system:
-                texts.append(msg.text.lower())
-
-        # Extract user message text
-        for message in request.messages:
-            if message.role == 'user':
-                content = message.content
-                if isinstance(content, str):
-                    texts.append(content.lower())
-                elif isinstance(content, list):
-                    for block in content:
-                        if hasattr(block, 'text') and block.text:
-                            texts.append(block.text.lower())
-
-        return ' '.join(texts)
-
-    def _contains_keywords(self, text: str, keywords: list[str]) -> bool:
-        """Check if text contains any of the specified keywords.
-
-        Args:
-            text: Text to search in (should be lowercase)
-            keywords: List of keywords to search for
-
-        Returns:
-            True if any keyword is found
-        """
-        return any(keyword in text for keyword in keywords)
+        return request.thinking is not None and request.thinking.budget_tokens > 0
 
     def _has_plan_mode_activation(self, request: AnthropicRequest) -> bool:
         """Check if the last user message contains plan mode activation text.
@@ -205,6 +175,10 @@ class SimpleRouter:
             return self.routing_config.planning or SONNET_MODEL_ID
         elif routing_key == 'background':
             return self.routing_config.background or SONNET_MODEL_ID
+        elif routing_key == 'thinking':
+            return self.routing_config.thinking or SONNET_MODEL_ID
+        elif routing_key == 'plan_and_think':
+            return self.routing_config.plan_and_think or SONNET_MODEL_ID
         else:
             return self.routing_config.default or SONNET_MODEL_ID
 
@@ -229,6 +203,8 @@ class SimpleRouter:
             'default_model': self.routing_config.default,
             'planning_model': self.routing_config.planning,
             'background_model': self.routing_config.background,
+            'thinking_model': self.routing_config.thinking,
+            'plan_and_think_model': self.routing_config.plan_and_think,
             'available_models': self.list_available_models(),
             'providers': self.provider_manager.list_providers(),
         }

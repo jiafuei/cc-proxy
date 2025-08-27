@@ -18,11 +18,13 @@ def test_routing_config():
 
 
 def test_request_inspector_planning():
-    """Test request inspector identifies planning requests."""
+    """Test request inspector identifies planning requests via plan mode activation."""
     inspector = RequestInspector()
 
-    # Create a planning request
-    request = AnthropicRequest(model='claude-3-sonnet', messages=[{'role': 'user', 'content': 'Please create a detailed plan for implementing this feature'}])
+    # Create a planning request with plan mode activation text
+    request = AnthropicRequest(
+        model='claude-3-sonnet', messages=[{'role': 'user', 'content': '<system-reminder>\nPlan mode is active. Please create a detailed plan for implementing this feature'}]
+    )
 
     routing_key = inspector.determine_routing_key(request)
     assert routing_key == 'planning'
@@ -111,8 +113,8 @@ def test_simple_router_planning_request():
 
     router = SimpleRouter(mock_provider_manager, routing_config, mock_transformer_loader)
 
-    # Create a planning request
-    request = AnthropicRequest(model='claude-3-sonnet', messages=[{'role': 'user', 'content': 'Create a detailed plan for this project'}])
+    # Create a planning request with plan mode activation text
+    request = AnthropicRequest(model='claude-3-sonnet', messages=[{'role': 'user', 'content': '<system-reminder>\nPlan mode is active. Create a detailed plan for this project'}])
 
     provider, _ = router.get_provider_for_request(request)
     assert provider == mock_provider
@@ -157,7 +159,9 @@ def test_simple_router_get_routing_info():
     mock_provider_manager.list_models.return_value = ['claude-3-sonnet']
     mock_provider_manager.list_providers.return_value = ['anthropic']
 
-    routing_config = RoutingConfig(default='claude-3-sonnet', planning='claude-3-opus', background='claude-3-haiku')
+    routing_config = RoutingConfig(
+        default='claude-3-sonnet', planning='claude-3-opus', background='claude-3-haiku', thinking='claude-3-sonnet-thinking', plan_and_think='claude-3-opus-thinking'
+    )
 
     # Mock transformer loader
     mock_transformer_loader = Mock()
@@ -168,6 +172,8 @@ def test_simple_router_get_routing_info():
     assert info['default_model'] == 'claude-3-sonnet'
     assert info['planning_model'] == 'claude-3-opus'
     assert info['background_model'] == 'claude-3-haiku'
+    assert info['thinking_model'] == 'claude-3-sonnet-thinking'
+    assert info['plan_and_think_model'] == 'claude-3-opus-thinking'
     assert info['available_models'] == ['claude-3-sonnet']
     assert info['providers'] == ['anthropic']
 
@@ -266,7 +272,6 @@ def test_request_inspector_plan_mode_only_last_user_message():
     inspector = RequestInspector()
 
     # Create request with plan mode text in earlier message but not last
-    # Avoid planning keywords to isolate plan mode detection 
     request = AnthropicRequest(
         model='claude-3-sonnet',
         messages=[
@@ -277,27 +282,63 @@ def test_request_inspector_plan_mode_only_last_user_message():
     )
 
     routing_key = inspector.determine_routing_key(request)
-    # Should be 'planning' due to keyword matching ('plan' in first message), not plan mode activation
-    assert routing_key == 'planning'
+    # Should be 'default' since plan mode text is not in the last user message
+    assert routing_key == 'default'
 
 
-def test_request_inspector_plan_mode_vs_keyword_isolation():
-    """Test that plan mode detection is separate from keyword detection."""
+def test_request_inspector_thinking_config():
+    """Test request inspector detects thinking configuration."""
     inspector = RequestInspector()
 
-    # Create request with no planning keywords but with plan mode text in non-last message
+    # Create request with thinking configuration
     request = AnthropicRequest(
-        model='claude-3-sonnet', 
-        messages=[
-            {'role': 'user', 'content': '<system-reminder>\nThe mode is active. Earlier message'},  # No 'plan' keyword
-            {'role': 'assistant', 'content': 'Response'},
-            {'role': 'user', 'content': 'Final user message, just a simple hello'},
-        ],
+        model='claude-3-sonnet', messages=[{'role': 'user', 'content': 'Hello, please help me with this task'}], thinking={'type': 'enabled', 'budget_tokens': 1000}
     )
 
     routing_key = inspector.determine_routing_key(request)
-    # Should be 'default' since no plan mode activation in last message and no planning keywords
+    assert routing_key == 'thinking'
+
+
+def test_request_inspector_thinking_zero_budget():
+    """Test request inspector ignores thinking config with zero budget tokens."""
+    inspector = RequestInspector()
+
+    # Create request with thinking configuration but zero budget
+    request = AnthropicRequest(
+        model='claude-3-sonnet', messages=[{'role': 'user', 'content': 'Hello, please help me with this task'}], thinking={'type': 'enabled', 'budget_tokens': 0}
+    )
+
+    routing_key = inspector.determine_routing_key(request)
     assert routing_key == 'default'
+
+
+def test_request_inspector_plan_and_think():
+    """Test request inspector detects combined planning and thinking."""
+    inspector = RequestInspector()
+
+    # Create request with both plan mode activation and thinking config
+    request = AnthropicRequest(
+        model='claude-3-sonnet',
+        messages=[{'role': 'user', 'content': '<system-reminder>\nPlan mode is active. Please help me plan this'}],
+        thinking={'type': 'enabled', 'budget_tokens': 1000},
+    )
+
+    routing_key = inspector.determine_routing_key(request)
+    assert routing_key == 'plan_and_think'
+
+
+def test_request_inspector_thinking_priority_over_planning():
+    """Test that thinking takes priority over planning when both conditions met."""
+    inspector = RequestInspector()
+
+    # Create request with plan mode text but also thinking - should go to plan_and_think
+    request = AnthropicRequest(
+        model='claude-3-sonnet', messages=[{'role': 'user', 'content': '<system-reminder>\nPlan mode is active. Please help'}], thinking={'type': 'enabled', 'budget_tokens': 500}
+    )
+
+    routing_key = inspector.determine_routing_key(request)
+    # Should be plan_and_think, not just planning
+    assert routing_key == 'plan_and_think'
 
 
 def test_request_inspector_plan_mode_partial_match():
@@ -340,17 +381,35 @@ def test_request_inspector_background_priority_over_plan_mode():
     assert routing_key == 'background'
 
 
-def test_request_inspector_plan_mode_priority_over_keywords():
-    """Test that plan mode detection takes priority over keyword matching."""
+def test_request_inspector_background_priority_over_thinking():
+    """Test that background routing (max_tokens < 768) takes priority over thinking."""
     inspector = RequestInspector()
 
-    # Create request with both plan mode activation and planning keywords
+    # Create request with both thinking config and low max_tokens
     request = AnthropicRequest(
         model='claude-3-sonnet',
-        max_tokens=1000,  # High enough to avoid background routing
-        messages=[{'role': 'user', 'content': '<system-reminder>\nPlan mode is active. Create a detailed plan and strategy'}],
+        max_tokens=500,  # Less than 768 - should trigger background
+        messages=[{'role': 'user', 'content': 'Please help me with this task'}],
+        thinking={'type': 'enabled', 'budget_tokens': 1000},
     )
 
     routing_key = inspector.determine_routing_key(request)
-    # Should be 'planning' due to plan mode activation (not keyword matching)
-    assert routing_key == 'planning'
+    # Should be 'background' due to low max_tokens, even with thinking config
+    assert routing_key == 'background'
+
+
+def test_request_inspector_background_priority_over_plan_and_think():
+    """Test that background routing takes priority over plan_and_think."""
+    inspector = RequestInspector()
+
+    # Create request with plan mode, thinking config, and low max_tokens
+    request = AnthropicRequest(
+        model='claude-3-sonnet',
+        max_tokens=500,  # Less than 768 - should trigger background
+        messages=[{'role': 'user', 'content': '<system-reminder>\nPlan mode is active. Please help'}],
+        thinking={'type': 'enabled', 'budget_tokens': 1000},
+    )
+
+    routing_key = inspector.determine_routing_key(request)
+    # Should be 'background' due to low max_tokens, even with both plan mode and thinking
+    assert routing_key == 'background'
