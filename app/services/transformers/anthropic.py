@@ -173,20 +173,22 @@ class AnthropicCacheTransformer(RequestTransformer):
 
         # Reorder: defaults first, MCP second
         reordered_tools = default_tools + mcp_tools
-        total_tools = len(default_tools + mcp_tools)
+        total_tools = len(reordered_tools)
         breakpoints_used = 0
 
+        # Strategy: Add cache breakpoints every 20 tools (original approach with bug fix)
         for i in range(0, total_tools, 20):
-            if i + 20 > total_tools:
-                break
             if breakpoints_used >= self.max_tools_breakpoints:
                 break
 
-            reordered_tools[i + 20 - 1]['cache_control'] = {'type': 'ephemeral'}
+            # For each chunk, find the end position (either i+19 or the last tool if partial chunk)
+            chunk_end = min(i + 20 - 1, total_tools - 1)
+            reordered_tools[chunk_end]['cache_control'] = {'type': 'ephemeral', 'ttl': '1h'}
             breakpoints_used += 1
 
-        if breakpoints_used == 0:
-            reordered_tools[-1]['cache_control'] = {'type': 'ephemeral'}
+        # Fallback: if no breakpoints were added, add one at the end
+        if breakpoints_used == 0 and reordered_tools:
+            reordered_tools[-1]['cache_control'] = {'type': 'ephemeral', 'ttl': '1h'}
             breakpoints_used += 1
 
         self.logger.debug(f'Added {breakpoints_used} breakpoint for {total_tools} total tools')

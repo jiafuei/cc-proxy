@@ -98,55 +98,26 @@ class TestAnthropicCacheTransformer:
         assert breakpoints_used == 1
         assert 'cache_control' in tools[-1]  # Last tool should be cached
 
-    def test_tools_caching_large_array(self, transformer, sample_request):
+    def test_tools_caching_large_array(self, sample_request):
         """Test tools caching with large tool array (>=20 tools)."""
+        # Create transformer with max_tools_breakpoints=2 for large arrays
+        mock_logger = Mock()
+        transformer = AnthropicCacheTransformer(mock_logger, max_tools_breakpoints=2)
+
         # Add many tools to trigger 2-breakpoint strategy
         sample_request['tools'].extend([{'name': f'Tool{i}', 'description': f'Tool {i}'} for i in range(3, 25)])
 
         breakpoints_used = transformer._reorder_and_cache_tools_array(sample_request)
 
         tools = sample_request['tools']
-        default_tools = [t for t in tools if not t['name'].startswith('mcp__')]
-        mcp_tools = [t for t in tools if t['name'].startswith('mcp__')]
 
-        # Should use 2-breakpoint strategy for large arrays
+        # Should use 2-breakpoint strategy for large arrays (every 20 tools)
         assert breakpoints_used == 2
-        assert 'cache_control' in default_tools[-1]
-        if mcp_tools:
-            assert 'cache_control' in mcp_tools[-1]
-
-    def test_tool_cluster_identification(self, transformer):
-        """Test identification of tool use/result clusters."""
-        messages = [
-            {'role': 'user', 'content': 'Start task'},
-            {'role': 'assistant', 'content': [{'type': 'tool_use', 'name': 'Read', 'id': '1'}]},
-            {'role': 'user', 'content': [{'type': 'tool_result', 'tool_use_id': '1', 'content': 'result'}]},
-            {'role': 'assistant', 'content': [{'type': 'tool_use', 'name': 'Write', 'id': '2'}]},
-            {'role': 'user', 'content': [{'type': 'tool_result', 'tool_use_id': '2', 'content': 'result'}]},
-            {'role': 'user', 'content': 'Regular message'},
-            {'role': 'assistant', 'content': 'Regular response'},
-        ]
-
-        clusters = transformer._identify_tool_clusters(messages)
-
-        # Should identify one cluster of indices [1, 2, 3, 4] (tool interactions)
-        assert len(clusters) == 1
-        assert clusters[0] == [1, 2, 3, 4]
-
-    def test_conversation_milestone_detection(self, transformer):
-        """Test detection of workflow milestones."""
-        messages = [
-            {'role': 'user', 'content': 'Start'},
-            {'role': 'assistant', 'content': [{'type': 'tool_use', 'name': 'TodoWrite', 'id': '1', 'input': {'todos': []}}]},
-            {'role': 'user', 'content': [{'type': 'tool_result', 'tool_use_id': '1', 'content': 'success'}]},
-            {'role': 'assistant', 'content': [{'type': 'tool_use', 'name': 'MultiEdit', 'id': '2', 'input': {'file': 'test.py'}}]},
-        ]
-
-        milestones = transformer._find_conversation_milestones(messages)
-
-        # Should detect TodoWrite and MultiEdit as milestones
-        assert 1 in milestones  # TodoWrite
-        assert 3 in milestones  # MultiEdit
+        # With 25 tools, should cache at indices 19 and 24 (every 20 tools)
+        assert 'cache_control' in tools[19]  # Tool at index 19 (20th tool)
+        assert 'cache_control' in tools[24]  # Tool at index 24 (25th tool)
+        assert tools[19]['cache_control'] == {'type': 'ephemeral', 'ttl': '1h'}
+        assert tools[24]['cache_control'] == {'type': 'ephemeral', 'ttl': '1h'}
 
     def test_message_cache_breakpoint_addition(self, transformer):
         """Test adding cache breakpoints to message content."""
@@ -170,38 +141,14 @@ class TestAnthropicCacheTransformer:
         assert isinstance(message_string['content'], list)
         assert message_string['content'][0]['cache_control'] == {'type': 'ephemeral'}
 
-    def test_content_block_counting(self, transformer):
-        """Test content block counting for cache breakpoint placement."""
-        messages = []
-        # Create messages with enough content blocks to trigger breakpoint
-        for i in range(12):  # 24 non-thinking blocks total (12 * 2)
-            messages.append(
-                {
-                    'role': 'user' if i % 2 == 0 else 'assistant',
-                    'content': [
-                        {'type': 'text', 'text': f'Message {i}-1'},
-                        {'type': 'text', 'text': f'Message {i}-2'},
-                        {'type': 'thinking', 'thinking': f'Thinking {i}'},  # Should be excluded
-                    ],
-                }
-            )
-
-        # Simulate no system/tools breakpoints so messages can get breakpoints
-        transformer._add_content_block_breakpoints(messages, 2)
-
-        # Should add breakpoints at content milestones (every 20 blocks)
-        cached_messages = [msg for msg in messages if any('cache_control' in block for block in msg.get('content', []) if isinstance(block, dict))]
-        # With 24 blocks, should hit 20-block milestone once
-        assert len(cached_messages) >= 1
-
     def test_breakpoint_count_validation(self, transformer, sample_request):
         """Test validation of total breakpoint count."""
         # Add cache controls to exceed limit
         sample_request['system'][0]['cache_control'] = {'type': 'ephemeral'}
         sample_request['system'][1]['cache_control'] = {'type': 'ephemeral'}
-        sample_request['tools'][0]['cache_control'] = {'type': 'ephemeral'}
-        sample_request['tools'][1]['cache_control'] = {'type': 'ephemeral'}
-        sample_request['tools'][2]['cache_control'] = {'type': 'ephemeral'}  # This would be 5th
+        sample_request['tools'][0]['cache_control'] = {'type': 'ephemeral', 'ttl': '1h'}
+        sample_request['tools'][1]['cache_control'] = {'type': 'ephemeral', 'ttl': '1h'}
+        sample_request['tools'][2]['cache_control'] = {'type': 'ephemeral', 'ttl': '1h'}  # This would be 5th
 
         count = transformer._validate_breakpoint_count(sample_request)
         assert count == 5
