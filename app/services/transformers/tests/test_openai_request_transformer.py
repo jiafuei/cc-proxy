@@ -83,7 +83,7 @@ class TestOpenAIRequestTransformer:
         
         result_request, result_headers = await transformer.transform(params)
         
-        assert result_request['model'] == 'gpt-4o'  # claude-sonnet-4 -> gpt-4o
+        assert result_request['model'] == 'claude-sonnet-4-20250514'  # Model used as-is
         assert result_request['messages'] == [{'role': 'user', 'content': 'Hello'}]
         assert result_request['max_tokens'] == 100
         assert result_request['temperature'] == 0.7
@@ -102,8 +102,8 @@ class TestOpenAIRequestTransformer:
         
         result_request, result_headers = await transformer.transform(params)
         
-        # Check model mapping
-        assert result_request['model'] == 'gpt-4'  # claude-3-5-sonnet -> gpt-4
+        # Check model used as-is
+        assert result_request['model'] == 'claude-3-5-sonnet-20241022'  # Model used as-is
         
         # Check system message conversion
         messages = result_request['messages']
@@ -114,11 +114,20 @@ class TestOpenAIRequestTransformer:
         assert messages[1]['role'] == 'user'
         assert messages[1]['content'] == 'Hello'
         
+        # Check assistant message with tool calls (new behavior)
         assert messages[2]['role'] == 'assistant'
-        assert '[Tool: search with input: {"query": "help"}]' in messages[2]['content']
+        assert messages[2]['content'] == 'Hi! Let me help you.'
+        assert 'tool_calls' in messages[2]
+        assert len(messages[2]['tool_calls']) == 1
+        tool_call = messages[2]['tool_calls'][0]
+        assert tool_call['type'] == 'function'
+        assert tool_call['function']['name'] == 'search'
+        assert '"query": "help"' in tool_call['function']['arguments']
         
-        assert messages[3]['role'] == 'user'
-        assert '[Tool Result for tool1: Found results]' in messages[3]['content']
+        # Check tool result message (new behavior)
+        assert messages[3]['role'] == 'tool'
+        assert messages[3]['content'] == 'Found results'
+        assert 'tool_call_id' in messages[3]
         
         # Check tools conversion
         assert 'tools' in result_request
@@ -243,21 +252,20 @@ class TestOpenAIRequestTransformer:
         assert transformer._convert_stop_sequences([]) is None
 
     def test_model_name_mappings(self, transformer):
-        """Test all model name mappings."""
+        """Test that model names are used as-is (no mapping)."""
         test_cases = [
-            ('claude-sonnet-4-20250514', 'gpt-4o'),
-            ('claude-3-5-sonnet-20250121', 'gpt-4o'),
-            ('claude-3-5-sonnet-20241022', 'gpt-4'),
-            ('claude-3-sonnet-20240229', 'gpt-4'),
-            ('claude-3-haiku-20240307', 'gpt-3.5-turbo'),
-            ('claude-3-opus-20240229', 'gpt-4-turbo'),
-            ('claude-3-5-haiku-20241022', 'gpt-3.5-turbo'),
-            ('unknown-model', 'gpt-4'),  # Default fallback
+            ('claude-sonnet-4-20250514', 'claude-sonnet-4-20250514'),
+            ('claude-3-5-sonnet-20250121', 'claude-3-5-sonnet-20250121'),
+            ('claude-3-5-sonnet-20241022', 'claude-3-5-sonnet-20241022'),
+            ('gpt-4o', 'gpt-4o'),
+            ('gpt-4', 'gpt-4'),
+            ('gpt-3.5-turbo', 'gpt-3.5-turbo'),
+            ('unknown-model', 'unknown-model'),  # Used as-is
         ]
         
-        for claude_model, expected_openai in test_cases:
-            result = transformer._convert_model_name(claude_model)
-            assert result == expected_openai, f"Failed for {claude_model}"
+        for input_model, expected_output in test_cases:
+            result = transformer._convert_model_name(input_model)
+            assert result == expected_output, f"Failed for {input_model}"
 
     @pytest.mark.asyncio
     async def test_none_field_removal(self, transformer, provider_config):
