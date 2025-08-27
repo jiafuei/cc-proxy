@@ -40,18 +40,27 @@ class OpenAIRequestTransformer(RequestTransformer):
         # Convert stop sequences
         openai_stop = self._convert_stop_sequences(request.get('stop_sequences'))
 
+        # Convert thinking budget to reasoning effort
+        thinking_config = request.get('thinking', {})
+        reasoning_effort = self._convert_thinking_budget(thinking_config.get('budget_tokens'))
+
         # Build OpenAI request (remove Claude-specific fields)
         openai_request = {
             'model': openai_model,
             'messages': openai_messages,
-            'max_tokens': request.get('max_tokens'),
+            'max_completion_tokens': request.get('max_tokens'),
             'temperature': request.get('temperature'),
             'top_p': request.get('top_p'),
             'stream': request.get('stream', False),
             'tools': openai_tools,
             'tool_choice': openai_tool_choice,
             'stop': openai_stop,
+            'reasoning_effort': reasoning_effort,
         }
+
+        # Add stream_options if streaming
+        if request.get('stream', False):
+            openai_request['stream_options'] = {'include_usage': True}
 
         # Remove None values
         openai_request = {k: v for k, v in openai_request.items() if v is not None}
@@ -174,7 +183,6 @@ class OpenAIRequestTransformer(RequestTransformer):
         # Separate text content and tool calls
         text_parts = []
         tool_calls = []
-        tool_call_counter = 0
 
         if isinstance(content, list):
             for block in content:
@@ -183,10 +191,9 @@ class OpenAIRequestTransformer(RequestTransformer):
                     if block_type == 'text':
                         text_parts.append(block.get('text', ''))
                     elif block_type == 'tool_use':
-                        # Convert to OpenAI tool call format
-                        tool_call_counter += 1
+                        # Convert to OpenAI tool call format - use original ID as-is
                         tool_call = {
-                            'id': f'call_{tool_call_counter}_{block.get("id", "")}',
+                            'id': block.get('id', ''),
                             'type': 'function',
                             'function': {'name': block.get('name', ''), 'arguments': json.dumps(block.get('input', {}))},
                         }
@@ -263,19 +270,39 @@ class OpenAIRequestTransformer(RequestTransformer):
                     # Convert to OpenAI tool message
                     tool_use_id = block.get('tool_use_id', '')
                     result_content = block.get('content', '')
+                    is_error = block.get('is_error', False)
 
                     # Convert result content to string if it's complex
                     if isinstance(result_content, list):
-                        text_parts = []
+                        content_parts = []
                         for result_block in result_content:
-                            if isinstance(result_block, dict) and result_block.get('type') == 'text':
-                                text_parts.append(result_block.get('text', ''))
-                        result_content = '\n'.join(text_parts)
+                            if isinstance(result_block, dict):
+                                if result_block.get('type') == 'text':
+                                    content_parts.append(result_block.get('text', ''))
+                                else:
+                                    # Handle other content types by converting to string
+                                    content_parts.append(str(result_block))
+                            else:
+                                content_parts.append(str(result_block))
+                        result_content = '\n'.join(content_parts)
+
+                    # Apply error handling logic
+                    content_str = str(result_content).strip()
+                    if not content_str:  # Empty content
+                        if is_error:
+                            final_content = 'Error'
+                        else:
+                            final_content = 'Success'
+                    else:  # Non-empty content
+                        if is_error:
+                            final_content = f'Error: {content_str}'
+                        else:
+                            final_content = content_str
 
                     tool_result = {
                         'role': 'tool',
-                        'content': str(result_content),
-                        'tool_call_id': f'call_1_{tool_use_id}',  # Match the format used in tool_calls
+                        'content': final_content,
+                        'tool_call_id': tool_use_id,  # Use original tool_use_id as-is
                     }
                     tool_results.append(tool_result)
                 else:
@@ -360,6 +387,18 @@ class OpenAIRequestTransformer(RequestTransformer):
 
         # OpenAI supports up to 4 stop sequences
         return claude_stop_sequences[:4] if claude_stop_sequences else None
+
+    def _convert_thinking_budget(self, thinking_budget: int) -> str | None:
+        """Convert Claude thinking budget to OpenAI reasoning effort."""
+        if not thinking_budget:
+            return None
+
+        if thinking_budget <= 1024:
+            return 'low'
+        elif thinking_budget <= 8192:
+            return 'medium'
+        else:
+            return 'high'
 
     def _convert_model_name(self, claude_model: str) -> str:
         """Use incoming model name as-is since it will already be a GPT model."""
