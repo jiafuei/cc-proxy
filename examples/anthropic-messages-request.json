@@ -114,7 +114,8 @@
         {
           "type": "tool_result",
           "tool_use_id": "toolu_01EtefPzznkfoHtnk7Avvyp9",
-          "content":""
+          "content":"",
+          "is_error": false
         }
       ]
     },
