@@ -32,7 +32,7 @@ def _create_default_anthropic_config() -> ProviderConfig:
             'request': [
                 {'class': 'app.services.transformers.anthropic.AnthropicCacheTransformer', 'params': {}},
                 {'class': 'app.services.transformers.anthropic.AnthropicHeadersTransformer', 'params': {}},
-                {'class': 'app.services.transformers.auth.AuthHeaderTransformer', 'params': {}},
+                {'class': 'app.services.transformers.utils.AuthHeaderTransformer', 'params': {}},
             ]
             if api_key
             else [],
