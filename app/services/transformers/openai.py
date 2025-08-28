@@ -5,7 +5,6 @@ from typing import Any, Dict, Tuple
 import orjson
 
 from app.config.log import get_logger
-from app.config.user_models import ProviderConfig
 from app.services.transformers.interfaces import RequestTransformer, ResponseTransformer
 
 logger = get_logger(__name__)
@@ -16,7 +15,6 @@ class OpenAIRequestTransformer(RequestTransformer):
 
     # Reasoning effort threshold mapping
     REASONING_EFFORT_THRESHOLDS = [(1024, 'low'), (8192, 'medium'), (float('inf'), 'high')]
-    CHAT_COMPLETION_PATH = '/v1/chat/completions'
 
     def __init__(self, logger):
         """Initialize transformer.
@@ -25,19 +23,10 @@ class OpenAIRequestTransformer(RequestTransformer):
         """
         self.logger = logger
 
-    def _update_url(self, params: dict[str, Any]):
-        if 'provider_config' not in params:
-            return
-        provider_config: ProviderConfig = params['provider_config']
-        base_url = provider_config.url.strip('/')
-        url = (base_url[:-2] if base_url.endswith('v1') else base_url) + self.CHAT_COMPLETION_PATH
-        params['provider_config'].url = url
-
     async def transform(self, params: Dict[str, Any]) -> Tuple[Dict[str, Any], Dict[str, str]]:
         """Convert Claude request format to OpenAI format."""
         request = params['request']
         headers = params['headers']
-        self._update_url(params)
 
         # Build OpenAI request with filtered comprehension
         openai_request = {
