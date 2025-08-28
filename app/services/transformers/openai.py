@@ -56,14 +56,10 @@ class OpenAIRequestTransformer(RequestTransformer):
 
     def _convert_tools(self, claude_tools):
         """Convert Claude tools format to OpenAI functions format."""
-        return (
-            [
-                {'type': 'function', 'function': {'name': tool.get('name', ''), 'description': tool.get('description', ''), 'parameters': tool.get('input_schema', {})}}
-                for tool in (claude_tools or [])
-            ]
-            if claude_tools
-            else None
-        )
+        return claude_tools and [
+            {'type': 'function', 'function': {'name': tool.get('name', ''), 'description': tool.get('description', ''), 'parameters': tool.get('input_schema', {})}}
+            for tool in claude_tools
+        ]
 
     def _convert_messages(self, claude_request):
         """Convert Claude request to OpenAI messages format."""
@@ -83,47 +79,34 @@ class OpenAIRequestTransformer(RequestTransformer):
 
     def _process_message(self, message):
         """Process a single Claude message into OpenAI format messages."""
-        role = message.get('role')
-        content = message.get('content', [])
-
+        role, content = message.get('role'), message.get('content', [])
         if isinstance(content, str):
             content = [{'type': 'text', 'text': content}]
         elif not isinstance(content, list):
             return []
 
-        # Separate content blocks and tool results
-        current_content = []
-        messages = []
+        messages, current_content = [], []
+
+        def flush_content():
+            if current_content:
+                messages.append({'role': role, 'content': self._convert_content_blocks(current_content)})
+                current_content.clear()
 
         for block in content:
             if not isinstance(block, dict):
                 continue
 
             block_type = block.get('type')
-
             if block_type == 'tool_result':
-                # Flush current content, add tool message
-                if current_content:
-                    messages.append({'role': role, 'content': self._convert_content_blocks(current_content)})
-                    current_content = []
+                flush_content()
                 messages.append(self._convert_tool_result(block))
-
             elif block_type == 'tool_use' and role == 'assistant':
-                # Flush current content, add assistant message with tool call
-                if current_content:
-                    messages.append({'role': 'assistant', 'content': self._convert_content_blocks(current_content)})
-                    current_content = []
+                flush_content()
                 messages.append({'role': 'assistant', 'content': None, 'tool_calls': [self._convert_tool_call(block)]})
-
             elif block_type in ['text', 'image']:
                 current_content.append(block)
 
-            # Skip 'thinking' blocks and other unsupported types
-
-        # Flush remaining content
-        if current_content:
-            messages.append({'role': role, 'content': self._convert_content_blocks(current_content)})
-
+        flush_content()
         return messages
 
     def _convert_content_blocks(self, blocks):
