@@ -79,6 +79,10 @@ class AnthropicHeadersTransformer(RequestTransformer):
 class AnthropicResponseTransformer(ResponseTransformer):
     """Pure passthrough transformer for Anthropic responses."""
 
+    def __init__(self, logger):
+        """Initialize transformer."""
+        self.logger = logger
+
     async def transform_chunk(self, params: Dict[str, Any]) -> bytes:
         """Pure passthrough - response is already in correct format."""
         return params['chunk']

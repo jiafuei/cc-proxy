@@ -7,6 +7,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from app.common.dumper import DumpHandles
+from app.dependencies.dumper import get_dumper
 from app.routers.messages import router
 
 
@@ -22,7 +23,7 @@ def test_messages_endpoint():
             self.config = Mock()
             self.config.name = name
 
-        async def process_request(self, payload, request):
+        async def process_request(self, payload, request, routing_key=None, dumper=None, dumper_handles=None):
             """Mock provider that returns SSE-formatted chunks."""
             yield b'event: message_start\ndata: {"type": "message_start"}\n\n'
             yield b'event: content_block_delta\ndata: {"type": "content_block_delta", "delta": {"text": "Hello"}}\n\n'
@@ -30,7 +31,7 @@ def test_messages_endpoint():
 
     class MockRouter:
         def get_provider_for_request(self, request):
-            return MockProvider()
+            return MockProvider(), 'default'
 
     class MockDumper:
         def begin(self, request, payload):
@@ -70,7 +71,7 @@ def test_messages_endpoint_no_provider():
 
     class MockRouter:
         def get_provider_for_request(self, request):
-            return None  # No provider available
+            return None, 'default'  # No provider available
 
     class MockServiceContainer:
         def __init__(self):
@@ -114,14 +115,14 @@ def test_messages_endpoint_with_dumping(tmp_path):
             self.config = Mock()
             self.config.name = 'test-provider'
 
-        async def process_request(self, payload, request):
+        async def process_request(self, payload, request, routing_key=None, dumper=None, dumper_handles=None):
             yield b'event: message_start\ndata: {"type": "message_start"}\n\n'
             yield b'event: content_block_delta\ndata: {"type": "content_block_delta", "delta": {"text": "Test response"}}\n\n'
             yield b'event: message_stop\ndata: {"type": "message_stop"}\n\n'
 
     class MockRouter:
         def get_provider_for_request(self, request):
-            return MockProvider()
+            return MockProvider(), 'default'
 
     class MockDumper:
         def __init__(self):
@@ -143,7 +144,17 @@ def test_messages_endpoint_with_dumping(tmp_path):
             response_path = os.path.join(dump_dir, f'{ts}_{corr_id}_response.sse')
             response_file = open(response_path, 'wb')
 
-            return DumpHandles(headers_path=None, request_path=None, response_path=response_path, response_file=response_file)
+            return DumpHandles(
+                headers_path=None,
+                request_path=None,
+                response_path=response_path,
+                response_file=response_file,
+                transformed_request_path=None,
+                transformed_request_file=None,
+                pretransformed_response_path=None,
+                pretransformed_response_file=None,
+                correlation_id=corr_id,
+            )
 
         def write_response_chunk(self, handles, chunk):
             if handles.response_file:
@@ -160,15 +171,22 @@ def test_messages_endpoint_with_dumping(tmp_path):
             self.dumper = MockDumper()
 
     with patch('app.routers.messages.get_service_container') as mock_get_container:
-        mock_get_container.return_value = MockServiceContainer()
+        mock_service_container = MockServiceContainer()
+        mock_get_container.return_value = mock_service_container
+
+        # Override the dumper dependency
+        app.dependency_overrides[get_dumper] = lambda: mock_service_container.dumper
 
         response = client.post('/v1/messages', json={'model': 'test-model', 'messages': [{'role': 'user', 'content': 'Hello'}]})
 
         assert response.status_code == 200
 
+        # Consume the response to trigger the generator
+        content = response.content
+
         # Check that dump files were created
         files = os.listdir(tmp_path)
-        sse_files = [f for f in files if f.endswith('response.sse')]
+        sse_files = [f for f in files if f.endswith('_response.sse')]
         assert len(sse_files) >= 1
 
         # Check that response was written to file

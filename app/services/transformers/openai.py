@@ -16,7 +16,7 @@ class OpenAIRequestTransformer(RequestTransformer):
 
     # Reasoning effort threshold mapping
     REASONING_EFFORT_THRESHOLDS = [(1024, 'low'), (8192, 'medium'), (float('inf'), 'high')]
-    CHAT_COMPLETION_PATH = "/v1/chat/completions"
+    CHAT_COMPLETION_PATH = '/v1/chat/completions'
 
     def __init__(self, logger):
         """Initialize transformer.

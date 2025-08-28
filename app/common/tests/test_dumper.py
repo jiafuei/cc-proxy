@@ -77,9 +77,10 @@ def test_dumper_transformed_request(tmp_path):
     transformed_request = {'model': 'claude-3-sonnet', 'messages': [{'role': 'user', 'content': 'Hello'}], 'stream': True}
 
     d.write_transformed_request(handles, transformed_request)
+    d.close(handles)
 
     # Check that the file was created
-    files = [f for f in os.listdir(tmp_path) if f.endswith('_transformed_request.json')]
+    files = [f for f in os.listdir(tmp_path) if f.endswith('_3transformed_request.json')]
     assert len(files) == 1
 
     # Check that the correlation ID is in the filename
@@ -92,8 +93,6 @@ def test_dumper_transformed_request(tmp_path):
         data = json.load(f)
         assert data['model'] == 'claude-3-sonnet'
         assert data['stream'] is True
-
-    d.close(handles)
 
 
 def test_dumper_pretransformed_response(tmp_path):
@@ -109,9 +108,10 @@ def test_dumper_pretransformed_response(tmp_path):
     # Test with bytes
     d.write_pretransformed_response(handles, b'event: message_start\ndata: {"type": "message_start"}\n\n')
     d.write_pretransformed_response(handles, b'event: content_block_start\ndata: {"type": "content_block_start"}\n\n')
+    d.close(handles)
 
     # Check that the file was created
-    files = [f for f in os.listdir(tmp_path) if f.endswith('_pretransformed_response.sse')]
+    files = [f for f in os.listdir(tmp_path) if f.endswith('_4pretransformed_response.sse')]
     assert len(files) == 1
 
     # Check that the correlation ID is in the filename
@@ -122,8 +122,6 @@ def test_dumper_pretransformed_response(tmp_path):
         content = f.read()
         assert b'message_start' in content
         assert b'content_block_start' in content
-
-    d.close(handles)
 
 
 def test_dumper_pretransformed_response_string(tmp_path):
@@ -137,17 +135,16 @@ def test_dumper_pretransformed_response_string(tmp_path):
 
     # Test with string
     d.write_pretransformed_response(handles, 'event: message_start\ndata: {"type": "message_start"}\n\n')
+    d.close(handles)
 
     # Check that the file was created
-    files = [f for f in os.listdir(tmp_path) if f.endswith('_pretransformed_response.sse')]
+    files = [f for f in os.listdir(tmp_path) if f.endswith('_4pretransformed_response.sse')]
     assert len(files) == 1
 
     # Check file contents
     with open(os.path.join(tmp_path, files[0]), 'rb') as f:
         content = f.read()
         assert b'message_start' in content
-
-    d.close(handles)
 
 
 def test_dumper_disabled_features(tmp_path):

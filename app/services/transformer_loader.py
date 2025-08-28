@@ -46,8 +46,9 @@ class TransformerLoader:
         class_path = transformer_config['class']
         params = transformer_config.get('params', {})
 
-        # Use cached instance if available
-        cache_key = f'{class_path}:{hash(frozenset(params.items()))}'
+        # Use cached instance if available - exclude logger from cache key
+        cache_params = {k: v for k, v in params.items() if k != 'logger'}
+        cache_key = f'{class_path}:{hash(frozenset(cache_params.items()))}'
         if cache_key in self._cache:
             logger.debug(f'Using cached transformer: {class_path}')
             return self._cache[cache_key]
