@@ -63,6 +63,7 @@ class AnthropicCacheTransformer(RequestTransformer):
     """Optimizes cache breakpoints given the limit of 4 cache breakpoints
 
     - Removes the cache breakpoint from the 'You are Claude' system message
+    - Removes gitStatus suffix from system message to make it more cache-friendly
     - Insert cache breakpoint at last system message
     - Reorder 'tools' array
         1. default tools
@@ -95,6 +96,7 @@ class AnthropicCacheTransformer(RequestTransformer):
             return request, headers
 
         # Remove existing cache breakpoints
+        self._remove_system_git_status_suffix(request)
         self._remove_system_cache_breakpoints(request)
         self._remove_tool_cache_breakpoints(request)
         self._remove_messages_cache_breakpoints(request)
@@ -109,6 +111,26 @@ class AnthropicCacheTransformer(RequestTransformer):
         self.logger.info(f'Applied {total_breakpoints}/4 cache breakpoints for routing_key: {routing_key}')
 
         return request, headers
+
+    def _remove_system_git_status_suffix(self, request: dict[str, Any]):
+        if 'system' not in request:
+            return
+
+        # Early return if system array is empty
+        if not request['system']:
+            return
+
+        block = request['system'][-1]
+        text = block['text']
+        if not isinstance(text, str):
+            return
+
+        # Remove the entire chunk of 'gitStatus: This is the git status at the start of the conversation....'
+        # So the system message can be reused for the entire time Claude Code is open
+        git_status_pos = text.rfind('\ngitStatus: ')
+        if git_status_pos != -1:  # Only truncate if gitStatus is found
+            text = text[:git_status_pos]
+            request['system'][-1]['text'] = text
 
     def _remove_system_cache_breakpoints(self, request: dict[str, Any]):
         if 'system' not in request:

@@ -204,6 +204,7 @@ __marimo__/
 
 # Claude local settings
 .claude/**/*.local.*
+CLAUDE.local.md
 
 dumps/
 config.yaml
