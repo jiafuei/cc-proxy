@@ -56,13 +56,14 @@ class Provider:
         # 1. Convert AnthropicRequest to Dict and apply request transformers sequentially
         current_request = request.to_dict()  # Use to_dict() method
         current_headers = dict(original_request.headers)  # Copy headers
+        config = self.config.model_copy()
 
         logger.debug(f'Before transform, headers={current_headers}')
         for transformer in self.request_transformers:
             transform_params = {
                 'request': current_request,
                 'headers': current_headers,
-                'provider_config': self.config,
+                'provider_config': config,
                 'original_request': original_request,
                 'routing_key': routing_key,
             }
@@ -90,7 +91,7 @@ class Provider:
                         'chunk': transformed_chunk,
                         'request': current_request,
                         'final_headers': current_headers,
-                        'provider_config': self.config,
+                        'provider_config': config,
                         'original_request': original_request,
                     }
                     transformed_chunk = await transformer.transform_chunk(chunk_params)
@@ -110,7 +111,7 @@ class Provider:
                     'response': transformed_response,
                     'request': current_request,
                     'final_headers': current_headers,
-                    'provider_config': self.config,
+                    'provider_config': config,
                     'original_request': original_request,
                 }
                 transformed_response = await transformer.transform_response(response_params)
@@ -119,28 +120,28 @@ class Provider:
             async for chunk in self._convert_response_to_sse(transformed_response):
                 yield chunk
 
-    async def _stream_request(self, request_data: Dict[str, Any], headers: Dict[str, Any]) -> AsyncIterator[bytes]:
+    async def _stream_request(self, config: ProviderConfig, request_data: Dict[str, Any], headers: Dict[str, Any]) -> AsyncIterator[bytes]:
         """Make a streaming HTTP request to the provider."""
         # Use headers from transformers (which may include auth)
         final_headers = headers
 
-        logger.debug(f'Streaming request to {self.config.url}')
+        logger.debug(f'Streaming request to {config.url}')
 
-        async with self.http_client.stream('POST', self.config.url, json=request_data, headers=final_headers) as response:
+        async with self.http_client.stream('POST', config.url, json=request_data, headers=final_headers) as response:
             response.raise_for_status()
 
             async for chunk in response.aiter_bytes():
                 if chunk:
                     yield chunk
 
-    async def _send_request(self, request_data: Dict[str, Any], headers: Dict[str, Any]) -> Dict[str, Any]:
+    async def _send_request(self, config: ProviderConfig, request_data: Dict[str, Any], headers: Dict[str, Any]) -> Dict[str, Any]:
         """Make a non-streaming HTTP request to the provider."""
         # Use headers from transformers (which may include auth)
         final_headers = headers
 
-        logger.debug(f'Non-streaming request to {self.config.url}')
+        logger.debug(f'Non-streaming request to {config.url}')
 
-        response = await self.http_client.post(self.config.url, json=request_data, headers=final_headers)
+        response = await self.http_client.post(config.url, json=request_data, headers=final_headers)
         response.raise_for_status()
 
         return response.json()
