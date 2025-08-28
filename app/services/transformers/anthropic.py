@@ -3,33 +3,61 @@
 import random
 from typing import Any, Dict, Tuple
 
+from app.config.user_models import ProviderConfig
 from app.services.transformers.interfaces import RequestTransformer, ResponseTransformer
 
 
-class AnthropicAuthTransformer(RequestTransformer):
-    """Pure passthrough transformer for Anthropic requests.
+class AuthHeaderTransformer(RequestTransformer):
+    """Generic authentication header transformer for any provider.
 
-    Since incoming requests are already in Claude/Anthropic format,
-    no transformation is needed.
+    Adds configurable authentication header with API key from provider config.
     """
 
-    def __init__(self, logger):
+    def __init__(self, logger, header_name: str = 'authorization', value_prefix: str = 'Bearer '):
         """Initialize transformer.
 
-        API credentials are obtained from provider config during transform.
+        Args:
+            logger: Logger instance
+            header_name: Name of the auth header (default: 'authorization')
+            value_prefix: Prefix for the auth value (default: 'Bearer ')
         """
         self.logger = logger
+        self.header_name = header_name
+        self.value_prefix = value_prefix
 
     async def transform(self, params: Dict[str, Any]) -> Tuple[Dict[str, Any], Dict[str, str]]:
-        """Pure passthrough - incoming format is already Anthropic format."""
+        """Add authentication header with API key from provider config."""
         request: dict[str, Any] = params['request']
         headers: dict[str, str] = params['headers']
-        provider_config = params['provider_config']
+        provider_config: ProviderConfig = params['provider_config']
 
         # Get API key from provider config
         api_key = provider_config.api_key
 
-        final_headers = {
+        # Add auth header
+        headers[self.header_name] = f'{self.value_prefix}{api_key}'
+
+        return request, headers
+
+
+class AnthropicHeadersTransformer(RequestTransformer):
+    """Anthropic-specific header filtering transformer.
+
+    Filters incoming headers to only include those with specific prefixes
+    required by the Anthropic API.
+    """
+
+    def __init__(self, logger):
+        """Initialize transformer."""
+        self.logger = logger
+
+    async def transform(self, params: Dict[str, Any]) -> Tuple[Dict[str, Any], Dict[str, str]]:
+        """Filter headers to only include Anthropic-compatible prefixes."""
+        request: dict[str, Any] = params['request']
+        headers: dict[str, str] = params['headers']
+
+        # Filter headers to only keep Anthropic-compatible ones
+        filtered_headers = {
             k: v
             for k, v in headers.items()
             if any(
@@ -39,12 +67,13 @@ class AnthropicAuthTransformer(RequestTransformer):
                         'x-',
                         'anthropic',
                         'user-',
+                        'authorization',  # Keep auth header
                     )
                 )
             )
         }
-        final_headers = final_headers | {'authorization': f'Bearer {api_key}'}
-        return request, final_headers
+
+        return request, filtered_headers
 
 
 class AnthropicResponseTransformer(ResponseTransformer):
