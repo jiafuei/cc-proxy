@@ -57,7 +57,7 @@ def test_simple_router_success():
     # Mock provider manager
     mock_provider_manager = Mock()
     mock_provider = Mock()
-    mock_provider_manager.get_provider_for_model.return_value = mock_provider
+    mock_provider_manager.get_provider_for_model.return_value = (mock_provider, 'claude-3-5-sonnet-resolved')
 
     routing_config = RoutingConfig(default='claude-3-sonnet', planning='claude-3-opus', background='claude-3-haiku')
 
@@ -71,6 +71,8 @@ def test_simple_router_success():
 
     provider, _ = router.get_provider_for_request(request)
     assert provider == mock_provider
+    # Check that request.model was updated to resolved model ID
+    assert request.model == 'claude-3-5-sonnet-resolved'
     mock_provider_manager.get_provider_for_model.assert_called_once_with('claude-3-sonnet')
 
 
@@ -104,7 +106,7 @@ def test_simple_router_planning_request():
     """Test simple router routes planning request to correct model."""
     mock_provider_manager = Mock()
     mock_provider = Mock()
-    mock_provider_manager.get_provider_for_model.return_value = mock_provider
+    mock_provider_manager.get_provider_for_model.return_value = (mock_provider, 'claude-3-opus-resolved')
 
     routing_config = RoutingConfig(default='claude-3-sonnet', planning='claude-3-opus', background='claude-3-haiku')
 
@@ -118,23 +120,25 @@ def test_simple_router_planning_request():
 
     provider, _ = router.get_provider_for_request(request)
     assert provider == mock_provider
+    # Check that request.model was updated to resolved model ID
+    assert request.model == 'claude-3-opus-resolved'
     # Should route to planning model, not the model in the request
     mock_provider_manager.get_provider_for_model.assert_called_once_with('claude-3-opus')
 
 
 def test_simple_router_get_provider_for_model():
-    """Test simple router can get provider for specific model."""
+    """Test simple router can get provider for specific model alias."""
     mock_provider_manager = Mock()
     mock_provider = Mock()
-    mock_provider_manager.get_provider_for_model.return_value = mock_provider
+    mock_provider_manager.get_provider_for_model.return_value = (mock_provider, 'claude-3-5-sonnet-resolved')
 
     # Mock transformer loader
     mock_transformer_loader = Mock()
 
     router = SimpleRouter(mock_provider_manager, RoutingConfig(default=''), mock_transformer_loader)
 
-    provider = router.get_provider_for_model('claude-3-sonnet')
-    assert provider == mock_provider
+    result = router.get_provider_for_model('claude-3-sonnet')
+    assert result == (mock_provider, 'claude-3-5-sonnet-resolved')
     mock_provider_manager.get_provider_for_model.assert_called_once_with('claude-3-sonnet')
 
 
@@ -223,13 +227,13 @@ def test_simple_router_empty_routing_config():
 
             request = AnthropicRequest(model='test', messages=[{'role': 'user', 'content': 'Hello'}])
 
-            # Should use fallback model and return default provider
+            # Should use empty string and return default provider
             provider, _ = router.get_provider_for_request(request)
             assert provider == mock_default_provider
             assert provider is not None
 
-            # Should have tried to get provider for fallback model 'claude-sonnet-4-20250514'
-            mock_provider_manager.get_provider_for_model.assert_called_once_with('claude-sonnet-4-20250514')
+            # Should have tried to get provider for empty string (no configured alias)
+            mock_provider_manager.get_provider_for_model.assert_called_once_with('')
 
 
 def test_request_inspector_plan_mode_activation_string_content():
@@ -413,3 +417,100 @@ def test_request_inspector_background_priority_over_plan_and_think():
     routing_key = inspector.determine_routing_key(request)
     # Should be 'background' due to low max_tokens, even with both plan mode and thinking
     assert routing_key == 'background'
+
+
+def test_simple_router_direct_routing_with_suffix():
+    """Test router bypasses content analysis with '!' suffix."""
+    mock_provider_manager = Mock()
+    mock_provider = Mock()
+    mock_provider_manager.get_provider_for_model.return_value = (mock_provider, 'claude-3-5-sonnet-resolved')
+
+    routing_config = RoutingConfig(default='sonnet', planning='opus', background='haiku')
+    mock_transformer_loader = Mock()
+
+    router = SimpleRouter(mock_provider_manager, routing_config, mock_transformer_loader)
+
+    # Create request with '!' suffix - should bypass all content analysis
+    request = AnthropicRequest(
+        model='haiku!',  # Direct routing to haiku
+        max_tokens=500,  # Would normally trigger background routing
+        messages=[{'role': 'user', 'content': '<system-reminder>\nPlan mode is active. Please help'}],  # Would normally trigger planning
+        thinking={'type': 'enabled', 'budget_tokens': 1000},  # Would normally trigger thinking
+    )
+
+    provider, routing_key = router.get_provider_for_request(request)
+
+    # Should use direct routing, not content-based analysis
+    assert routing_key == 'direct'
+    assert provider == mock_provider
+    # Should have looked up 'haiku' (without '!'), not any routing config alias
+    mock_provider_manager.get_provider_for_model.assert_called_once_with('haiku')
+    # Should have updated request.model to resolved ID
+    assert request.model == 'claude-3-5-sonnet-resolved'
+
+
+def test_simple_router_direct_routing_fallback():
+    """Test direct routing falls back to default provider when alias not found."""
+    mock_provider_manager = Mock()
+    mock_provider_manager.get_provider_for_model.return_value = None  # No configured provider
+
+    routing_config = RoutingConfig(default='sonnet')
+    mock_transformer_loader = Mock()
+
+    with patch.dict('os.environ', {'CCPROXY_FALLBACK_API_KEY': 'test-key'}):
+        with patch('app.services.router.Provider') as mock_provider_class:
+            mock_default_provider = Mock()
+            mock_provider_class.return_value = mock_default_provider
+
+            router = SimpleRouter(mock_provider_manager, routing_config, mock_transformer_loader)
+
+            # Request with '!' suffix but alias not found
+            original_model = 'unknown!'
+            request = AnthropicRequest(model=original_model, messages=[{'role': 'user', 'content': 'test'}])
+
+            provider, routing_key = router.get_provider_for_request(request)
+
+            # Should use fallback provider and direct routing
+            assert routing_key == 'direct'
+            assert provider == mock_default_provider
+            # Should have tried to find 'unknown' alias
+            mock_provider_manager.get_provider_for_model.assert_called_once_with('unknown')
+            # Should preserve original model (without modification)
+            assert request.model == original_model
+
+
+def test_simple_router_direct_routing_bypasses_content_analysis():
+    """Test that '!' suffix completely bypasses all content-based routing logic."""
+    # Create a spy on RequestInspector to verify it's not called
+    mock_provider_manager = Mock()
+    mock_provider = Mock()
+    mock_provider_manager.get_provider_for_model.return_value = (mock_provider, 'resolved-model')
+
+    routing_config = RoutingConfig(default='sonnet')
+    mock_transformer_loader = Mock()
+
+    with patch('app.services.router.RequestInspector') as mock_inspector_class:
+        mock_inspector = Mock()
+        mock_inspector_class.return_value = mock_inspector
+
+        router = SimpleRouter(mock_provider_manager, routing_config, mock_transformer_loader)
+
+        # Request that would normally trigger complex routing
+        request = AnthropicRequest(
+            model='custom-alias!',
+            max_tokens=100,  # Would trigger background
+            messages=[{'role': 'user', 'content': '<system-reminder>\nPlan mode is active.'}],  # Would trigger planning
+            thinking={'type': 'enabled', 'budget_tokens': 2000},  # Would trigger thinking
+        )
+
+        provider, routing_key = router.get_provider_for_request(request)
+
+        # Verify direct routing
+        assert routing_key == 'direct'
+        assert provider == mock_provider
+
+        # Most importantly: RequestInspector should never be called
+        mock_inspector.determine_routing_key.assert_not_called()
+
+        # Should have looked up the stripped alias
+        mock_provider_manager.get_provider_for_model.assert_called_once_with('custom-alias')

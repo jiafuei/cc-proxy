@@ -11,10 +11,6 @@ from app.services.transformer_loader import TransformerLoader
 
 logger = get_logger(__name__)
 
-OPUS_MODEL_ID = 'claude-opus-4-1-20250805'
-SONNET_MODEL_ID = 'claude-sonnet-4-20250514'
-HAIKU_MODEL_ID = 'claude-3-5-haiku-20241022'
-
 
 def _create_default_anthropic_config() -> ProviderConfig:
     """Create a default Anthropic provider configuration from environment variables."""
@@ -149,46 +145,62 @@ class SimpleRouter:
         Returns:
             Tuple (Provider, routing_key)
         """
-        # 1. Determine routing key based on request content
-        routing_key = self.inspector.determine_routing_key(request)
-        logger.debug(f'Determined routing key: {routing_key}')
+        # Check for direct routing with '!' suffix
+        if request.model.endswith('!'):
+            model_alias = request.model[:-1]  # Strip '!'
+            routing_key = 'direct'
+            logger.debug(f'Direct routing detected: {request.model} -> {model_alias}')
+        else:
+            # 1. Determine routing key based on request content
+            routing_key = self.inspector.determine_routing_key(request)
+            logger.debug(f'Determined routing key: {routing_key}')
 
-        # 2. Get model for routing key (guaranteed to return a value)
-        model_id = self._get_model_for_key(routing_key)
+            # 2. Get model alias for routing key (guaranteed to return a value)
+            model_alias = self._get_model_for_key(routing_key)
 
-        # 3. Try to get configured provider for model
-        provider = self.provider_manager.get_provider_for_model(model_id)
-        if provider:
-            logger.info(f'Routed request: {routing_key} -> {model_id} -> {provider.config.name}')
+        # 3. Try to get configured provider for model alias
+        provider_result = self.provider_manager.get_provider_for_model(model_alias)
+        if provider_result:
+            provider, resolved_model_id = provider_result
+            # Update request.model to the resolved model ID
+            request.model = resolved_model_id
+            if routing_key == 'direct':
+                logger.info(f'Direct routing: {model_alias}! -> {model_alias} -> {resolved_model_id} -> {provider.config.name}')
+            else:
+                logger.info(f'Routed request: {routing_key} -> {model_alias} -> {resolved_model_id} -> {provider.config.name}')
             return provider, routing_key
 
         # 4. Use default provider as fallback (guaranteed to exist)
-        logger.info(f'Routed request to fallback: {routing_key} -> {model_id} -> {self.default_provider.config.name}')
+        # For fallback, keep request.model as is (don't modify it)
+        if routing_key == 'direct':
+            logger.info(f'Direct routing to fallback: {model_alias}! -> {model_alias} -> {request.model} (unchanged) -> {self.default_provider.config.name}')
+        else:
+            logger.info(f'Routed request to fallback: {routing_key} -> {model_alias} -> {request.model} (unchanged) -> {self.default_provider.config.name}')
         return self.default_provider, routing_key
 
     def _get_model_for_key(self, routing_key: str) -> str:
-        """Get model ID for a routing key."""
+        """Get model alias for a routing key."""
         if routing_key == 'planning':
-            return self.routing_config.planning or SONNET_MODEL_ID
+            return self.routing_config.planning
         elif routing_key == 'background':
-            return self.routing_config.background or HAIKU_MODEL_ID
+            return self.routing_config.background
         elif routing_key == 'thinking':
-            return self.routing_config.thinking or SONNET_MODEL_ID
+            return self.routing_config.thinking
         elif routing_key == 'plan_and_think':
-            return self.routing_config.plan_and_think or SONNET_MODEL_ID
+            return self.routing_config.plan_and_think
         else:
-            return self.routing_config.default or SONNET_MODEL_ID
+            return self.routing_config.default
 
-    def get_provider_for_model(self, model_id: str) -> Optional[Provider]:
-        """Get provider that supports a specific model.
+    def get_provider_for_model(self, alias: str) -> Optional[Tuple[Provider, str]]:
+        """Get provider that supports a specific model alias.
 
         Args:
-            model_id: Model identifier
+            alias: Model alias
 
         Returns:
-            Provider instance or None if not found
+            Tuple (Provider, resolved_model_id) or None if not found
         """
-        return self.provider_manager.get_provider_for_model(model_id)
+        return self.provider_manager.get_provider_for_model(alias)
 
     def list_available_models(self) -> list[str]:
         """List all available models across all providers."""

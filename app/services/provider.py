@@ -1,6 +1,6 @@
 """Enhanced provider system for the simplified architecture."""
 
-from typing import Any, AsyncIterator, Dict, List, Optional
+from typing import Any, AsyncIterator, Dict, List, Optional, Tuple
 
 import httpx
 import orjson
@@ -270,7 +270,6 @@ class ProviderManager:
 
     def __init__(self, providers_config: List[ProviderConfig], models_config: List[ModelConfig], transformer_loader: TransformerLoader):
         self.providers: Dict[str, Provider] = {}
-        self.model_to_provider: Dict[str, str] = {}
         self.alias_to_provider: Dict[str, str] = {}
         self.alias_to_model: Dict[str, str] = {}  # Maps alias to actual model ID
         self._load_providers(providers_config, transformer_loader)
@@ -289,42 +288,31 @@ class ProviderManager:
                 logger.error(f"Failed to load provider '{provider_config.name}': {e}", exc_info=True)
 
     def _build_model_mapping(self, models_config: List[ModelConfig]):
-        """Build model-to-provider mapping from top-level models configuration."""
+        """Build alias-to-provider mapping from top-level models configuration."""
         for model_config in models_config:
             if model_config.provider in self.providers:
-                self.model_to_provider[model_config.id] = model_config.provider
-                # Also build alias mapping if alias exists
-                if model_config.alias:
-                    self.alias_to_provider[model_config.alias] = model_config.provider
-                    self.alias_to_model[model_config.alias] = model_config.id
+                # Only build alias mapping - no more model ID to provider mapping
+                self.alias_to_provider[model_config.alias] = model_config.provider
+                self.alias_to_model[model_config.alias] = model_config.id
             else:
                 logger.warning(f"Model '{model_config.id}' references unknown provider '{model_config.provider}'")
 
-    def get_provider_for_model(self, model_id_or_alias: str) -> Optional[Provider]:
-        """Get the provider that supports the given model ID or alias."""
-        # First try exact model ID match
-        provider_name = self.model_to_provider.get(model_id_or_alias)
+    def get_provider_for_model(self, alias: str) -> Optional[Tuple[Provider, str]]:
+        """Get the provider that supports the given alias and return the resolved model ID."""
+        # Only check alias mapping - no model ID lookup
+        provider_name = self.alias_to_provider.get(alias)
         if provider_name:
-            return self.providers.get(provider_name)
-
-        # Then try alias match
-        provider_name = self.alias_to_provider.get(model_id_or_alias)
-        if provider_name:
-            return self.providers.get(provider_name)
+            provider = self.providers.get(provider_name)
+            if provider:
+                resolved_model_id = self.alias_to_model[alias]
+                return provider, resolved_model_id
 
         return None
 
-    def resolve_model_id(self, model_id_or_alias: str) -> Optional[str]:
-        """Resolve a model ID or alias to the actual model ID."""
-        # First check if it's already a model ID
-        if model_id_or_alias in self.model_to_provider:
-            return model_id_or_alias
-
-        # Then check if it's an alias
-        if model_id_or_alias in self.alias_to_model:
-            return self.alias_to_model[model_id_or_alias]
-
-        return None
+    def resolve_model_id(self, alias: str) -> Optional[str]:
+        """Resolve an alias to the actual model ID."""
+        # Only check alias mapping
+        return self.alias_to_model.get(alias)
 
     def get_provider_by_name(self, name: str) -> Optional[Provider]:
         """Get provider by name."""
@@ -335,8 +323,8 @@ class ProviderManager:
         return list(self.providers.keys())
 
     def list_models(self) -> List[str]:
-        """List all supported models."""
-        return list(self.model_to_provider.keys())
+        """List all supported model aliases."""
+        return list(self.alias_to_provider.keys())
 
     async def close_all(self):
         """Close all providers."""
