@@ -6,11 +6,11 @@
 version: "1"
 
 # Server settings
-host: "127.0.0.1"  # Server bind address
-port: 8000          # Server port (1-65535)
+host: !env [CC_PROXY_HOST, "127.0.0.1"]  # Server bind address (uses env var or default)
+port: !env [CC_PROXY_PORT, 8000]          # Server port (uses env var or default 8000)
 
 # Development mode - enables debug features and verbose logging
-dev: false
+dev: !env [CC_PROXY_DEV, false]
 
 # CORS (Cross-Origin Resource Sharing) settings
 # List of allowed origins for browser requests
@@ -20,12 +20,12 @@ cors_allow_origins:
 
 # Request/Response Dumping - for debugging and development
 # Dumps follow the request flow order and are saved to dump_dir with timestamps
-dump_headers: false                     # Include HTTP headers in dumps  
-dump_requests: false                    # Dump original incoming requests
-dump_transformed_requests: false        # Dump requests after transformer processing
-dump_pretransformed_responses: false    # Dump responses before transformer processing
-dump_responses: false                   # Dump final outgoing responses
-dump_dir: "~/.cc-proxy/dumps"           # Directory to save dump files
+dump_headers: !env [CC_PROXY_DUMP_HEADERS, false]                     # Include HTTP headers in dumps  
+dump_requests: !env [CC_PROXY_DUMP_REQUESTS, false]                    # Dump original incoming requests
+dump_transformed_requests: !env [CC_PROXY_DUMP_TRANSFORMED, false]     # Dump requests after transformer processing
+dump_pretransformed_responses: !env [CC_PROXY_DUMP_PRETRANS, false]    # Dump responses before transformer processing
+dump_responses: !env [CC_PROXY_DUMP_RESPONSES, false]                   # Dump final outgoing responses
+dump_dir: !env [CC_PROXY_DUMP_DIR, "~/.cc-proxy/dumps"]                # Directory to save dump files
 
 # Headers to redact in dumps for security
 redact_headers:
@@ -36,15 +36,15 @@ redact_headers:
 
 # Fallback provider configuration
 # Used when no user configuration is available or as emergency backup
-fallback_api_url: "https://api.anthropic.com/v1/messages"  # Default to Anthropic API
-fallback_api_key: null                                      # Set your fallback API key here
+fallback_api_url: !env [CC_PROXY_FALLBACK_URL, "https://api.anthropic.com/v1/messages"]  # Default to Anthropic API
+fallback_api_key: !env [CC_PROXY_FALLBACK_API_KEY, null]                                  # Required: Set your fallback API key
 
 # Logging configuration
 logging:
-  level: "INFO"                    # Log level: DEBUG, INFO, WARNING, ERROR, CRITICAL
-  console_enabled: true            # Enable console (stdout) logging
-  file_enabled: true              # Enable file logging
-  log_file_dir: ""                # Log directory (empty = ~/.cc-proxy/logs/)
-  max_file_size: "10MB"           # Maximum size before log rotation
-  backup_count: 4                 # Number of backup files to keep
-  rotation_when: "midnight"        # Rotation schedule: midnight, hourly, daily, weekly
+  level: !env [CC_PROXY_LOG_LEVEL, "INFO"]                    # Log level: DEBUG, INFO, WARNING, ERROR, CRITICAL
+  console_enabled: !env [CC_PROXY_LOG_CONSOLE, true]          # Enable console (stdout) logging
+  file_enabled: !env [CC_PROXY_LOG_FILE, true]                # Enable file logging
+  log_file_dir: !env [CC_PROXY_LOG_DIR, ""]                   # Log directory (empty = ~/.cc-proxy/logs/)
+  max_file_size: !env [CC_PROXY_LOG_MAX_SIZE, "10MB"]         # Maximum size before log rotation
+  backup_count: !env [CC_PROXY_LOG_BACKUP_COUNT, 4]           # Number of backup files to keep
+  rotation_when: !env [CC_PROXY_LOG_ROTATION, "midnight"]     # Rotation schedule: midnight, hourly, daily, weekly

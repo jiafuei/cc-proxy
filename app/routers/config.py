@@ -6,6 +6,7 @@ import yaml
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
+from app.common.yaml_utils import safe_load_with_env
 from app.config.log import get_logger
 from app.config.user_models import UserConfig
 from app.dependencies.service_container import get_service_container
@@ -168,7 +169,7 @@ async def validate_yaml_content(request: ConfigValidationRequest) -> Dict[str, A
 
         # 1. Parse YAML syntax
         try:
-            yaml_data = yaml.safe_load(request.yaml_content)
+            yaml_data = safe_load_with_env(request.yaml_content)
             if yaml_data is None:
                 yaml_data = {}
         except yaml.YAMLError as e:

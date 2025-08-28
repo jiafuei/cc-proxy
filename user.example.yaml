@@ -11,9 +11,9 @@ providers:
   # Anthropic/Claude provider example
   # Handles requests to Anthropic's Claude API
   - name: 'anthropic-provider'
-    api_key: 'sk-ant-api03-...'  # Your Anthropic API key
-    url: 'https://api.anthropic.com/v1/messages'
-    timeout: 300  # Request timeout in seconds
+    api_key: !env ANTHROPIC_API_KEY  # Required: Your Anthropic API key from environment
+    url: !env [ANTHROPIC_URL, 'https://api.anthropic.com/v1/messages']  # Optional: Custom URL with fallback
+    timeout: !env [ANTHROPIC_TIMEOUT, 300]  # Request timeout in seconds
     transformers:
       request:
         # Optimizes cache breakpoints for Anthropic API (uses 4 max breakpoints)
@@ -38,9 +38,9 @@ providers:
   # OpenAI provider example
   # Converts Claude API format to/from OpenAI API format
   - name: 'openai-provider'
-    api_key: 'sk-proj-...'  # Your OpenAI API key
-    url: 'https://api.openai.com/v1/chat/completions'
-    timeout: 300
+    api_key: !env OPENAI_API_KEY  # Required: Your OpenAI API key from environment
+    url: !env [OPENAI_URL, 'https://api.openai.com/v1/chat/completions']  # Optional: Custom URL with fallback
+    timeout: !env [OPENAI_TIMEOUT, 300]
     transformers:
       request:
         # Generic auth header transformer (reusable across providers)
@@ -64,15 +64,15 @@ providers:
   # Custom provider with external transformers
   # Example of using custom transformer classes from transformer_paths
   - name: 'custom-provider'
-    api_key: 'custom-api-key-here'
-    url: 'https://custom-api.example.com/v1'
-    timeout: 300
+    api_key: !env CUSTOM_API_KEY  # Required: Custom provider API key
+    url: !env [CUSTOM_API_URL, 'https://custom-api.example.com/v1']  # Required: Custom API URL
+    timeout: !env [CUSTOM_TIMEOUT, 300]
     transformers:
       request:
         - class: 'my_transformers.CustomAuthTransformer'
           params:
-            api_key: 'custom-key'
-            special_header: 'value-1'
+            api_key: !env CUSTOM_SPECIAL_KEY  # Alternative API key for special auth
+            special_header: !env [CUSTOM_HEADER, 'value-1']  # Custom header value
       response:
         - class: 'my_transformers.CustomResponseTransformer'
           params:
@@ -119,8 +119,8 @@ models:
 # Routes different types of requests to appropriate models
 # You can use either model IDs or aliases defined above
 routing:
-  default: 'sonnet'
-  background: 'haiku'       # flavor text, light summarization, topic detection etc
-  planning: 'sonnet'        # Plan mode
-  thinking: 'sonnet'        # Whenever you add any of the phrases to your prompt: "think" < "think hard" < "think harder" < "ultrathink." Ref: https://www.anthropic.com/engineering/claude-code-best-practices
-  plan_and_think: 'sonnet'  # When thinking is activated in plan mode
+  default: !env [CC_PROXY_DEFAULT_MODEL, 'sonnet']        # Default model for requests
+  background: !env [CC_PROXY_BACKGROUND_MODEL, 'haiku']   # flavor text, light summarization, topic detection etc
+  planning: !env [CC_PROXY_PLANNING_MODEL, 'sonnet']      # Plan mode
+  thinking: !env [CC_PROXY_THINKING_MODEL, 'sonnet']      # Whenever you add any of the phrases to your prompt: "think" < "think hard" < "think harder" < "ultrathink." Ref: https://www.anthropic.com/engineering/claude-code-best-practices
+  plan_and_think: !env [CC_PROXY_PLAN_THINK_MODEL, 'sonnet']  # When thinking is activated in plan mode

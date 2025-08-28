@@ -5,6 +5,7 @@ import yaml
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.common.utils import get_app_dir
+from app.common.yaml_utils import safe_load_with_env
 
 
 class LoggingConfig(BaseModel):
@@ -68,7 +69,7 @@ class ConfigModel(BaseModel):
         for path in config_paths:
             try:
                 with open(path, 'r') as f:
-                    file_data = yaml.safe_load(f) or {}
+                    file_data = safe_load_with_env(f) or {}
                     # Merge with existing data (later files override earlier ones)
                     data.update(file_data)
             except FileNotFoundError:

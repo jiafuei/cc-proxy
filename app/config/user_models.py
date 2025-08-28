@@ -8,6 +8,7 @@ import yaml
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.common.utils import get_app_dir
+from app.common.yaml_utils import safe_load_with_env
 
 
 class SimpleTransformerConfig(BaseModel):
@@ -103,7 +104,7 @@ class UserConfig(BaseModel):
 
         try:
             with open(config_path, 'r', encoding='utf-8') as f:
-                data = yaml.safe_load(f) or {}
+                data = safe_load_with_env(f) or {}
             return cls(**data)
         except yaml.YAMLError as e:
             raise ValueError(f'Invalid YAML in user config file {config_path}: {e}')
