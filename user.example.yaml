@@ -28,7 +28,7 @@ providers:
           params: {}
         # Handles authentication headers for Anthropic API
         # API key is automatically taken from provider config
-        - class: 'app.services.transformers.anthropic.AuthHeaderTransformer'
+        - class: 'app.services.transformers.auth.AuthHeaderTransformer'
           params: {}  # Uses defaults: header_name='authorization', value_prefix='Bearer '
       response:
         # Passthrough transformer for Anthropic responses (no conversion needed)
@@ -44,7 +44,7 @@ providers:
     transformers:
       request:
         # Generic auth header transformer (reusable across providers)
-        - class: 'app.services.transformers.anthropic.AuthHeaderTransformer'
+        - class: 'app.services.transformers.auth.AuthHeaderTransformer'
           params: {}  # Uses defaults: header_name='authorization', value_prefix='Bearer '
         # Converts Claude request format to OpenAI format
         # - Handles multimodal content (images, text)
