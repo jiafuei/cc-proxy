@@ -13,6 +13,7 @@ logger = get_logger(__name__)
 
 OPUS_MODEL_ID = 'claude-opus-4-1-20250805'
 SONNET_MODEL_ID = 'claude-sonnet-4-20250514'
+HAIKU_MODEL_ID = 'claude-3-5-haiku-20241022'
 
 
 def _create_default_anthropic_config() -> ProviderConfig:
@@ -169,7 +170,7 @@ class SimpleRouter:
         if routing_key == 'planning':
             return self.routing_config.planning or SONNET_MODEL_ID
         elif routing_key == 'background':
-            return self.routing_config.background or SONNET_MODEL_ID
+            return self.routing_config.background or HAIKU_MODEL_ID
         elif routing_key == 'thinking':
             return self.routing_config.thinking or SONNET_MODEL_ID
         elif routing_key == 'plan_and_think':

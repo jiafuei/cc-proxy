@@ -113,6 +113,8 @@ models:
 # Routes different types of requests to appropriate models
 # You can use either model IDs or aliases defined above
 routing:
-  default: 'sonnet'     # Uses alias instead of 'claude-3-5-sonnet-20241022'
-  planning: 'opus'      # Uses alias instead of 'claude-3-opus-20240229'
-  background: 'haiku'   # Uses alias instead of 'claude-3-5-haiku-20241022'
+  default: 'sonnet'
+  background: 'haiku'       # flavor text, light summarization, topic detection etc
+  planning: 'sonnet'        # Plan mode
+  thinking: 'sonnet'        # Whenever you add any of the phrases to your prompt: "think" < "think hard" < "think harder" < "ultrathink." Ref: https://www.anthropic.com/engineering/claude-code-best-practices
+  plan_and_think: 'sonnet'  # When thinking is activated in plan mode

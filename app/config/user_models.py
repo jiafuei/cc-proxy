@@ -66,8 +66,8 @@ class RoutingConfig(BaseModel):
     """Simplified routing configuration for different request types."""
 
     default: str = Field(description='Default model for standard requests')
-    planning: str = Field(default='', description='Model for planning/complex reasoning requests')
     background: str = Field(default='', description='Model for background/simple requests')
+    planning: str = Field(default='', description='Model for planning/complex reasoning requests')
     thinking: str = Field(default='', description='Model for thinking-enabled requests')
     plan_and_think: str = Field(default='', description='Model for combined planning and thinking requests')
 
