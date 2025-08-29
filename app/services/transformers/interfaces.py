@@ -15,6 +15,9 @@ class RequestTransformer(ABC):
 
     A `logger` instance can be accessed using self.logger
     """
+    def __init__(self, logger):
+        super().__init__()
+        self.logger = logger
 
     @abstractmethod
     async def transform(self, params: Dict[str, Any]) -> Tuple[Dict[str, Any], Dict[str, str]]:
@@ -44,6 +47,10 @@ class ResponseTransformer(ABC):
     Response transformers handle both streaming and non-streaming responses
     to provide flexibility for different provider capabilities.
     """
+
+    def __init__(self, logger):
+        super().__init__()
+        self.logger = logger
 
     @abstractmethod
     async def transform_chunk(self, params: Dict[str, Any]) -> bytes:

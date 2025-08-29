@@ -89,7 +89,7 @@ class Provider:
         # 3. Route based on stream flag
         if should_stream:
             # Stream from provider
-            async for chunk in self._stream_request(current_request, current_headers):
+            async for chunk in self._stream_request(config, current_request, current_headers):
                 # Dump pre-transformed response chunk
                 dumper.write_pretransformed_response(dumper_handles, chunk)
 
@@ -107,7 +107,7 @@ class Provider:
                 yield transformed_chunk
         else:
             # Non-streaming request
-            response = await self._send_request(current_request, current_headers)
+            response = await self._send_request(config, current_request, current_headers)
 
             # Dump pre-transformed response
             response_bytes = orjson.dumps(response)

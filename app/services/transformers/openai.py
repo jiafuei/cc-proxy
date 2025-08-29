@@ -29,22 +29,24 @@ class OpenAIRequestTransformer(RequestTransformer):
         headers = params['headers']
 
         # Build OpenAI request with filtered comprehension
+        stream = request.get('stream')
         openai_request = {
             k: v
             for k, v in {
                 'model': request.get('model'),
                 'temperature': request.get('temperature'),
-                'stream': request.get('stream'),
+                'stream': stream,
                 'tools': self._convert_tools(request.get('tools')),
                 'messages': self._convert_messages(request),
                 'max_completion_tokens': request.get('max_tokens'),
                 'reasoning_effort': self._get_reasoning_effort(request),
-                'stream_options': {'include_usage': True} if request.get('stream') else None,
+                'stream_options': {'include_usage': True} if stream else None,
             }.items()
             if v is not None
         }
+        filtered_headers = {k:v for k,v in headers.items() if any(k.startswith(prefix) for prefix in {'user-', 'accept'})}
 
-        return openai_request, headers
+        return openai_request, filtered_headers
 
     def _get_reasoning_effort(self, request):
         """Get reasoning effort from thinking.budget_tokens."""

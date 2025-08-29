@@ -28,7 +28,7 @@ def _create_default_anthropic_config() -> ProviderConfig:
             'request': [
                 {'class': 'app.services.transformers.anthropic.AnthropicCacheTransformer', 'params': {}},
                 {'class': 'app.services.transformers.anthropic.AnthropicHeadersTransformer', 'params': {}},
-                {'class': 'app.services.transformers.utils.AddHeaderTransformer', 'params': {'key': 'authorization', 'prefix': 'Bearer ', 'value': 'api_key'}},
+                {'class': 'app.services.transformers.utils.AddHeaderTransformer', 'params': {'key': 'authorization', 'prefix': 'Bearer ', 'value': api_key}},
             ]
             if api_key
             else [],
@@ -114,6 +114,8 @@ class RequestInspector:
         elif isinstance(content, list):
             for block in content:
                 if hasattr(block, 'text') and block.text and plan_mode_text in block.text:
+                    return True
+                elif block.type == 'tool_result' and plan_mode_text in block.content:
                     return True
 
         return False

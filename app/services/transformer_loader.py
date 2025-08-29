@@ -72,7 +72,7 @@ class TransformerLoader:
             return instance
 
         except Exception as e:
-            logger.error(f"Failed to load transformer '{class_path}': {e}", exc_info=True)
+            logger.error(f"Failed to load transformer '{class_path}': {e}", exc_info=True, param_keys=params.keys())
             raise RuntimeError(f"Cannot load transformer '{class_path}': {e}") from e
 
     def load_transformers(self, transformer_configs: List[Dict[str, Any]]) -> List[Any]:
