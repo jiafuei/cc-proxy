@@ -15,6 +15,7 @@ class RequestTransformer(ABC):
 
     A `logger` instance can be accessed using self.logger
     """
+
     def __init__(self, logger):
         super().__init__()
         self.logger = logger

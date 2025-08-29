@@ -44,7 +44,7 @@ class OpenAIRequestTransformer(RequestTransformer):
             }.items()
             if v is not None
         }
-        filtered_headers = {k:v for k,v in headers.items() if any(k.startswith(prefix) for prefix in {'user-', 'accept'})}
+        filtered_headers = {k: v for k, v in headers.items() if any(k.startswith(prefix) for prefix in {'user-', 'accept'})}
 
         return openai_request, filtered_headers
 
@@ -243,19 +243,21 @@ class OpenAIResponseTransformer(ResponseTransformer):
 
         # Handle tool calls (streaming)
         if 'tool_calls' in delta and delta['tool_calls']:
+            # Process the first tool call in the delta (OpenAI sends one at a time)
             tool_call = delta['tool_calls'][0]
+            index = tool_call.get('index', 0)
             function = tool_call.get('function', {})
 
             if function.get('name'):
-                # Start of tool call
+                # Start of tool call - has name and id
                 return {
                     'type': 'content_block_start',
-                    'index': 0,
+                    'index': index,
                     'content_block': {'type': 'tool_use', 'id': tool_call.get('id', ''), 'name': function.get('name', ''), 'input': {}},
                 }
             elif function.get('arguments'):
                 # Tool call arguments chunk
-                return {'type': 'content_block_delta', 'index': 0, 'delta': {'type': 'input_json_delta', 'partial_json': function.get('arguments', '')}}
+                return {'type': 'content_block_delta', 'index': index, 'delta': {'type': 'input_json_delta', 'partial_json': function.get('arguments', '')}}
 
         # Handle finish reason
         if choice.get('finish_reason'):
