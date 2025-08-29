@@ -186,7 +186,7 @@ class OpenAIResponseTransformer(ResponseTransformer):
                     event_type = claude_chunk.get('type', 'ping')
                     yield self._format_sse_event(event_type, claude_chunk)
                 except orjson.JSONDecodeError as e:
-                    logger.warning(f'Failed to parse OpenAI chunk JSON(): {data_part}')
+                    logger.warning(f'Failed to parse OpenAI chunk JSON ({e}): {data_part}')
                     # Continue processing other lines instead of falling back to passthrough
 
             # If no SSE data was found, pass through the original chunk
