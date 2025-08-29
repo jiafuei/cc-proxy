@@ -31,3 +31,5 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - Design and write tests first before implementation, each test must be focused
 - `app.config.log.get_logger` is direct, compatible replacement of `logging.getLogger`. use it to get logger instead
 - add '[ai]' to message when doing git commit. eg: 'feat: [ai] some feature'
+- Prioritize simple, readable code with minimal abstraction. Strive for elegant, minimal solutions that reduce complexity. Avoid premature optimization and over-engineering.
+- Ignore backward compatibility unless specified.
