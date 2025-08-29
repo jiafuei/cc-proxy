@@ -1,5 +1,6 @@
 """Enhanced provider system for the simplified architecture."""
 
+from dataclasses import dataclass
 from typing import Any, AsyncIterator, Dict, List, Optional, Tuple
 
 import httpx
@@ -14,6 +15,14 @@ from app.services.transformer_loader import TransformerLoader
 from app.services.transformers import RequestTransformer, ResponseTransformer
 
 logger = get_logger(__name__)
+
+
+@dataclass
+class ModelMapping:
+    """Maps model alias to provider name and actual model ID."""
+
+    provider_name: str
+    model_id: str
 
 
 class Provider:
@@ -270,8 +279,7 @@ class ProviderManager:
 
     def __init__(self, providers_config: List[ProviderConfig], models_config: List[ModelConfig], transformer_loader: TransformerLoader):
         self.providers: Dict[str, Provider] = {}
-        self.alias_to_provider: Dict[str, str] = {}
-        self.alias_to_model: Dict[str, str] = {}  # Maps alias to actual model ID
+        self.alias_mappings: Dict[str, ModelMapping] = {}
         self._load_providers(providers_config, transformer_loader)
         self._build_model_mapping(models_config)
 
@@ -291,28 +299,18 @@ class ProviderManager:
         """Build alias-to-provider mapping from top-level models configuration."""
         for model_config in models_config:
             if model_config.provider in self.providers:
-                # Only build alias mapping - no more model ID to provider mapping
-                self.alias_to_provider[model_config.alias] = model_config.provider
-                self.alias_to_model[model_config.alias] = model_config.id
+                self.alias_mappings[model_config.alias] = ModelMapping(provider_name=model_config.provider, model_id=model_config.id)
             else:
-                logger.warning(f"Model '{model_config.id}' references unknown provider '{model_config.provider}'")
+                logger.warning(f"Model '{model_config.alias}' references unknown provider '{model_config.provider}'")
 
     def get_provider_for_model(self, alias: str) -> Optional[Tuple[Provider, str]]:
         """Get the provider that supports the given alias and return the resolved model ID."""
-        # Only check alias mapping - no model ID lookup
-        provider_name = self.alias_to_provider.get(alias)
-        if provider_name:
-            provider = self.providers.get(provider_name)
-            if provider:
-                resolved_model_id = self.alias_to_model[alias]
-                return provider, resolved_model_id
+        mapping = self.alias_mappings.get(alias)
+        if not mapping:
+            return None
 
-        return None
-
-    def resolve_model_id(self, alias: str) -> Optional[str]:
-        """Resolve an alias to the actual model ID."""
-        # Only check alias mapping
-        return self.alias_to_model.get(alias)
+        provider = self.providers.get(mapping.provider_name)
+        return (provider, mapping.model_id) if provider else None
 
     def get_provider_by_name(self, name: str) -> Optional[Provider]:
         """Get provider by name."""
@@ -324,7 +322,7 @@ class ProviderManager:
 
     def list_models(self) -> List[str]:
         """List all supported model aliases."""
-        return list(self.alias_to_provider.keys())
+        return list(self.alias_mappings.keys())
 
     async def close_all(self):
         """Close all providers."""
