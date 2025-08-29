@@ -151,29 +151,39 @@ class OpenAIResponseTransformer(ResponseTransformer):
 
         try:
             chunk_str = chunk.decode('utf-8')
+            lines = chunk_str.split('\n')
 
-            # Handle OpenAI SSE format
-            if chunk_str.startswith('data: '):
-                data_part = chunk_str[6:].strip()
+            # Process each line that contains SSE data
+            has_sse_data = False
+            for line in lines:
+                line = line.strip()
+                if not line:
+                    continue
 
-                if data_part == '[DONE]':
-                    # Convert OpenAI completion to Claude format
-                    claude_done = {'type': 'message_stop'}
-                    yield f'data: {orjson.dumps(claude_done).decode("utf-8")}\n\n'.encode('utf-8')
-                    return
+                if line.startswith('data: '):
+                    has_sse_data = True
+                    data_part = line[6:].strip()
 
-                # Parse OpenAI chunk
-                try:
-                    openai_chunk = orjson.loads(data_part)
-                    claude_chunk = self._convert_openai_chunk_to_claude(openai_chunk)
-                    yield f'data: {orjson.dumps(claude_chunk).decode("utf-8")}\n\n'.encode('utf-8')
-                    return
-                except orjson.JSONDecodeError:
-                    logger.warning(f'Failed to parse OpenAI chunk JSON: {data_part[:100]}')
-                    yield chunk
-                    return
+                    if data_part == '[DONE]':
+                        # Convert OpenAI completion to Claude format
+                        claude_done = {'type': 'message_stop'}
+                        event_type = claude_done.get('type', 'ping')
+                        yield f'event: {event_type}\ndata: {orjson.dumps(claude_done).decode("utf-8")}\n\n'.encode('utf-8')
+                        return  # [DONE] is always at the end
 
-            yield chunk
+                    # Parse OpenAI chunk
+                    try:
+                        openai_chunk = orjson.loads(data_part)
+                        claude_chunk = self._convert_openai_chunk_to_claude(openai_chunk)
+                        event_type = claude_chunk.get('type', 'ping')
+                        yield f'event: {event_type}\ndata: {orjson.dumps(claude_chunk).decode("utf-8")}\n\n'.encode('utf-8')
+                    except orjson.JSONDecodeError:
+                        logger.warning(f'Failed to parse OpenAI chunk JSON: {data_part[:100]}')
+                        # Continue processing other lines instead of falling back to passthrough
+
+            # If no SSE data was found, pass through the original chunk
+            if not has_sse_data:
+                yield chunk
 
         except Exception as e:
             logger.error(f'Failed to convert OpenAI chunk: {e}')
