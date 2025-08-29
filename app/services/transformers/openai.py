@@ -145,6 +145,18 @@ class OpenAIRequestTransformer(RequestTransformer):
 class OpenAIResponseTransformer(ResponseTransformer):
     """Transformer to convert OpenAI responses to Claude format."""
 
+    # Constants for magic values
+    DATA_PREFIX = 'data: '
+    DONE_TOKEN = '[DONE]'
+    DEFAULT_INDEX = 0
+
+    # Stop reason mapping as class constant
+    STOP_REASON_MAPPING = {'stop': 'end_turn', 'length': 'max_tokens', 'content_filter': 'stop_sequence', 'tool_calls': 'tool_use'}
+
+    def _format_sse_event(self, event_type: str, data: Dict[str, Any]) -> bytes:
+        """Format data as SSE event with proper headers."""
+        return f'event: {event_type}\ndata: {orjson.dumps(data).decode("utf-8")}\n\n'.encode('utf-8')
+
     async def transform_chunk(self, params: Dict[str, Any]) -> AsyncIterator[bytes]:
         """Convert OpenAI streaming chunk to Claude format."""
         chunk = params['chunk']
@@ -157,34 +169,33 @@ class OpenAIResponseTransformer(ResponseTransformer):
             has_sse_data = False
             for line in lines:
                 line = line.strip()
-                if not line:
+                if not line or not line.startswith(self.DATA_PREFIX):
                     continue
 
-                if line.startswith('data: '):
-                    has_sse_data = True
-                    data_part = line[6:].strip()
+                has_sse_data = True
+                data_part = line[len(self.DATA_PREFIX) :].strip()
 
-                    if data_part == '[DONE]':
-                        # Convert OpenAI completion to Claude format
-                        claude_done = {'type': 'message_stop'}
-                        event_type = claude_done.get('type', 'ping')
-                        yield f'event: {event_type}\ndata: {orjson.dumps(claude_done).decode("utf-8")}\n\n'.encode('utf-8')
-                        return  # [DONE] is always at the end
+                if data_part == self.DONE_TOKEN:
+                    yield self._format_sse_event('message_stop', {'type': 'message_stop'})
+                    return  # [DONE] is always at the end
 
-                    # Parse OpenAI chunk
-                    try:
-                        openai_chunk = orjson.loads(data_part)
-                        claude_chunk = self._convert_openai_chunk_to_claude(openai_chunk)
-                        event_type = claude_chunk.get('type', 'ping')
-                        yield f'event: {event_type}\ndata: {orjson.dumps(claude_chunk).decode("utf-8")}\n\n'.encode('utf-8')
-                    except orjson.JSONDecodeError:
-                        logger.warning(f'Failed to parse OpenAI chunk JSON: {data_part[:100]}')
-                        # Continue processing other lines instead of falling back to passthrough
+                # Parse OpenAI chunk
+                try:
+                    openai_chunk = orjson.loads(data_part)
+                    claude_chunk = self._convert_openai_chunk_to_claude(openai_chunk)
+                    event_type = claude_chunk.get('type', 'ping')
+                    yield self._format_sse_event(event_type, claude_chunk)
+                except orjson.JSONDecodeError:
+                    logger.warning(f'Failed to parse OpenAI chunk JSON: {data_part}')
+                    # Continue processing other lines instead of falling back to passthrough
 
             # If no SSE data was found, pass through the original chunk
             if not has_sse_data:
                 yield chunk
 
+        except UnicodeDecodeError:
+            logger.error('Failed to decode chunk as UTF-8')
+            yield chunk
         except Exception as e:
             logger.error(f'Failed to convert OpenAI chunk: {e}')
             yield chunk
@@ -194,7 +205,6 @@ class OpenAIResponseTransformer(ResponseTransformer):
         response = params['response']
 
         try:
-            # Convert OpenAI response structure to Claude format
             choices = response.get('choices', [])
             if not choices:
                 logger.warning('OpenAI response has no choices')
@@ -203,12 +213,10 @@ class OpenAIResponseTransformer(ResponseTransformer):
             choice = choices[0]
             message = choice.get('message', {})
             content = message.get('content', '')
-
-            # Handle tool calls in response
             tool_calls = message.get('tool_calls', [])
-            claude_content = []
 
-            # Add text content if present
+            # Build Claude content array
+            claude_content = []
             if content:
                 claude_content.append({'type': 'text', 'text': content})
 
@@ -222,6 +230,10 @@ class OpenAIResponseTransformer(ResponseTransformer):
 
                 claude_content.append({'type': 'tool_use', 'id': tool_call.get('id', ''), 'name': function.get('name', ''), 'input': arguments})
 
+            # Build usage info more efficiently
+            usage = response.get('usage', {})
+            claude_usage = {'input_tokens': usage.get('prompt_tokens', 0), 'output_tokens': usage.get('completion_tokens', 0)}
+
             # Convert to Claude response format
             claude_response = {
                 'id': response.get('id', ''),
@@ -231,7 +243,7 @@ class OpenAIResponseTransformer(ResponseTransformer):
                 'model': response.get('model', ''),
                 'stop_reason': self._convert_stop_reason(choice.get('finish_reason')),
                 'stop_sequence': None,
-                'usage': {'input_tokens': response.get('usage', {}).get('prompt_tokens', 0), 'output_tokens': response.get('usage', {}).get('completion_tokens', 0)},
+                'usage': claude_usage,
             }
 
             logger.debug('Converted OpenAI response to Claude format')
@@ -250,35 +262,39 @@ class OpenAIResponseTransformer(ResponseTransformer):
         choice = choices[0]
         delta = choice.get('delta', {})
 
-        # Handle text content
-        if 'content' in delta and delta['content']:
-            return {'type': 'content_block_delta', 'index': 0, 'delta': {'type': 'text_delta', 'text': delta['content']}}
-
-        # Handle tool calls (streaming)
-        if 'tool_calls' in delta and delta['tool_calls']:
-            # Process the first tool call in the delta (OpenAI sends one at a time)
-            tool_call = delta['tool_calls'][0]
-            index = tool_call.get('index', 0)
-            function = tool_call.get('function', {})
-
-            if function.get('name'):
-                # Start of tool call - has name and id
-                return {
-                    'type': 'content_block_start',
-                    'index': index,
-                    'content_block': {'type': 'tool_use', 'id': tool_call.get('id', ''), 'name': function.get('name', ''), 'input': {}},
-                }
-            elif function.get('arguments'):
-                # Tool call arguments chunk
-                return {'type': 'content_block_delta', 'index': index, 'delta': {'type': 'input_json_delta', 'partial_json': function.get('arguments', '')}}
-
-        # Handle finish reason
+        # Handle finish reason first (early return)
         if choice.get('finish_reason'):
             return {'type': 'message_stop'}
+
+        # Handle text content
+        if content := delta.get('content'):
+            return {'type': 'content_block_delta', 'index': self.DEFAULT_INDEX, 'delta': {'type': 'text_delta', 'text': content}}
+
+        # Handle tool calls (streaming)
+        if tool_calls := delta.get('tool_calls'):
+            return self._convert_tool_call_delta(tool_calls[0])
+
+        return {'type': 'ping'}
+
+    def _convert_tool_call_delta(self, tool_call: Dict[str, Any]) -> Dict[str, Any]:
+        """Convert OpenAI tool call delta to Claude format."""
+        index = tool_call.get('index', self.DEFAULT_INDEX)
+        function = tool_call.get('function', {})
+
+        # Start of tool call - has name and id
+        if function.get('name'):
+            return {
+                'type': 'content_block_start',
+                'index': index,
+                'content_block': {'type': 'tool_use', 'id': tool_call.get('id', ''), 'name': function['name'], 'input': {}},
+            }
+
+        # Tool call arguments chunk
+        if arguments := function.get('arguments'):
+            return {'type': 'content_block_delta', 'index': index, 'delta': {'type': 'input_json_delta', 'partial_json': arguments}}
 
         return {'type': 'ping'}
 
     def _convert_stop_reason(self, openai_finish_reason: str) -> str:
         """Convert OpenAI finish reason to Claude format."""
-        mapping = {'stop': 'end_turn', 'length': 'max_tokens', 'content_filter': 'stop_sequence', 'tool_calls': 'tool_use'}
-        return mapping.get(openai_finish_reason, 'end_turn')
+        return self.STOP_REASON_MAPPING.get(openai_finish_reason, 'end_turn')
