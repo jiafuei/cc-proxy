@@ -440,7 +440,6 @@ class TestAliasSupport:
         # Test lookup methods
         assert config.get_model_by_alias('sonnet').id == 'claude-3-sonnet-20240229'
         assert config.get_model_by_alias('haiku').id == 'claude-3-haiku-20240229'
-        assert config.get_model_by_id('claude-3-sonnet-20240229').id == 'claude-3-sonnet-20240229'
 
     def test_routing_with_unknown_alias(self):
         """Test that routing fails with unknown aliases."""

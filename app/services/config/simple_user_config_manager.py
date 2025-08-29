@@ -170,7 +170,6 @@ class SimpleUserConfigManager(UserConfigManager):
             'routing_configured': config.routing is not None,
             'transformer_paths_list': config.transformer_paths,
             'provider_names': [p.name for p in config.providers],
-            'model_ids': [m.id for m in config.models],
         }
 
     async def _notify_callback(self, config: UserConfig) -> None:

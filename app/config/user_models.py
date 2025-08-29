@@ -116,12 +116,6 @@ class UserConfig(BaseModel):
                 return provider
         return None
 
-    def get_model_by_id(self, model_id: str) -> Optional[ModelConfig]:
-        """Get model configuration by ID."""
-        for model in self.models:
-            if model.id == model_id:
-                return model
-        return None
 
     def get_model_by_alias(self, alias: str) -> Optional[ModelConfig]:
         """Get model configuration by alias only."""
@@ -137,7 +131,7 @@ class UserConfig(BaseModel):
         # Check that models reference valid providers
         for model in self.models:
             if not self.get_provider_by_name(model.provider):
-                errors.append(f"Model '{model.id}' references unknown provider '{model.provider}'")
+                errors.append(f"Model '{model.alias}' references unknown provider '{model.provider}'")
 
         # Check alias uniqueness
         aliases_seen = set()
