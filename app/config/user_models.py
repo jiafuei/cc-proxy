@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import List, Optional
 
 import yaml
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from app.common.utils import get_app_dir
 from app.common.yaml_utils import safe_load_with_env
@@ -44,9 +44,18 @@ class ProviderConfig(BaseModel):
 class ModelConfig(BaseModel):
     """Simplified model configuration linking models to providers."""
 
-    id: str = Field(description='Model identifier')
+    id: str = Field(default='', description='Model identifier (defaults to alias if empty)')
     provider: str = Field(description='Name of provider for this model')
     alias: str = Field(description='Required short alias for this model')
+
+    @model_validator(mode='before')
+    @classmethod
+    def set_default_id(cls, data):
+        """Set id to alias if id is not provided or empty."""
+        if isinstance(data, dict):
+            if not data.get('id'):
+                data['id'] = data.get('alias', '')
+        return data
 
     @field_validator('alias')
     @classmethod
@@ -115,7 +124,6 @@ class UserConfig(BaseModel):
             if provider.name == name:
                 return provider
         return None
-
 
     def get_model_by_alias(self, alias: str) -> Optional[ModelConfig]:
         """Get model configuration by alias only."""

@@ -87,6 +87,7 @@ providers:
 # Model definitions - link model IDs to providers
 # Each model must reference a valid provider name
 # Aliases provide short, memorable names and are REQUIRED for use in routing
+# The 'id' field is optional - if not provided or empty, it defaults to the alias value
 models:
   # Anthropic/Claude models
   - alias: 'sonnet'
@@ -120,6 +121,10 @@ models:
   - alias: 'custom2'
     id: 'custom-model-2'
     provider: 'custom-provider'
+  
+  # Example with no explicit id - will use alias as id
+  - alias: 'my-model'
+    provider: 'custom-provider'  # id will be set to 'my-model'
 
 # Request routing configuration
 # Routes different types of requests to appropriate models
