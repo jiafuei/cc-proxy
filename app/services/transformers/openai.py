@@ -1,6 +1,6 @@
 """OpenAI transformers with real format conversion."""
 
-from typing import Any, Dict, Tuple
+from typing import Any, AsyncIterator, Dict, Tuple
 
 import orjson
 
@@ -145,7 +145,7 @@ class OpenAIRequestTransformer(RequestTransformer):
 class OpenAIResponseTransformer(ResponseTransformer):
     """Transformer to convert OpenAI responses to Claude format."""
 
-    async def transform_chunk(self, params: Dict[str, Any]) -> bytes:
+    async def transform_chunk(self, params: Dict[str, Any]) -> AsyncIterator[bytes]:
         """Convert OpenAI streaming chunk to Claude format."""
         chunk = params['chunk']
 
@@ -159,22 +159,25 @@ class OpenAIResponseTransformer(ResponseTransformer):
                 if data_part == '[DONE]':
                     # Convert OpenAI completion to Claude format
                     claude_done = {'type': 'message_stop'}
-                    return f'data: {orjson.dumps(claude_done).decode("utf-8")}\n\n'.encode('utf-8')
+                    yield f'data: {orjson.dumps(claude_done).decode("utf-8")}\n\n'.encode('utf-8')
+                    return
 
                 # Parse OpenAI chunk
                 try:
                     openai_chunk = orjson.loads(data_part)
                     claude_chunk = self._convert_openai_chunk_to_claude(openai_chunk)
-                    return f'data: {orjson.dumps(claude_chunk).decode("utf-8")}\n\n'.encode('utf-8')
+                    yield f'data: {orjson.dumps(claude_chunk).decode("utf-8")}\n\n'.encode('utf-8')
+                    return
                 except orjson.JSONDecodeError:
                     logger.warning(f'Failed to parse OpenAI chunk JSON: {data_part[:100]}')
-                    return chunk
+                    yield chunk
+                    return
 
-            return chunk
+            yield chunk
 
         except Exception as e:
             logger.error(f'Failed to convert OpenAI chunk: {e}')
-            return chunk
+            yield chunk
 
     async def transform_response(self, params: Dict[str, Any]) -> Dict[str, Any]:
         """Convert OpenAI non-streaming response to Claude format."""

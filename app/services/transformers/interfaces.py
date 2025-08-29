@@ -1,7 +1,7 @@
 """Enhanced transformer interfaces for the simplified architecture."""
 
 from abc import ABC, abstractmethod
-from typing import Any, Dict, Tuple
+from typing import Any, AsyncIterator, Dict, Tuple
 
 
 class RequestTransformer(ABC):
@@ -54,7 +54,7 @@ class ResponseTransformer(ABC):
         self.logger = logger
 
     @abstractmethod
-    async def transform_chunk(self, params: Dict[str, Any]) -> bytes:
+    async def transform_chunk(self, params: Dict[str, Any]) -> AsyncIterator[bytes]:
         """Transform a streaming response chunk.
 
         Args:
@@ -65,12 +65,13 @@ class ResponseTransformer(ABC):
                 - provider_config: The current provider config `ProviderConfig`
                 - original_request: The original request  object `fastapi.Request`
 
-        Returns:
+        Yields:
             Transformed chunk bytes
 
         Note:
             This is called for each chunk in a streaming response.
             The chunk typically contains SSE-formatted data.
+            Implementations should yield bytes, allowing for multiple output chunks per input.
         """
         pass
 

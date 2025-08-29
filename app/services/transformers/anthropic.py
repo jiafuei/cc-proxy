@@ -1,7 +1,7 @@
 """Anthropic transformers - pure passthrough implementations."""
 
 import random
-from typing import Any, Dict, Tuple
+from typing import Any, AsyncIterator, Dict, Tuple
 
 from app.services.transformers.interfaces import RequestTransformer, ResponseTransformer
 
@@ -49,9 +49,9 @@ class AnthropicResponseTransformer(ResponseTransformer):
         """Initialize transformer."""
         self.logger = logger
 
-    async def transform_chunk(self, params: Dict[str, Any]) -> bytes:
+    async def transform_chunk(self, params: Dict[str, Any]) -> AsyncIterator[bytes]:
         """Pure passthrough - response is already in correct format."""
-        return params['chunk']
+        yield params['chunk']
 
     async def transform_response(self, params: Dict[str, Any]) -> Dict[str, Any]:
         """Pure passthrough - response is already in correct format."""

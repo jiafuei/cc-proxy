@@ -94,17 +94,24 @@ class Provider:
                 dumper.write_pretransformed_response(dumper_handles, chunk)
 
                 # Apply response transformers to each chunk
-                transformed_chunk = chunk
+                current_chunks = [chunk]
                 for transformer in self.response_transformers:
-                    chunk_params = {
-                        'chunk': transformed_chunk,
-                        'request': current_request,
-                        'final_headers': current_headers,
-                        'provider_config': config,
-                        'original_request': original_request,
-                    }
-                    transformed_chunk = await transformer.transform_chunk(chunk_params)
-                yield transformed_chunk
+                    next_chunks = []
+                    for current_chunk in current_chunks:
+                        chunk_params = {
+                            'chunk': current_chunk,
+                            'request': current_request,
+                            'final_headers': current_headers,
+                            'provider_config': config,
+                            'original_request': original_request,
+                        }
+                        async for transformed_chunk in transformer.transform_chunk(chunk_params):
+                            next_chunks.append(transformed_chunk)
+                    current_chunks = next_chunks
+
+                # Yield all final chunks
+                for final_chunk in current_chunks:
+                    yield final_chunk
         else:
             # Non-streaming request
             response = await self._send_request(config, current_request, current_headers)
