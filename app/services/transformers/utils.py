@@ -36,34 +36,37 @@ class UrlPathTransformer(RequestTransformer):
         return request, headers
 
 
-class AuthHeaderTransformer(RequestTransformer):
-    """Generic authentication header transformer for any provider.
+class AddHeaderTransformer(RequestTransformer):
+    """Generic header transformer that adds any header with configurable key, prefix, value, and suffix.
 
-    Adds configurable authentication header with API key from provider config.
+    Adds a header to the request with full control over its construction.
     """
 
-    def __init__(self, logger, header_name: str = 'authorization', value_prefix: str = 'Bearer '):
+    def __init__(self, logger, key: str, value: str, prefix: str = '', suffix: str = ''):
         """Initialize transformer.
 
         Args:
             logger: Logger instance
-            header_name: Name of the auth header (default: 'authorization')
-            value_prefix: Prefix for the auth value (default: 'Bearer ')
+            key: Header name/key to add
+            value: Header value (used literally, no resolution)
+            prefix: Text to prepend to the value (default: '')
+            suffix: Text to append to the value (default: '')
         """
         self.logger = logger
-        self.header_name = header_name
-        self.value_prefix = value_prefix
+        self.key = key
+        self.value = value
+        self.prefix = prefix
+        self.suffix = suffix
 
     async def transform(self, params: Dict[str, Any]) -> Tuple[Dict[str, Any], Dict[str, str]]:
-        """Add authentication header with API key from provider config."""
+        """Add header with configured key, prefix, value, and suffix."""
         request: dict[str, Any] = params['request']
         headers: dict[str, str] = params['headers']
-        provider_config: ProviderConfig = params['provider_config']
 
-        # Get API key from provider config
-        api_key = provider_config.api_key
+        # Construct header value with prefix and suffix
+        header_value = f'{self.prefix}{self.value}{self.suffix}'
 
-        # Add auth header
-        headers[self.header_name] = f'{self.value_prefix}{api_key}'
+        # Add header
+        headers[self.key] = header_value
 
         return request, headers
