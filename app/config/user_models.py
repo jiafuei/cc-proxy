@@ -46,12 +46,14 @@ class ModelConfig(BaseModel):
 
     id: str = Field(description='Model identifier')
     provider: str = Field(description='Name of provider for this model')
-    alias: str = Field(description='Required short alias for this model')
+    alias: Optional[str] = Field(default=None, description='Optional short alias for this model')
 
     @field_validator('alias')
     @classmethod
-    def validate_alias(cls, v: str) -> str:
+    def validate_alias(cls, v: Optional[str]) -> Optional[str]:
         """Validate alias format."""
+        if v is None:
+            return v
         if not re.match(r'^[a-zA-Z0-9_-]+$', v):
             raise ValueError('Alias must contain only alphanumeric characters, hyphens, and underscores')
         if len(v) < 1:
@@ -126,7 +128,7 @@ class UserConfig(BaseModel):
     def get_model_by_alias(self, alias: str) -> Optional[ModelConfig]:
         """Get model configuration by alias only."""
         for model in self.models:
-            if model.alias == alias:
+            if model.alias and model.alias == alias:
                 return model
         return None
 
@@ -139,17 +141,16 @@ class UserConfig(BaseModel):
             if not self.get_provider_by_name(model.provider):
                 errors.append(f"Model '{model.id}' references unknown provider '{model.provider}'")
 
-        # Check alias uniqueness
+        # Check alias uniqueness (only for non-None aliases)
         aliases_seen = set()
-
         for model in self.models:
-            # Check for duplicate aliases
-            if model.alias in aliases_seen:
-                errors.append(f"Duplicate alias '{model.alias}' found (model '{model.id}')")
-            else:
-                aliases_seen.add(model.alias)
+            if model.alias:
+                if model.alias in aliases_seen:
+                    errors.append(f"Duplicate alias '{model.alias}' found (model '{model.id}')")
+                else:
+                    aliases_seen.add(model.alias)
 
-        # Check that routing references valid aliases only (no model IDs allowed)
+        # Check that routing references valid aliases
         if self.routing:
             for routing_type, alias in [
                 ('default', self.routing.default),
@@ -159,7 +160,7 @@ class UserConfig(BaseModel):
                 ('plan_and_think', self.routing.plan_and_think),
             ]:
                 if alias and not self.get_model_by_alias(alias):
-                    errors.append(f"Routing '{routing_type}' references unknown alias '{alias}' (only aliases are allowed in routing, not model IDs)")
+                    errors.append(f"Routing '{routing_type}' references unknown alias '{alias}'")
 
         if errors:
             raise ValueError('Configuration validation failed:\n' + '\n'.join(errors))

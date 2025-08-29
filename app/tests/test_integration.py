@@ -177,11 +177,12 @@ providers:
 models:
   - id: claude-3-sonnet-20240229
     provider: test-provider
+    alias: sonnet
 
 routing:
-  default: claude-3-sonnet-20240229
-  planning: claude-3-sonnet-20240229
-  background: claude-3-sonnet-20240229
+  default: sonnet
+  planning: sonnet
+  background: sonnet
 """
 
         response = client.post('/api/config/validate-yaml', json={'yaml_content': valid_config_yaml})
@@ -383,19 +384,31 @@ class TestAliasSupport:
             config.validate_references()
         assert "Duplicate alias 'duplicate'" in str(exc_info.value)
 
-    def test_alias_validation_conflict_with_model_id(self):
-        """Test that aliases cannot conflict with existing model IDs."""
+    def test_models_can_have_same_id(self):
+        """Test that models can have duplicate IDs."""
         config = UserConfig(
             providers=[ProviderConfig(name='test-provider', url='https://api.example.com', api_key='test-key')],
             models=[
-                ModelConfig(id='claude-3-sonnet-20240229', provider='test-provider'),
-                ModelConfig(id='claude-3-haiku-20240229', provider='test-provider', alias='claude-3-sonnet-20240229'),
+                ModelConfig(id='claude-3-sonnet-20240229', provider='test-provider', alias='sonnet1'),
+                ModelConfig(id='claude-3-sonnet-20240229', provider='test-provider', alias='sonnet2'),
             ],
+            routing=RoutingConfig(default='sonnet1', background='sonnet2'),
         )
+        # Should not raise an exception - duplicate model IDs are allowed
+        config.validate_references()
 
-        with pytest.raises(ValueError) as exc_info:
-            config.validate_references()
-        assert "alias 'claude-3-sonnet-20240229' that conflicts with existing model ID" in str(exc_info.value)
+    def test_alias_can_match_model_id(self):
+        """Test that alias can be the same as a model ID."""
+        config = UserConfig(
+            providers=[ProviderConfig(name='test-provider', url='https://api.example.com', api_key='test-key')],
+            models=[
+                ModelConfig(id='claude-3-sonnet-20240229', provider='test-provider', alias='claude-3-haiku-20240229'),
+                ModelConfig(id='claude-3-haiku-20240229', provider='test-provider', alias='sonnet'),
+            ],
+            routing=RoutingConfig(default='claude-3-haiku-20240229', background='sonnet'),
+        )
+        # Should not raise an exception - alias can match other model IDs
+        config.validate_references()
 
     def test_alias_format_validation(self):
         """Test alias format validation."""
@@ -425,9 +438,9 @@ class TestAliasSupport:
         config.validate_references()
 
         # Test lookup methods
-        assert config.get_model_by_id_or_alias('sonnet').id == 'claude-3-sonnet-20240229'
-        assert config.get_model_by_id_or_alias('haiku').id == 'claude-3-haiku-20240229'
-        assert config.get_model_by_id_or_alias('claude-3-sonnet-20240229').id == 'claude-3-sonnet-20240229'
+        assert config.get_model_by_alias('sonnet').id == 'claude-3-sonnet-20240229'
+        assert config.get_model_by_alias('haiku').id == 'claude-3-haiku-20240229'
+        assert config.get_model_by_id('claude-3-sonnet-20240229').id == 'claude-3-sonnet-20240229'
 
     def test_routing_with_unknown_alias(self):
         """Test that routing fails with unknown aliases."""
@@ -439,7 +452,7 @@ class TestAliasSupport:
 
         with pytest.raises(ValueError) as exc_info:
             config.validate_references()
-        assert "Routing 'default' references unknown model or alias 'unknown-alias'" in str(exc_info.value)
+        assert "Routing 'default' references unknown alias 'unknown-alias'" in str(exc_info.value)
 
     def test_config_validation_integration_with_aliases(self):
         """Test configuration validation through API endpoint with aliases."""
