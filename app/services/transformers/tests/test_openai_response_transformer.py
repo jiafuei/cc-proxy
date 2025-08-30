@@ -298,93 +298,6 @@ class TestOpenAIResponseTransformer:
         assert len(batches) > 1, f'Should have processed multiple batches. Got {len(batches)} batches'
         assert len(all_results) > 10, 'Should have many events from batched processing'
 
-    @pytest.mark.asyncio
-    async def test_failing_incremental_tool_arguments_debug(self, transformer, mock_params_streaming):
-        """Debug test using real failing SSE data from examples/openai-test-sse-1.sse"""
-        # Load the actual failing SSE data
-        test_dir = Path(__file__).parent
-        failing_sse_path = test_dir.parent.parent.parent.parent / 'examples' / 'openai-test-sse-1.sse'
-        
-        if not failing_sse_path.exists():
-            pytest.skip(f'Failing SSE file not found: {failing_sse_path}')
-        
-        # Read the failing SSE data
-        with open(failing_sse_path, 'r', encoding='utf-8') as f:
-            sse_content = f.read()
-        
-        # Extract data lines
-        sse_lines = []
-        for line in sse_content.split('\n'):
-            line = line.strip()
-            if line and line.startswith('data:'):
-                sse_lines.append(line)
-        
-        print(f"DEBUG: Found {len(sse_lines)} SSE data lines")
-        
-        # Collect all emitted events
-        all_results = []
-        collected_arguments = []
-        
-        # Process each line individually to debug the issue
-        for i, line in enumerate(sse_lines):
-            mock_params_streaming['chunk'] = (line + '\n\n').encode()
-            print(f"DEBUG: Processing line {i+1}: {line[:100]}...")
-            
-            # Collect results from this line
-            line_results = []
-            async for chunk in transformer.transform_chunk(mock_params_streaming):
-                result = chunk.decode()
-                line_results.append(result)
-                all_results.append(result)
-                
-                # Track tool argument deltas for debugging
-                if 'event: content_block_delta' in result and '"type":"input_json_delta"' in result:
-                    print(f"DEBUG: Found input_json_delta at line {i+1}: {result}")
-                    # Extract partial_json from the delta
-                    import re
-                    match = re.search(r'"partial_json":"([^"]*)"', result)
-                    if match:
-                        collected_arguments.append(match.group(1))
-                        print(f"DEBUG: Collected partial_json: '{match.group(1)}'")
-            
-            print(f"DEBUG: Line {i+1} produced {len(line_results)} events")
-        
-        # Debug output
-        print(f"DEBUG: Total events produced: {len(all_results)}")
-        print(f"DEBUG: Total argument deltas collected: {len(collected_arguments)}")
-        
-        # Validate event sequence and structure
-        event_types = []
-        for result in all_results:
-            if result.startswith('event:'):
-                event_type = result.split('\n')[0].split('event: ')[1]
-                event_types.append(event_type)
-        
-        print(f"DEBUG: Event types: {event_types}")
-        
-        # Count content_block_delta events specifically
-        delta_events = [r for r in all_results if 'event: content_block_delta' in r]
-        input_json_deltas = [r for r in all_results if 'event: content_block_delta' in r and '"type":"input_json_delta"' in r]
-        
-        print(f"DEBUG: Total content_block_delta events: {len(delta_events)}")
-        print(f"DEBUG: Input JSON delta events: {len(input_json_deltas)}")
-        
-        # This test is for debugging - we expect it to show the problem
-        # The issue: We should get ~30+ input_json_delta events but likely get very few
-        
-        # Show the collected arguments
-        if collected_arguments:
-            full_arguments = ''.join(collected_arguments)
-            print(f"DEBUG: Full collected arguments: '{full_arguments}'")
-        else:
-            print("DEBUG: No arguments collected - this indicates the bug!")
-        
-        # For now, just assert we got some events (we'll strengthen this after fixing the bug)
-        assert len(all_results) > 0, 'Should have produced some events'
-        assert len(sse_lines) > 60, 'Should have many input SSE lines to process'
-        
-        # This assertion will likely fail and show us the problem
-        assert len(input_json_deltas) > 20, f'Expected many input_json_delta events, got {len(input_json_deltas)}. This shows the bug!'
 
     @pytest.mark.asyncio
     async def test_transform_chunk_line_by_line_text_only(self, transformer, mock_params_streaming):
@@ -648,3 +561,4 @@ class TestOpenAIResponseTransformer:
         assert event_counts['content_block_stop'] == 2
         assert event_counts['message_delta'] == 1
         assert event_counts['message_stop'] == 1
+

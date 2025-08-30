@@ -88,6 +88,9 @@ class Provider:
 
         # 3. Route based on stream flag
         if should_stream:
+            # Initialize chunk params once to preserve transformer state
+            chunk_params = {}
+
             # Stream from provider
             async for chunk in self._stream_request(config, current_request, current_headers):
                 # Dump pre-transformed response chunk
@@ -95,17 +98,18 @@ class Provider:
 
                 # Apply response transformers to each chunk
                 current_chunks = [chunk]
-                chunk_params = {}
                 for transformer in self.response_transformers:
                     next_chunks = []
                     for current_chunk in current_chunks:
-                        chunk_params.update({
-                            'chunk': current_chunk,
-                            'request': current_request,
-                            'final_headers': current_headers,
-                            'provider_config': config,
-                            'original_request': original_request,
-                        })
+                        chunk_params.update(
+                            {
+                                'chunk': current_chunk,
+                                'request': current_request,
+                                'final_headers': current_headers,
+                                'provider_config': config,
+                                'original_request': original_request,
+                            }
+                        )
                         async for transformed_chunk in transformer.transform_chunk(chunk_params):
                             next_chunks.append(transformed_chunk)
                     current_chunks = next_chunks
@@ -123,14 +127,17 @@ class Provider:
 
             # Apply response transformers to full response
             transformed_response = response
+            response_params = {}  # Initialize once outside loop for consistency
             for transformer in self.response_transformers:
-                response_params = {
-                    'response': transformed_response,
-                    'request': current_request,
-                    'final_headers': current_headers,
-                    'provider_config': config,
-                    'original_request': original_request,
-                }
+                response_params.update(
+                    {
+                        'response': transformed_response,
+                        'request': current_request,
+                        'final_headers': current_headers,
+                        'provider_config': config,
+                        'original_request': original_request,
+                    }
+                )
                 transformed_response = await transformer.transform_response(response_params)
 
             # Convert to SSE format for consistent output
