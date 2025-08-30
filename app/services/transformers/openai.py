@@ -145,62 +145,13 @@ class OpenAIRequestTransformer(RequestTransformer):
 class OpenAIResponseTransformer(ResponseTransformer):
     """Transformer to convert OpenAI responses to Claude format."""
 
-    # Constants for magic values
-    DATA_PREFIX = 'data: '
-    DONE_TOKEN = '[DONE]'
-    DEFAULT_INDEX = 0
-
     # Stop reason mapping as class constant
     STOP_REASON_MAPPING = {'stop': 'end_turn', 'length': 'max_tokens', 'content_filter': 'stop_sequence', 'tool_calls': 'tool_use'}
 
-    def _format_sse_event(self, event_type: str, data: Dict[str, Any]) -> bytes:
-        """Format data as SSE event with proper headers."""
-        return f'event: {event_type}\ndata: {orjson.dumps(data).decode("utf-8")}\n\n'.encode('utf-8')
+    async def transform_chunk(self, params: dict[str, Any]) -> AsyncIterator[bytes]:
+        raise NotImplementedError('transform_chunk method needs to be implemented')
 
-    async def transform_chunk(self, params: Dict[str, Any]) -> AsyncIterator[bytes]:
-        """Convert OpenAI streaming chunk to Claude format."""
-        chunk = params['chunk']
-
-        try:
-            chunk_str = chunk.decode('utf-8')
-            lines = chunk_str.split('\n')
-
-            # Process each line that contains SSE data
-            has_sse_data = False
-            for line in lines:
-                line = line.strip()
-                if not line or not line.startswith(self.DATA_PREFIX):
-                    continue
-
-                has_sse_data = True
-                data_part = line[len(self.DATA_PREFIX) :].strip()
-
-                if data_part == self.DONE_TOKEN:
-                    yield self._format_sse_event('message_stop', {'type': 'message_stop'})
-                    return  # [DONE] is always at the end
-
-                # Parse OpenAI chunk
-                try:
-                    openai_chunk = orjson.loads(data_part)
-                    claude_chunk = self._convert_openai_chunk_to_claude(openai_chunk)
-                    event_type = claude_chunk.get('type', 'ping')
-                    yield self._format_sse_event(event_type, claude_chunk)
-                except orjson.JSONDecodeError as e:
-                    logger.warning(f'Failed to parse OpenAI chunk JSON ({e}): {data_part}')
-                    # Continue processing other lines instead of falling back to passthrough
-
-            # If no SSE data was found, pass through the original chunk
-            if not has_sse_data:
-                yield chunk
-
-        except UnicodeDecodeError:
-            logger.error('Failed to decode chunk as UTF-8')
-            yield chunk
-        except Exception as e:
-            logger.error(f'Failed to convert OpenAI chunk: {e}')
-            yield chunk
-
-    async def transform_response(self, params: Dict[str, Any]) -> Dict[str, Any]:
+    async def transform_response(self, params: dict[str, Any]) -> dict[str, Any]:
         """Convert OpenAI non-streaming response to Claude format."""
         response = params['response']
 
@@ -232,7 +183,7 @@ class OpenAIResponseTransformer(ResponseTransformer):
 
             # Build usage info more efficiently
             usage = response.get('usage', {})
-            claude_usage = {'input_tokens': usage.get('prompt_tokens', 0), 'output_tokens': usage.get('completion_tokens', 0)}
+            claude_usage = self._map_openai_usage_to_claude(usage)
 
             # Convert to Claude response format
             claude_response = {
@@ -253,48 +204,33 @@ class OpenAIResponseTransformer(ResponseTransformer):
             logger.error(f'Failed to convert OpenAI response: {e}')
             return response
 
-    def _convert_openai_chunk_to_claude(self, openai_chunk: Dict[str, Any]) -> Dict[str, Any]:
-        """Convert OpenAI streaming chunk to Claude format."""
-        choices = openai_chunk.get('choices', [])
-        if not choices:
-            return {'type': 'ping'}
-
-        choice = choices[0]
-        delta = choice.get('delta', {})
-
-        # Handle finish reason first (early return)
-        if choice.get('finish_reason'):
-            return {'type': 'message_stop'}
-
-        # Handle text content
-        if content := delta.get('content'):
-            return {'type': 'content_block_delta', 'index': self.DEFAULT_INDEX, 'delta': {'type': 'text_delta', 'text': content}}
-
-        # Handle tool calls (streaming)
-        if tool_calls := delta.get('tool_calls'):
-            return self._convert_tool_call_delta(tool_calls[0])
-
-        return {'type': 'ping'}
-
-    def _convert_tool_call_delta(self, tool_call: Dict[str, Any]) -> Dict[str, Any]:
-        """Convert OpenAI tool call delta to Claude format."""
-        index = tool_call.get('index', self.DEFAULT_INDEX)
-        function = tool_call.get('function', {})
-
-        # Start of tool call - has name and id
-        if function.get('name'):
-            return {
-                'type': 'content_block_start',
-                'index': index,
-                'content_block': {'type': 'tool_use', 'id': tool_call.get('id', ''), 'name': function['name'], 'input': {}},
-            }
-
-        # Tool call arguments chunk
-        if arguments := function.get('arguments'):
-            return {'type': 'content_block_delta', 'index': index, 'delta': {'type': 'input_json_delta', 'partial_json': arguments}}
-
-        return {'type': 'ping'}
-
     def _convert_stop_reason(self, openai_finish_reason: str) -> str:
         """Convert OpenAI finish reason to Claude format."""
         return self.STOP_REASON_MAPPING.get(openai_finish_reason, 'end_turn')
+
+    def _map_openai_usage_to_claude(self, openai_usage: Dict[str, Any]) -> Dict[str, int]:
+        """Map OpenAI usage format to Claude usage format with comprehensive field mapping."""
+        if not openai_usage:
+            return {}
+
+        claude_usage = {}
+
+        # Basic token mapping
+        if prompt_tokens := openai_usage.get('prompt_tokens'):
+            claude_usage['input_tokens'] = prompt_tokens
+        if completion_tokens := openai_usage.get('completion_tokens'):
+            claude_usage['output_tokens'] = completion_tokens
+
+        # Cache-related tokens from prompt_tokens_details
+        if prompt_details := openai_usage.get('prompt_tokens_details', {}):
+            if cached_tokens := prompt_details.get('cached_tokens'):
+                claude_usage['cache_read_input_tokens'] = cached_tokens
+
+        # Reasoning tokens from completion_tokens_details (o1 models)
+        if completion_details := openai_usage.get('completion_tokens_details', {}):
+            if reasoning_tokens := completion_details.get('reasoning_tokens'):
+                # Map reasoning tokens to a reasonable Claude equivalent
+                # Note: Claude doesn't have direct reasoning token equivalent, but we preserve the info
+                claude_usage['reasoning_output_tokens'] = reasoning_tokens
+
+        return claude_usage
