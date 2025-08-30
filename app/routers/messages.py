@@ -1,7 +1,6 @@
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Request
-from fastapi.responses import StreamingResponse
-import orjson
+from fastapi.responses import ORJSONResponse, StreamingResponse
 
 from app.common.anthropic_errors import extract_error_message, map_http_status_to_anthropic_error
 from app.common.dumper import Dumper
@@ -15,7 +14,7 @@ logger = get_logger(__name__)
 
 
 @router.post('/v1/messages')
-async def messages(payload: AnthropicRequest, request: Request, dumper: Dumper = Depends(get_dumper)) -> StreamingResponse:
+async def messages(payload: AnthropicRequest, request: Request, dumper: Dumper = Depends(get_dumper)):
     """Handle Anthropic API messages with simplified routing and provider system."""
 
     # Get the service container (router + providers)
@@ -49,17 +48,16 @@ async def messages(payload: AnthropicRequest, request: Request, dumper: Dumper =
             logger.error(f'Provider error(HTTP {e.response.status_code}): {error_message}')
 
             # Format error as SSE
-            error_chunk = f'event: error\ndata: {{"type": "error", "error": {{"type": f"{error_type}", "message": "{error_message}"}} }}\n\n'
+            error_chunk = f'event: error\ndata: {{"type": "error", "error": {{"type": f"{error_type}", "message": f"{error_message}"}} }}\n\n'
 
             dumper.write_response_chunk(dumper_handles, error_chunk.encode())
             yield error_chunk.encode()
-
         except Exception as e:
             logger.error(f'Error processing request: {e}', exc_info=True)
 
             # Format error as SSE
             error_message = f'Request processing failed: {str(e)}'
-            error_chunk = f'event: error\ndata: {{"type": "error", "error": {{"type": "api_error", "message": "{error_message}"}}}}\n\n'
+            error_chunk = f'event: error\ndata: {{"type": "error", "error": {{"type": "api_error", "message": f"{error_message}"}}}}\n\n'
 
             dumper.write_response_chunk(dumper_handles, error_chunk.encode())
             yield error_chunk.encode()
@@ -67,4 +65,8 @@ async def messages(payload: AnthropicRequest, request: Request, dumper: Dumper =
         finally:
             dumper.close(dumper_handles)
 
-    return StreamingResponse(generate(), media_type='text/event-stream')
+    try: 
+        return StreamingResponse(generate(), media_type='text/event-stream')
+    except HTTPException as e:
+        return ORJSONResponse(e.detail, e.status_code, media_type='application/json')
+

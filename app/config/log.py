@@ -112,7 +112,7 @@ def _create_log_handlers(log_config, log_dir: Path) -> list:
     handlers = []
 
     if log_config.console_enabled:
-        formatter = structlog.stdlib.ProcessorFormatter(processors=[structlog.stdlib.ProcessorFormatter.remove_processors_meta, structlog.dev.ConsoleRenderer()])
+        formatter = structlog.stdlib.ProcessorFormatter(processors=[structlog.stdlib.ProcessorFormatter.remove_processors_meta, structlog.processors.format_exc_info, structlog.dev.ConsoleRenderer()])
         console_handler = logging.StreamHandler()
         # console_handler.setFormatter(_ConsoleFormatter())
         console_handler.setFormatter(formatter)

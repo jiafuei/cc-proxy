@@ -119,6 +119,8 @@ class OpenAIRequestTransformer(RequestTransformer):
                 converted.append({'type': 'text', 'text': block.get('text', '')})
             elif block.get('type') == 'image' and (image_block := self._convert_image_block(block)):
                 converted.append(image_block)
+        if len(converted) == 1 and converted[0].get('type') == 'text':
+            converted = converted[0].get('text')
         return converted
 
     def _convert_image_block(self, block):

@@ -56,12 +56,6 @@ app.add_middleware(ContextMiddleware)
 
 logger = get_logger(__name__)
 
-
-@app.exception_handler(HTTPException)
-async def http_exception_handler(request: Request, exc: HTTPException):
-    return ORJSONResponse(status_code=exc.status_code, content={'type': 'error', 'error': {'type': 'api_error', 'message': 'http exception: ' + str(exc.detail)}})
-
-
 @app.exception_handler(RequestValidationError)
 async def request_validation_error_handler(request: Request, exc: RequestValidationError):
     req_body = await request.json()

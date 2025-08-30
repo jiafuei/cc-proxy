@@ -158,7 +158,7 @@ class Provider:
                 async for chunk in response.aiter_bytes():
                     if chunk:
                         yield chunk
-            except httpx.HTTPStatusError as e:
+            except httpx.HTTPStatusError:
                 await response.aread()
                 raise
 
