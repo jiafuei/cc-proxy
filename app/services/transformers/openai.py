@@ -200,7 +200,7 @@ class OpenAIResponseTransformer(ResponseTransformer):
             try:
                 openai_data = orjson.loads(data_content)
             except orjson.JSONDecodeError as e:
-                logger.error(f'Failed to parse OpenAI SSE JSON: {e}')
+                logger.error(f'Failed to parse OpenAI SSE JSON: {e}', content=data_content)
                 continue
 
             # Process the OpenAI chunk
