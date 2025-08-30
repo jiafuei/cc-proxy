@@ -100,6 +100,6 @@ class TransformerLoader:
         self._cache.clear()
         logger.debug('Transformer cache cleared')
 
-    def get_cache_info(self) -> Dict[str, int]:
+    def get_cache_info(self) -> dict[str, Any]:
         """Get information about the transformer cache."""
         return {'cached_transformers': len(self._cache), 'cache_keys': list(self._cache.keys())}

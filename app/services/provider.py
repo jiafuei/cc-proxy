@@ -95,16 +95,17 @@ class Provider:
 
                 # Apply response transformers to each chunk
                 current_chunks = [chunk]
+                chunk_params = {}
                 for transformer in self.response_transformers:
                     next_chunks = []
                     for current_chunk in current_chunks:
-                        chunk_params = {
+                        chunk_params.update({
                             'chunk': current_chunk,
                             'request': current_request,
                             'final_headers': current_headers,
                             'provider_config': config,
                             'original_request': original_request,
-                        }
+                        })
                         async for transformed_chunk in transformer.transform_chunk(chunk_params):
                             next_chunks.append(transformed_chunk)
                     current_chunks = next_chunks

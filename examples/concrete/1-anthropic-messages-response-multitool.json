@@ -1,0 +1,38 @@
+{
+  "id": "msg_01QPoT6XfJNrzwRPLTpAo2Ty",
+  "type": "message",
+  "role": "assistant",
+  "model": "claude-sonnet-4-20250514",
+  "content": [
+    {
+      "type": "tool_use",
+      "id": "toolu_01PBz7h1un4irfx7JXNBbHRv",
+      "name": "get_meaning",
+      "input": {
+        "subject": "yellow sunsets"
+      }
+    },
+    {
+      "type": "tool_use",
+      "id": "toolu_01Luh3Gd44LGwGnn1rvN7s8c",
+      "name": "get_extra_meaning",
+      "input": {
+        "subject": "yellow sunsets",
+        "thoughts": "Yellow sunsets often symbolize warmth, peace, and the natural beauty of transitions. They represent the golden hour when day transforms into night, creating a sense of calm and reflection. The yellow color can evoke feelings of happiness, optimism, and serenity, while also marking the end of a cycle and the promise of renewal with the next sunrise."
+      }
+    }
+  ],
+  "stop_reason": "tool_use",
+  "stop_sequence": null,
+  "usage": {
+    "input_tokens": 582,
+    "cache_creation_input_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 0
+    },
+    "output_tokens": 183,
+    "service_tier": "standard"
+  }
+}

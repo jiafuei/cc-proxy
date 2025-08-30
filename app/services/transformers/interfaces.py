@@ -54,7 +54,7 @@ class ResponseTransformer(ABC):
         self.logger = logger
 
     @abstractmethod
-    async def transform_chunk(self, params: Dict[str, Any]) -> AsyncIterator[bytes]:
+    async def transform_chunk(self, params: dict[str, Any]) -> AsyncIterator[bytes]:
         """Transform a streaming response chunk.
 
         Args:
@@ -76,7 +76,7 @@ class ResponseTransformer(ABC):
         pass
 
     @abstractmethod
-    async def transform_response(self, params: Dict[str, Any]) -> Dict[str, Any]:
+    async def transform_response(self, params: dict[str, Any]) -> dict[str, Any]:
         """Transform a complete non-streaming response.
 
         Args:
