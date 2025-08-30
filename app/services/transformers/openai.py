@@ -149,7 +149,7 @@ class OpenAIResponseTransformer(ResponseTransformer):
     STOP_REASON_MAPPING = {'stop': 'end_turn', 'length': 'max_tokens', 'content_filter': 'stop_sequence', 'tool_calls': 'tool_use'}
 
     # OpenAI SSE constants
-    DATA_PREFIX = b'data: '
+    DATA_PREFIX = b'data:'
     DONE_MARKER = b'[DONE]'
 
     def _init_state(self) -> Dict[str, Any]:
@@ -191,7 +191,7 @@ class OpenAIResponseTransformer(ResponseTransformer):
                 continue
 
             # Handle [DONE] marker
-            data_content = line[len(self.DATA_PREFIX) :]
+            data_content = line[len(self.DATA_PREFIX) :].strip()
             if data_content == self.DONE_MARKER:
                 yield self._format_anthropic_sse('message_stop', {})
                 continue
