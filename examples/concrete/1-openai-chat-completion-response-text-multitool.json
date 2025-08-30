@@ -1,0 +1,53 @@
+{
+  "id": "chatcmpl-CACAn2P82ZGxPDnSqKEkQ4u7FLLlz",
+  "object": "chat.completion",
+  "created": 1756546109,
+  "model": "gpt-5-mini-2025-08-07",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "let me get that for ya — hovering over the horizon like a soft gold cloak, yellow sunsets feel like the world pausing to exhale. I'll fetch a concise meaning and a richer, layered interpretation for you now.",
+        "tool_calls": [
+          {
+            "id": "call_gHF00labzqCPFNzUli5gXPJk",
+            "type": "function",
+            "function": {
+              "name": "get_meaning",
+              "arguments": "{\"subject\": \"yellow sunsets\"}"
+            }
+          },
+          {
+            "id": "call_otAba4QOSfdAzMw5QWrVYJec",
+            "type": "function",
+            "function": {
+              "name": "get_extra_meaning",
+              "arguments": "{\"subject\": \"yellow sunsets\"}"
+            }
+          }
+        ],
+        "refusal": null,
+        "annotations": []
+      },
+      "finish_reason": "tool_calls"
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 216,
+    "completion_tokens": 173,
+    "total_tokens": 389,
+    "prompt_tokens_details": {
+      "cached_tokens": 0,
+      "audio_tokens": 0
+    },
+    "completion_tokens_details": {
+      "reasoning_tokens": 64,
+      "audio_tokens": 0,
+      "accepted_prediction_tokens": 0,
+      "rejected_prediction_tokens": 0
+    }
+  },
+  "service_tier": "default",
+  "system_fingerprint": null
+}

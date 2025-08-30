@@ -1,5 +1,5 @@
 {
-  "model": "gpt-5-nano",
+  "model": "gpt-5-mini",
   "messages": [
     {
       "role": "developer",
@@ -7,7 +7,7 @@
     },
     {
       "role": "user",
-      "content": "Hello! What is the meaning of yellow sunsets. Use the get meaning tool"
+      "content": "Hello! What is the meaning of yellow sunsets. You must reply in this way: \n1. \"let me get that for ya\" and add some flavor text of 2-3 sentences.\nThen call the get_meaning and get_extra_meaning tool."
     }
   ],
   "tools": [
@@ -31,8 +31,33 @@
         },
         "strict": false
       }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "get_extra_meaning",
+        "description": "Returns extra meaning of things",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "subject": {
+              "type": "string",
+              "description": "The subject"
+            }
+          },
+          "required": [
+            "subject"
+          ],
+          "additionalProperties": false
+        },
+        "strict": false
+      }
     }
   ],
+  "verbosity": "high",
   "reasoning_effort": "low",
-  "stream": false
+  "stream_options": {
+    "include_usage": true
+  },
+  "stream": true
 }

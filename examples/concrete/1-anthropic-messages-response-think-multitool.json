@@ -1,0 +1,47 @@
+{
+  "id": "msg_01HbD8S6hu7m5AGeKVe3P3RA",
+  "type": "message",
+  "role": "assistant",
+  "model": "claude-sonnet-4-20250514",
+  "content": [
+    {
+      "type": "thinking",
+      "thinking": "The user is asking for the meaning of \"yellow sunsets\" and has given me specific instructions on how to respond:\n\n1. I need to start with \"let me get that for ya\" and add 2-3 sentences of flavor text\n2. Then I need to call both the get_meaning and get_extra_meaning tools\n\nFor the get_meaning tool, I need the \"subject\" parameter which should be \"yellow sunsets\".\n\nFor the get_extra_meaning tool, I need:\n- \"subject\" parameter: \"yellow sunsets\"  \n- \"thoughts\" parameter: my own thoughts on the meaning of the subject\n\nLet me craft the response with the required format and then make the tool calls.",
+      "signature": "Ev8FCkYIBxgCKkCWgsLFm9kV5H/bIfTrM6W199q+JgsMWkgOxG5o/QJgTn3kMmXdCemqlIYIQLNkGifpJn35CwJ6MqeyAFSB0AwkEgxJy2JhDEYsWidnd/YaDMfiT2FuIcoTI0ZsICIwwuS9YkvlXP0Lt3dGPdebNMe5YN6LDJ0BiVgR7DfoRVqb5JxOF5c/CYwIIaZ0851+KuYEJXP5QZYR3mJgnZmJIRbQMQVlrDEU1mfzSg3N5ZXmt4OF06l8H4KGSPU1PhSj5W1lsE7li7H38J+Pz7zWduGFWVxWv1go7UI1DqOhUb6dTTVfJYQrRa24R16rIsowox8RKLTc1xdvecA6h0T8PR4lIWMa5PVrpa0DYeizOimDLR0ahzVFuRim0cxpHv6YmpT8YosJ91BcszPZFtIBZvtIlFDlcYOfyKjEEHW3SuKBfjn35qayX+VtRAXkuKrl5r37DGqODSMhoZhN3wtizjejq6lzLylrbbC8Aj7cPCNzV72ugw7Qzff4CfYfnXcVmPSQWm2FYiQYsKN9LENk/6bAaIZe4/vSZt+W3i4CXjkopqidLUk+UszCYrbp5vgCL2gOOHrexZCSii84TtnssgGz6K5ChSYRDGQwX8vMkwePzL2xF1QlcSaVImMCHyyFoCOKvYm9NFs6XvyvamphmfxTtPxLPOqiHwOIoJuNQCCBcOZJjRECwwhKufygR6CBWRGUmSPpGq1CJXMBJhtBA6yTjv/euF05UzHhwPZolAJ73kMtqlehtT+9F5WOsWUumi0yE9oc2mPN5w3JAns4hlqy1LkVF2wNcD4QNrZG+9zAUbM8zKG3CmJloGGhw4aeMAdHVZh6f54yvxGmqvujKKRJVzjW2rFjXDj1SSmZSHR2ITlnmv7nNLf7xARTD+HtHwMo8A8gKvBmVoCjcMsT3JZALT7/3IZIjlCeljQA6Guz1teW+flPzJHdIZGwRS6ND6R5y81i0zMnddj065N5g7B4HGz+Xw4XoY8OJ1JCf6FCJBYYYx5COaYYAQ=="
+    },
+    {
+      "type": "text",
+      "text": "Let me get that for ya! Yellow sunsets are one of nature's most captivating spectacles, painting the sky with warm golden hues as day transitions to night. There's something deeply meaningful about these celestial displays that has inspired poets, artists, and dreamers throughout history."
+    },
+    {
+      "type": "tool_use",
+      "id": "toolu_016yaT8iqT8XMo4wb8XCqzLU",
+      "name": "get_meaning",
+      "input": {
+        "subject": "yellow sunsets"
+      }
+    },
+    {
+      "type": "tool_use",
+      "id": "toolu_01XPaQL57vnXS7yfkqaRPSBQ",
+      "name": "get_extra_meaning",
+      "input": {
+        "subject": "yellow sunsets",
+        "thoughts": "Yellow sunsets often symbolize warmth, hope, and the beauty of endings. They represent the peaceful transition between day and night, suggesting that even endings can be beautiful. The golden color evokes feelings of comfort, nostalgia, and the preciousness of fleeting moments. Many people find yellow sunsets to be deeply meditative and spiritually uplifting, as they remind us to pause and appreciate the natural beauty around us."
+      }
+    }
+  ],
+  "stop_reason": "tool_use",
+  "stop_sequence": null,
+  "usage": {
+    "input_tokens": 784,
+    "cache_creation_input_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 0
+    },
+    "output_tokens": 422,
+    "service_tier": "standard"
+  }
+}

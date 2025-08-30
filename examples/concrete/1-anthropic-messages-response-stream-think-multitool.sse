@@ -1,0 +1,138 @@
+event: message_start
+data: {"type":"message_start","message":{"id":"msg_01Q4MxwF74d4j6R5zq9usRSb","type":"message","role":"assistant","model":"claude-sonnet-4-20250514","content":[],"stop_reason":null,"stop_sequence":null,"usage":{"input_tokens":784,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"cache_creation":{"ephemeral_5m_input_tokens":0,"ephemeral_1h_input_tokens":0},"output_tokens":7,"service_tier":"standard"}}    }
+
+event: content_block_start
+data: {"type":"content_block_start","index":0,"content_block":{"type":"thinking","thinking":"","signature":""}               }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":"The user wants me to fin"}   }
+
+event: ping
+data: {"type": "ping"}
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":"d the meaning of \"yellow sunsets\" and they"}}
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":"'ve specified a particular format for my response:\n1. I"}    }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":" need to start with \"let me get that for ya"}}
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":"\" and add 2-3 sentences of flavor text"}   }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":"\n2. Then call both the get_meaning and get_extra_"}               }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":"meaning tools\n\nLooking at the tools"}          }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":" available:\n- get_meaning requires"}             }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":" a \"subject\" parameter\n- get_extra"}   }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":"_meaning requires a \"subject\" parameter an"} }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":"d a \"thoughts\" parameter\n\nFor"}        }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":" both tools, I'll"}          }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":" use \"yellow sunsets\" as the subject."}          }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":" For get_extra_meaning, I need to provide my"}            }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":" own thoughts on the meaning - I should think"}              }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":" of something thoughtful about yellow"}        }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":" sunsets.\n\nLet me follow"}             }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":" their instructions exactly."}              }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"signature_delta","signature":"ErsGCkYIBxgCKkAMOlBd78AMwp8ZYyKrgJ+yCmDKLCDGBtx1h6d641jeYd3aAGTlyHAghAP80Jne3zBxKNz3UISb+Jh81Yxj14DGEgxxn0NeO3jQX+6AujQaDMHmhKgwpnEo4wczLSIwOq6qWcsgDR5XK1a0HJCP0mWe+40ssLvs8iKcZ1YnzPI0owMXFmIMfzlqSXhR00KRKqIFETuBOjvAlP5QAzgnL0mYLJ6LnF86+BwZuTL0ORmFYEZ8TNblCZ30JBX/moeo7o4KfgZBMkI7sYvfj7fXW27sct5Q9/N8yH5oPAr8gwI9EiGWZO9G69jXWw9duhif6eQZ5sFzKTh1E2dbcGd6GbQl/cyjEA6dYXlNyDeqWYLIGFExIV9KhgYB9rjaGQ7dxN44TEmBDjp/kuuHIW7uyhI/KnXGCTUKpKkktIggsV7Dc9l4dgANKwa3IPXVzrY94db2S3CzQegEO2qaqGQOkrwssm4d3tyLqvScJ8fwXlS69KeXqkP3bTHTNoQnHgVCwQy6rmknXBub5MWQKGJIo4uCpAUsylCpBsQOVrlsFaewzWAEFw06A5eyiqo2Sb8xu3cPOaPY9SPspa94EaFHY+y7uTwiG0jUyRaK4cYrY5L27nAFesZKnozDRXcsKboRw4+8vPxJxEPXuUaO6kGIeg7Gc5+HKiBzbrzd3+6VPaqbTtkBpe3/Bk03WFt9SjmwBWvowwJ9er9jVIvak91v5I6PFpsbGW8JO8bBdIVIWSe5jp1uNQuIejWGfQxnauOCrFP8iXdTsdhXw49HIFOseCybMFhV7nxgF6f1sj3uygsGTEWACgYlVn0AT+AuBA/NQoc9DDTWroFRdB2rjCIhdA9gxEh4kpX3Rd8gabhkvxrbnICWuKLqprtJoSm9mm8mP6TTIhbDKywVbAYwzsXt1a2z3pKILQ4gg74FsOHKS6a7DMX6R2UFyzyONlnW/+9WcL5UqkorHr5BV2D5n0NSXTHdfyXj84eX16FFcC2cXtY6JtvWIxVQLKlSiOurLwi3tI165W5kVdesvewAGyP60rfsQn2cm1XIzi6fwXV0hq6UumKGTZruAHjox88saqvHKJ1sVM0YAQ=="}}
+
+event: content_block_stop
+data: {"type":"content_block_stop","index":0  }
+
+event: content_block_start
+data: {"type":"content_block_start","index":1,"content_block":{"type":"text","text":""}   }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"Let me get that for ya!"}              }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" Yellow sunsets are such a captivating natural"}    }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" phenomenon that have inspired poets, artists, and dream"} }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"ers throughout history. There's something magical about how the golden"}   }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" light transforms the sky into a canvas of warm,"}        }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" glowing hues. I'd be happy to explore"}          }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" the deeper meanings behind these beautiful"}      }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" celestial displays."}         }
+
+event: content_block_stop
+data: {"type":"content_block_stop","index":1               }
+
+event: content_block_start
+data: {"type":"content_block_start","index":2,"content_block":{"type":"tool_use","id":"toolu_01Jq6A9gNNsfEwsCqM1f8gDt","name":"get_meaning","input":{}}    }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":2,"delta":{"type":"input_json_delta","partial_json":""}          }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":2,"delta":{"type":"input_json_delta","partial_json":"{\"subject\": \"yellow sunsets"}   }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":2,"delta":{"type":"input_json_delta","partial_json":"\"}"}               }
+
+event: content_block_stop
+data: {"type":"content_block_stop","index":2            }
+
+event: content_block_start
+data: {"type":"content_block_start","index":3,"content_block":{"type":"tool_use","id":"toolu_01X6h2ngg98Gnbb1TGvZsDni","name":"get_extra_meaning","input":{}}             }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":3,"delta":{"type":"input_json_delta","partial_json":""}            }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":3,"delta":{"type":"input_json_delta","partial_json":"{\"subject\": \"yellow sunsets"}      }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":3,"delta":{"type":"input_json_delta","partial_json":"\", \"thoughts\": \"Yellow sunsets often symbolize warmth, comfort, and the peaceful transition between day and night. They can represent hope, renewal, and the beauty found in life's daily cycles. The golden color is frequently associated with wisdom, enlightenment, and the precious moments we should cherish as each day comes to a close."}         }
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":3,"delta":{"type":"input_json_delta","partial_json":"\"}"}          }
+
+event: content_block_stop
+data: {"type":"content_block_stop","index":3       }
+
+event: message_delta
+data: {"type":"message_delta","delta":{"stop_reason":"tool_use","stop_sequence":null},"usage":{"input_tokens":784,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"output_tokens":417}    }
+
+event: message_stop
+data: {"type":"message_stop"               }
+

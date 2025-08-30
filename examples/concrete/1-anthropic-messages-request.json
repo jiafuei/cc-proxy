@@ -1,0 +1,79 @@
+{
+  "model": "claude-sonnet-4-20250514",
+  "messages": [
+    {
+      "role": "user",
+      "content": [
+        {
+          "type": "text",
+          "text":"Hello! What is the meaning of yellow sunsets. You must reply in this way: \n1. \"let me get that for ya\" and add some flavor text of 2-3 sentences.\nThen call the get_meaning and get_extra_meaning tool."
+        }
+      ]
+    }
+  ],
+  "temperature": 1.0,
+  "system": [
+    {
+      "type": "text",
+      "text":"You are Claude Code, Anthropic's official CLI for Claude."
+    },
+    {
+      "type": "text",
+      "text":"Your job is to follow the users instructions and answer accordingly",
+      "cache_control": {
+        "type": "ephemeral"
+      }
+    }
+  ],
+  "tools": [
+    {
+      "name": "get_meaning",
+      "description":"Returns the meaning of the subject",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "subject": {
+            "type": "string",
+            "description":"The subject"
+          }
+        },
+        "required": [
+          "subject"
+        ],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "get_extra_meaning",
+      "description":"Returns the extra meaning of the subject",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "subject": {
+            "type": "string",
+            "description":"The subject"
+          },
+          "thoughts": {
+            "type": "string",
+            "description": "Your own thoughts on the meaning of the subject"
+          }
+        },
+        "required": [
+          "subject"
+        ],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    }
+  ],
+  "metadata": {
+    "user_id": "asdf"
+  },
+  "thinking": {
+    "type": "enabled",
+    "budget_tokens": 31999
+  },
+  "max_tokens": 32000,
+  "stream": true
+}
