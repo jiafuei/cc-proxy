@@ -1,6 +1,7 @@
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
+import orjson
 
 from app.common.anthropic_errors import extract_error_message, map_http_status_to_anthropic_error
 from app.common.dumper import Dumper
@@ -45,10 +46,10 @@ async def messages(payload: AnthropicRequest, request: Request, dumper: Dumper =
             # Map to proper Anthropic error type and extract message
             error_type = map_http_status_to_anthropic_error(e.response.status_code)
             error_message = extract_error_message(e)
-            logger.error(f'Provider error({e.response.status_code}): {error_message}')
+            logger.error(f'Provider error(HTTP {e.response.status_code}): {error_message}')
 
             # Format error as SSE
-            error_chunk = f'event: error\ndata: {{"type": "error", "error": {{"type": "{error_type}", "message": "{error_message}"}}}}\n\n'
+            error_chunk = f'event: error\ndata: {{"type": "error", "error": {{"type": f"{error_type}", "message": "{error_message}"}} }}\n\n'
 
             dumper.write_response_chunk(dumper_handles, error_chunk.encode())
             yield error_chunk.encode()

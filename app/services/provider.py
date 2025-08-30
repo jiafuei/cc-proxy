@@ -152,11 +152,15 @@ class Provider:
         logger.debug(f'Streaming request to {config.url}')
 
         async with self.http_client.stream('POST', config.url, json=request_data, headers=final_headers) as response:
-            response.raise_for_status()
+            try:
+                response.raise_for_status()
 
-            async for chunk in response.aiter_bytes():
-                if chunk:
-                    yield chunk
+                async for chunk in response.aiter_bytes():
+                    if chunk:
+                        yield chunk
+            except httpx.HTTPStatusError as e:
+                await response.aread()
+                raise
 
     async def _send_request(self, config: ProviderConfig, request_data: Dict[str, Any], headers: Dict[str, Any]) -> Dict[str, Any]:
         """Make a non-streaming HTTP request to the provider."""
