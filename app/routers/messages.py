@@ -89,28 +89,27 @@ async def count_tokens(payload: AnthropicRequest, request: Request, dumper: Dump
         logger.error('No provider available for request')
         raise HTTPException(status_code=400, detail={'error': {'type': 'model_not_found', 'message': 'No suitable provider found for request'}})
 
-    logger.info(f'Count request routed to provider: {provider.config.name}, route: {routing_key}')
-
     # Start dumping for debugging/logging
     dumper_handles = dumper.begin(request, payload.to_dict())
 
     try:
-        # Force non-streaming for count endpoint
-        payload.stream = False
-
         # Prepare request data and headers manually
         current_request = payload.to_dict()
         current_headers = {k: v for k, v in dict(request.headers).items() if k.lower() not in ('content-length', 'host', 'connection')}
 
         # Manually set authorization header with provider's API key
         if provider.config.api_key:
-            current_headers['authorization'] = f'Bearer {provider.config.api_key}'
+            current_headers['x-api-key'] = f'{provider.config.api_key}'
 
         # Dump transformed request
+        logger.info(f'Count request routed to provider: {provider.config.name}, route: {routing_key}', headers=current_headers)
         dumper.write_transformed_request(dumper_handles, current_request)
 
         # Send non-streaming request to provider
-        response = await provider._send_request(provider.config, current_request, current_headers)
+        # Create config with count_tokens URL
+        count_tokens_config = provider.config.model_copy()
+        count_tokens_config.url += '/count_tokens'
+        response = await provider._send_request(count_tokens_config, current_request, current_headers)
 
         # Parse JSON response
         response_json = response.json()

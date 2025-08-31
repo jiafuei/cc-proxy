@@ -51,7 +51,7 @@ class RequestInspector:
         Returns:
             Routing key ('default', 'planning', 'background', 'thinking', 'plan_and_think')
         """
-        if request.max_tokens < 768:
+        if request.max_tokens and request.max_tokens < 768:
             return 'background'
 
         # Check for combined plan mode + thinking

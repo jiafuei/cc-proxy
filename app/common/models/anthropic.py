@@ -130,9 +130,10 @@ class AnthropicRequest(BaseModel):
     system: list[AnthropicSystemMessage] | str | None = None
     tools: Optional[List[AnthropicTool]] = None
     metadata: Optional[AnthropicMetadata] = None
-    max_tokens: int = Field(default=32000)
+    # max_tokens: int | None = Field(default=32000)
+    max_tokens: int | None = None
     thinking: Optional[AnthropicThinkingConfig] = None
-    stream: Optional[bool] = True
+    stream: Optional[bool] = None
 
     def to_dict(self):
         return self.model_dump(mode='json', by_alias=True, exclude_none=True)

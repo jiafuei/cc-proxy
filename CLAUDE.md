@@ -33,3 +33,4 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - add '[ai]' to message when doing git commit. eg: 'feat: [ai] some feature'
 - Prioritize simple, readable code with minimal abstraction. Strive for elegant, minimal solutions that reduce complexity. Avoid premature optimization and over-engineering.
 - Ignore backward compatibility unless specified.
+- Always combine Bash commands using && to improve efficiency.
