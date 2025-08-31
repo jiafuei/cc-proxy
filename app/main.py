@@ -56,6 +56,7 @@ app.add_middleware(ContextMiddleware)
 
 logger = get_logger(__name__)
 
+
 @app.exception_handler(RequestValidationError)
 async def request_validation_error_handler(request: Request, exc: RequestValidationError):
     req_body = await request.json()

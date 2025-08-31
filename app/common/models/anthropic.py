@@ -137,11 +137,12 @@ class AnthropicRequest(BaseModel):
     def to_dict(self):
         return self.model_dump(mode='json', by_alias=True, exclude_none=True)
 
+
 class MessageErrorDetail(BaseModel):
     type: str
     message: str
 
+
 class MessageError(BaseModel):
     type: Literal['error']
     error: MessageErrorDetail
-

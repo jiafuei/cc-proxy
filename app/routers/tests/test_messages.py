@@ -36,15 +36,15 @@ def test_messages_endpoint():
     class MockDumper:
         def begin(self, request, payload):
             return DumpHandles(
-                headers_path=None, 
-                request_path=None, 
-                response_path=None, 
+                headers_path=None,
+                request_path=None,
+                response_path=None,
                 response_file=None,
                 transformed_request_path=None,
                 transformed_request_file=None,
                 pretransformed_response_path=None,
                 pretransformed_response_file=None,
-                correlation_id='test-correlation-id'
+                correlation_id='test-correlation-id',
             )
 
         def write_response_chunk(self, handles, chunk):
@@ -88,13 +88,11 @@ def test_messages_count_endpoint():
 
         async def _send_request(self, config, request_data, headers):
             """Mock provider that returns count response."""
+
             class MockResponse:
                 def json(self):
-                    return {
-                        'input_tokens': 10,
-                        'output_tokens': 0,
-                        'total_tokens': 10
-                    }
+                    return {'input_tokens': 10, 'output_tokens': 0, 'total_tokens': 10}
+
             return MockResponse()
 
     class MockRouter:
@@ -104,15 +102,15 @@ def test_messages_count_endpoint():
     class MockDumper:
         def begin(self, request, payload):
             return DumpHandles(
-                headers_path=None, 
-                request_path=None, 
-                response_path=None, 
+                headers_path=None,
+                request_path=None,
+                response_path=None,
                 response_file=None,
                 transformed_request_path=None,
                 transformed_request_file=None,
                 pretransformed_response_path=None,
                 pretransformed_response_file=None,
-                correlation_id='test-correlation-id'
+                correlation_id='test-correlation-id',
             )
 
         def write_transformed_request(self, handles, request):

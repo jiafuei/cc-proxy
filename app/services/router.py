@@ -28,10 +28,7 @@ def _create_default_anthropic_config() -> ProviderConfig:
             'request': [
                 {'class': 'app.services.transformers.anthropic.AnthropicCacheTransformer', 'params': {}},
                 {'class': 'app.services.transformers.anthropic.AnthropicHeadersTransformer', 'params': {}},
-                {'class': 'app.services.transformers.utils.AddHeaderTransformer', 'params': {'key': 'authorization', 'prefix': 'Bearer ', 'value': api_key}},
-            ]
-            if api_key
-            else [],
+            ],
             'response': [],
         },
         timeout=300,

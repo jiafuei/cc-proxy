@@ -298,7 +298,6 @@ class TestOpenAIResponseTransformer:
         assert len(batches) > 1, f'Should have processed multiple batches. Got {len(batches)} batches'
         assert len(all_results) > 10, 'Should have many events from batched processing'
 
-
     @pytest.mark.asyncio
     async def test_transform_chunk_line_by_line_text_only(self, transformer, mock_params_streaming):
         """Test transform_chunk called line by line with text-only SSE file."""
@@ -561,4 +560,3 @@ class TestOpenAIResponseTransformer:
         assert event_counts['content_block_stop'] == 2
         assert event_counts['message_delta'] == 1
         assert event_counts['message_stop'] == 1
-
