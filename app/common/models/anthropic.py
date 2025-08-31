@@ -127,7 +127,7 @@ class AnthropicRequest(BaseModel):
     model: str
     messages: List[AnthropicMessage]
     temperature: Optional[float] = None
-    system: Optional[List[AnthropicSystemMessage]] = None
+    system: list[AnthropicSystemMessage] | str | None = None
     tools: Optional[List[AnthropicTool]] = None
     metadata: Optional[AnthropicMetadata] = None
     max_tokens: int = Field(default=32000)
@@ -136,3 +136,12 @@ class AnthropicRequest(BaseModel):
 
     def to_dict(self):
         return self.model_dump(mode='json', by_alias=True, exclude_none=True)
+
+class MessageErrorDetail(BaseModel):
+    type: str
+    message: str
+
+class MessageError(BaseModel):
+    type: Literal['error']
+    error: MessageErrorDetail
+

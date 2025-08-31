@@ -35,7 +35,17 @@ def test_messages_endpoint():
 
     class MockDumper:
         def begin(self, request, payload):
-            return DumpHandles(headers_path=None, request_path=None, response_path=None, response_file=None)
+            return DumpHandles(
+                headers_path=None, 
+                request_path=None, 
+                response_path=None, 
+                response_file=None,
+                transformed_request_path=None,
+                transformed_request_file=None,
+                pretransformed_response_path=None,
+                pretransformed_response_file=None,
+                correlation_id='test-correlation-id'
+            )
 
         def write_response_chunk(self, handles, chunk):
             pass
@@ -61,6 +71,102 @@ def test_messages_endpoint():
         content = response.content.decode()
         assert 'event: message_start' in content
         assert 'event: message_stop' in content
+
+
+def test_messages_count_endpoint():
+    """Test the messages count endpoint."""
+    app = FastAPI()
+    app.include_router(router)
+    client = TestClient(app)
+
+    class MockProvider:
+        def __init__(self, name='test-provider'):
+            self.config = Mock()
+            self.config.name = name
+            self.config.api_key = 'test-api-key'
+
+        async def _send_request(self, config, request_data, headers):
+            """Mock provider that returns count response."""
+            return {
+                'input_tokens': 10,
+                'output_tokens': 0,
+                'total_tokens': 10
+            }
+
+    class MockRouter:
+        def get_provider_for_request(self, request):
+            return MockProvider(), 'default'
+
+    class MockDumper:
+        def begin(self, request, payload):
+            return DumpHandles(
+                headers_path=None, 
+                request_path=None, 
+                response_path=None, 
+                response_file=None,
+                transformed_request_path=None,
+                transformed_request_file=None,
+                pretransformed_response_path=None,
+                pretransformed_response_file=None,
+                correlation_id='test-correlation-id'
+            )
+
+        def write_transformed_request(self, handles, request):
+            pass
+
+        def write_response_chunk(self, handles, chunk):
+            pass
+
+        def close(self, handles):
+            pass
+
+    class MockServiceContainer:
+        def __init__(self):
+            self.router = MockRouter()
+
+    with patch('app.routers.messages.get_service_container') as mock_get_container:
+        mock_service_container = MockServiceContainer()
+        mock_get_container.return_value = mock_service_container
+
+        # Override the dumper dependency
+        app.dependency_overrides[get_dumper] = lambda: MockDumper()
+
+        response = client.post('/v1/messages/count_tokens', json={'model': 'test-model', 'messages': [{'role': 'user', 'content': 'Hello'}]})
+
+        assert response.status_code == 200
+        assert response.headers['content-type'] == 'application/json'
+
+        # Check that we get the expected count response
+        json_response = response.json()
+        assert 'input_tokens' in json_response
+        assert 'output_tokens' in json_response
+        assert 'total_tokens' in json_response
+        assert json_response['input_tokens'] == 10
+        assert json_response['total_tokens'] == 10
+
+
+def test_messages_count_endpoint_no_provider():
+    """Test messages count endpoint when no provider is available."""
+    app = FastAPI()
+    app.include_router(router)
+    client = TestClient(app)
+
+    class MockRouter:
+        def get_provider_for_request(self, request):
+            return None, 'default'  # No provider available
+
+    class MockServiceContainer:
+        def __init__(self):
+            self.router = MockRouter()
+
+    with patch('app.routers.messages.get_service_container') as mock_get_container:
+        mock_get_container.return_value = MockServiceContainer()
+
+        response = client.post('/v1/messages/count_tokens', json={'model': 'test-model', 'messages': [{'role': 'user', 'content': 'Hello'}]})
+
+        assert response.status_code == 400
+        response_data = response.json()
+        assert response_data['detail']['error']['type'] == 'model_not_found'
 
 
 def test_messages_endpoint_no_provider():
@@ -98,6 +204,22 @@ def test_messages_endpoint_system_not_available():
         mock_get_container.return_value = None
 
         response = client.post('/v1/messages', json={'model': 'test-model', 'messages': [{'role': 'user', 'content': 'Hello'}]})
+
+        assert response.status_code == 500
+        response_data = response.json()
+        assert response_data['detail']['error']['type'] == 'api_error'
+
+
+def test_messages_count_endpoint_system_not_available():
+    """Test messages count endpoint when service container is not available."""
+    app = FastAPI()
+    app.include_router(router)
+    client = TestClient(app)
+
+    with patch('app.routers.messages.get_service_container') as mock_get_container:
+        mock_get_container.return_value = None
+
+        response = client.post('/v1/messages/count_tokens', json={'model': 'test-model', 'messages': [{'role': 'user', 'content': 'Hello'}]})
 
         assert response.status_code == 500
         response_data = response.json()

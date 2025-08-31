@@ -122,11 +122,11 @@ class Provider:
             response = await self._send_request(config, current_request, current_headers)
 
             # Dump pre-transformed response
-            response_bytes = orjson.dumps(response)
-            dumper.write_pretransformed_response(dumper_handles, response_bytes)
+            response_text = response.text
+            dumper.write_pretransformed_response(dumper_handles, response_text)
 
             # Apply response transformers to full response
-            transformed_response = response
+            transformed_response = response.json()
             response_params = {}  # Initialize once outside loop for consistency
             for transformer in self.response_transformers:
                 response_params.update(
@@ -162,7 +162,7 @@ class Provider:
                 await response.aread()
                 raise
 
-    async def _send_request(self, config: ProviderConfig, request_data: Dict[str, Any], headers: Dict[str, Any]) -> Dict[str, Any]:
+    async def _send_request(self, config: ProviderConfig, request_data: Dict[str, Any], headers: Dict[str, Any]) -> httpx.Response:
         """Make a non-streaming HTTP request to the provider."""
         # Use headers from transformers (which may include auth)
         final_headers = headers
@@ -170,9 +170,13 @@ class Provider:
         logger.debug(f'Non-streaming request to {config.url}')
 
         response = await self.http_client.post(config.url, json=request_data, headers=final_headers)
-        response.raise_for_status()
+        try:
+            response.raise_for_status()
+        except:
+            await response.aread()
+            raise
 
-        return response.json()
+        return response
 
     async def _convert_response_to_sse(self, response: Dict[str, Any]) -> AsyncIterator[bytes]:
         """Convert a non-streaming response to SSE format."""
