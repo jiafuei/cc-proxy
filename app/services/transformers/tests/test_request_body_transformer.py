@@ -4,7 +4,7 @@ from unittest.mock import Mock
 
 import pytest
 
-from app.services.transformers.request_body import RequestBodyTransformer
+from app.services.transformers.utils import RequestBodyTransformer
 
 
 class TestRequestBodyTransformer:
@@ -42,106 +42,19 @@ class TestRequestBodyTransformer:
         with pytest.raises(ValueError, match="Invalid operation 'invalid'"):
             RequestBodyTransformer(mock_logger, key='test', value='value', op='invalid')
 
-    def test_parse_key_path_simple(self, transformer):
-        """Test parsing simple key path."""
-        result = transformer._parse_key_path('model')
-        assert result == ['model']
+    def test_init_empty_key(self):
+        """Test initialization with empty key raises ValueError."""
+        mock_logger = Mock()
 
-    def test_parse_key_path_nested(self, transformer):
-        """Test parsing nested key path with dot notation."""
-        result = transformer._parse_key_path('messages.0.content')
-        assert result == ['messages', 0, 'content']
+        with pytest.raises(ValueError, match="'key' parameter is required"):
+            RequestBodyTransformer(mock_logger, key='', value='value', op='set')
 
-    def test_parse_key_path_mixed(self, transformer):
-        """Test parsing mixed key path with strings and numbers."""
-        result = transformer._parse_key_path('metadata.user_id')
-        assert result == ['metadata', 'user_id']
+    def test_init_invalid_jsonpath(self):
+        """Test initialization with invalid JSONPath raises ValueError."""
+        mock_logger = Mock()
 
-    def test_parse_key_path_empty(self, transformer):
-        """Test parsing empty key path."""
-        result = transformer._parse_key_path('')
-        assert result == []
-
-    def test_get_nested_value_simple(self, transformer, sample_request):
-        """Test getting simple nested value."""
-        result = transformer._get_nested_value(sample_request, ['model'])
-        assert result == 'claude-3'
-
-    def test_get_nested_value_array_index(self, transformer, sample_request):
-        """Test getting value from array using index."""
-        result = transformer._get_nested_value(sample_request, ['messages', 0, 'role'])
-        assert result == 'user'
-
-    def test_get_nested_value_nested_object(self, transformer, sample_request):
-        """Test getting value from nested object."""
-        result = transformer._get_nested_value(sample_request, ['metadata', 'user_id'])
-        assert result == '123'
-
-    def test_get_nested_value_missing_key(self, transformer, sample_request):
-        """Test getting value with missing key raises KeyError."""
-        with pytest.raises(KeyError):
-            transformer._get_nested_value(sample_request, ['nonexistent'])
-
-    def test_get_nested_value_invalid_array_index(self, transformer, sample_request):
-        """Test getting value with invalid array index raises KeyError."""
-        with pytest.raises(KeyError):
-            transformer._get_nested_value(sample_request, ['messages', 10])
-
-    def test_set_nested_value_simple(self, transformer, sample_request):
-        """Test setting simple nested value."""
-        transformer._set_nested_value(sample_request, ['model'], 'new-model')
-        assert sample_request['model'] == 'new-model'
-
-    def test_set_nested_value_new_key(self, transformer, sample_request):
-        """Test setting value for new key."""
-        transformer._set_nested_value(sample_request, ['new_key'], 'new_value')
-        assert sample_request['new_key'] == 'new_value'
-
-    def test_set_nested_value_array_index(self, transformer, sample_request):
-        """Test setting value in array using index."""
-        transformer._set_nested_value(sample_request, ['messages', 0, 'content'], 'Updated message')
-        assert sample_request['messages'][0]['content'] == 'Updated message'
-
-    def test_set_nested_value_create_intermediate_object(self, transformer):
-        """Test setting value creates intermediate objects."""
-        request = {}
-        transformer._set_nested_value(request, ['metadata', 'user_id'], '123')
-        assert request == {'metadata': {'user_id': '123'}}
-
-    def test_set_nested_value_create_intermediate_array(self, transformer):
-        """Test setting value creates intermediate arrays."""
-        request = {}
-        transformer._set_nested_value(request, ['items', 0], 'first_item')
-        assert request == {'items': ['first_item']}
-
-    def test_set_nested_value_extend_array(self, transformer):
-        """Test setting value extends array if necessary."""
-        request = {'items': ['a']}
-        transformer._set_nested_value(request, ['items', 3], 'd')
-        assert request['items'] == ['a', None, None, 'd']
-
-    def test_delete_nested_key_simple(self, transformer, sample_request):
-        """Test deleting simple key."""
-        transformer._delete_nested_key(sample_request, ['temperature'])
-        assert 'temperature' not in sample_request
-
-    def test_delete_nested_key_array_index(self, transformer, sample_request):
-        """Test deleting array element by index."""
-        original_length = len(sample_request['messages'])
-        transformer._delete_nested_key(sample_request, ['messages', 0])
-        assert len(sample_request['messages']) == original_length - 1
-        assert sample_request['messages'][0]['role'] == 'assistant'
-
-    def test_delete_nested_key_nested_object(self, transformer, sample_request):
-        """Test deleting key from nested object."""
-        transformer._delete_nested_key(sample_request, ['metadata', 'user_id'])
-        assert 'user_id' not in sample_request['metadata']
-        assert 'session' in sample_request['metadata']
-
-    def test_delete_nested_key_missing(self, transformer, sample_request):
-        """Test deleting missing key raises KeyError."""
-        with pytest.raises(KeyError):
-            transformer._delete_nested_key(sample_request, ['nonexistent'])
+        with pytest.raises(ValueError, match='Invalid JSONPath expression'):
+            RequestBodyTransformer(mock_logger, key='[invalid', value='value', op='set')
 
     @pytest.mark.asyncio
     async def test_transform_set_operation(self, sample_request):
@@ -196,17 +109,6 @@ class TestRequestBodyTransformer:
         assert result_request['messages'][1]['role'] == 'user'  # Original first moved to second
 
     @pytest.mark.asyncio
-    async def test_transform_append_to_nonexistent_key(self, sample_request):
-        """Test transform append creates new list for nonexistent key."""
-        mock_logger = Mock()
-        transformer = RequestBodyTransformer(mock_logger, key='new_array', value='item1', op='append')
-
-        params = {'request': sample_request, 'headers': {}}
-        result_request, result_headers = await transformer.transform(params)
-
-        assert result_request['new_array'] == ['item1']
-
-    @pytest.mark.asyncio
     async def test_transform_merge_operation(self, sample_request):
         """Test transform with merge operation."""
         mock_logger = Mock()
@@ -219,18 +121,6 @@ class TestRequestBodyTransformer:
         assert result_request['metadata']['user_id'] == '123'  # Original preserved
         assert result_request['metadata']['session'] == 'updated_session'  # Updated
         assert result_request['metadata']['version'] == '1.0'  # New key added
-
-    @pytest.mark.asyncio
-    async def test_transform_merge_to_nonexistent_key(self, sample_request):
-        """Test transform merge creates new object for nonexistent key."""
-        mock_logger = Mock()
-        merge_data = {'key1': 'value1', 'key2': 'value2'}
-        transformer = RequestBodyTransformer(mock_logger, key='new_object', value=merge_data, op='merge')
-
-        params = {'request': sample_request, 'headers': {}}
-        result_request, result_headers = await transformer.transform(params)
-
-        assert result_request['new_object'] == merge_data
 
     @pytest.mark.asyncio
     async def test_transform_append_to_non_list_error(self, sample_request):
@@ -259,23 +149,10 @@ class TestRequestBodyTransformer:
         mock_logger.error.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_transform_empty_key_warning(self, sample_request):
-        """Test transform with empty key logs warning and returns original."""
-        mock_logger = Mock()
-        transformer = RequestBodyTransformer(mock_logger, key='', value='value', op='set')
-
-        params = {'request': sample_request, 'headers': {}}
-        result_request, result_headers = await transformer.transform(params)
-
-        assert result_request is not sample_request  # Deep copy still made
-        assert result_request == sample_request  # But content is same
-        mock_logger.warning.assert_called_once()
-
-    @pytest.mark.asyncio
     async def test_transform_nested_key_operations(self, sample_request):
-        """Test transform with nested key paths."""
+        """Test transform with nested key paths using JSONPath."""
         mock_logger = Mock()
-        transformer = RequestBodyTransformer(mock_logger, key='messages.0.content', value='Updated content', op='set')
+        transformer = RequestBodyTransformer(mock_logger, key='messages[0].content', value='Updated content', op='set')
 
         params = {'request': sample_request, 'headers': {}}
         result_request, result_headers = await transformer.transform(params)
@@ -296,36 +173,30 @@ class TestRequestBodyTransformer:
         assert result_headers is original_headers
         assert result_headers == original_headers
 
-    def test_modify_key_set_operation(self, transformer, sample_request):
-        """Test _modify_key with set operation."""
-        transformer._modify_key(sample_request, 'model', 'gpt-4', 'set')
-        assert sample_request['model'] == 'gpt-4'
+    @pytest.mark.asyncio
+    async def test_transform_jsonpath_array_wildcard(self, sample_request):
+        """Test transform with JSONPath array wildcard selector."""
+        mock_logger = Mock()
+        transformer = RequestBodyTransformer(mock_logger, key='messages[*].role', value='system', op='set')
 
-    def test_modify_key_append_operation(self, transformer):
-        """Test _modify_key with append operation."""
-        request = {'items': ['a', 'b']}
-        transformer._modify_key(request, 'items', 'c', 'append')
-        assert request['items'] == ['a', 'b', 'c']
+        params = {'request': sample_request, 'headers': {}}
+        result_request, result_headers = await transformer.transform(params)
 
-    def test_modify_key_prepend_operation(self, transformer):
-        """Test _modify_key with prepend operation."""
-        request = {'items': ['b', 'c']}
-        transformer._modify_key(request, 'items', 'a', 'prepend')
-        assert request['items'] == ['a', 'b', 'c']
+        # All message roles should be set to 'system'
+        assert all(msg['role'] == 'system' for msg in result_request['messages'])
+        # Original should be unchanged
+        assert sample_request['messages'][0]['role'] == 'user'
+        assert sample_request['messages'][1]['role'] == 'assistant'
 
-    def test_modify_key_merge_operation(self, transformer):
-        """Test _modify_key with merge operation."""
-        request = {'metadata': {'key1': 'value1'}}
-        transformer._modify_key(request, 'metadata', {'key2': 'value2'}, 'merge')
-        assert request['metadata'] == {'key1': 'value1', 'key2': 'value2'}
+    @pytest.mark.asyncio
+    async def test_transform_nonexistent_path(self, sample_request):
+        """Test transform with nonexistent JSONPath returns original request."""
+        mock_logger = Mock()
+        transformer = RequestBodyTransformer(mock_logger, key='nonexistent.path', value='value', op='set')
 
-    def test_delete_key_simple(self, transformer, sample_request):
-        """Test _delete_key with simple path."""
-        transformer._delete_key(sample_request, 'temperature')
-        assert 'temperature' not in sample_request
+        params = {'request': sample_request, 'headers': {}}
+        result_request, result_headers = await transformer.transform(params)
 
-    def test_delete_key_nested(self, transformer, sample_request):
-        """Test _delete_key with nested path."""
-        transformer._delete_key(sample_request, 'metadata.user_id')
-        assert 'user_id' not in sample_request['metadata']
-        assert 'session' in sample_request['metadata']  # Other keys preserved
+        # Should return deep copy but unchanged since path doesn't match anything
+        assert result_request is not sample_request  # Different object
+        assert result_request == sample_request  # Same content
