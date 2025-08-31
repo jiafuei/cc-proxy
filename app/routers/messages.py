@@ -73,7 +73,7 @@ async def messages(payload: AnthropicRequest, request: Request, dumper: Dumper =
 
 
 @router.post('/v1/messages/count_tokens')
-async def messages_count(payload: AnthropicRequest, request: Request, dumper: Dumper = Depends(get_dumper)):
+async def count_tokens(payload: AnthropicRequest, request: Request, dumper: Dumper = Depends(get_dumper)):
     """Handle Anthropic API messages count requests with transparent routing to provider."""
 
     # Get the service container (router + providers)
@@ -99,7 +99,7 @@ async def messages_count(payload: AnthropicRequest, request: Request, dumper: Du
 
         # Prepare request data and headers manually
         current_request = payload.to_dict()
-        current_headers = {k:v for k,v in dict(request.headers).items() if not k.lower() not in ('content-length', 'host', 'connection')}
+        current_headers = {k: v for k, v in dict(request.headers).items() if k.lower() not in ('content-length', 'host', 'connection')}
 
         # Manually set authorization header with provider's API key
         if provider.config.api_key:
@@ -111,12 +111,14 @@ async def messages_count(payload: AnthropicRequest, request: Request, dumper: Du
         # Send non-streaming request to provider
         response = await provider._send_request(provider.config, current_request, current_headers)
 
-        # Dump response
+        # Parse JSON response
+        response_json = response.json()
 
-        response_bytes = orjson.dumps(response.text)
+        # Dump response
+        response_bytes = orjson.dumps(response_json)
         dumper.write_response_chunk(dumper_handles, response_bytes)
 
-        return ORJSONResponse(response.text)
+        return ORJSONResponse(response_json)
 
     except httpx.HTTPStatusError as e:
         # Map to proper Anthropic error type and extract message

@@ -84,14 +84,18 @@ def test_messages_count_endpoint():
             self.config = Mock()
             self.config.name = name
             self.config.api_key = 'test-api-key'
+            self.request_transformers = []
 
         async def _send_request(self, config, request_data, headers):
             """Mock provider that returns count response."""
-            return {
-                'input_tokens': 10,
-                'output_tokens': 0,
-                'total_tokens': 10
-            }
+            class MockResponse:
+                def json(self):
+                    return {
+                        'input_tokens': 10,
+                        'output_tokens': 0,
+                        'total_tokens': 10
+                    }
+            return MockResponse()
 
     class MockRouter:
         def get_provider_for_request(self, request):
