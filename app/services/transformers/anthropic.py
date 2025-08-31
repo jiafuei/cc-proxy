@@ -39,6 +39,19 @@ class AnthropicHeadersTransformer(RequestTransformer):
             )
         }
 
+        # Prefer x-api-key over authorization header
+        if 'x-api-key' in filtered_headers and 'authorization' in filtered_headers:
+            # Remove authorization if x-api-key exists
+            filtered_headers.pop('authorization')
+        elif 'x-api-key' not in filtered_headers and 'authorization' in filtered_headers:
+            # Convert authorization to x-api-key if no x-api-key exists
+            auth_value = filtered_headers.pop('authorization')
+            # Remove 'bearer ' prefix if present (case-insensitive)
+            bearer_prefix = 'bearer '
+            if auth_value.lower().startswith(bearer_prefix):
+                auth_value = auth_value[len(bearer_prefix) :].strip()
+            filtered_headers['x-api-key'] = auth_value
+
         return request, filtered_headers
 
 
