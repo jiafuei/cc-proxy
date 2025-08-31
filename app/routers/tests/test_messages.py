@@ -193,7 +193,7 @@ def test_messages_endpoint_no_provider():
 
         assert response.status_code == 400
         response_data = response.json()
-        assert response_data['detail']['error']['type'] == 'model_not_found'
+        assert response_data['error']['type'] == 'model_not_found'
 
 
 def test_messages_endpoint_system_not_available():
@@ -209,7 +209,7 @@ def test_messages_endpoint_system_not_available():
 
         assert response.status_code == 500
         response_data = response.json()
-        assert response_data['detail']['error']['type'] == 'api_error'
+        assert response_data['error']['type'] == 'api_error'
 
 
 def test_messages_count_endpoint_system_not_available():
@@ -317,3 +317,70 @@ def test_messages_endpoint_with_dumping(tmp_path):
         with open(os.path.join(tmp_path, sse_files[0]), 'rb') as f:
             content = f.read()
             assert b'Test response' in content
+
+
+def test_messages_endpoint_provider_http_error():
+    """Test messages endpoint when provider returns HTTP error."""
+    app = FastAPI()
+    app.include_router(router)
+    client = TestClient(app)
+
+    class MockProvider:
+        def __init__(self):
+            self.config = Mock()
+            self.config.name = 'test-provider'
+
+        async def process_request(self, payload, request, routing_key=None, dumper=None, dumper_handles=None):
+            # Simulate httpx.HTTPStatusError
+            mock_response = Mock()
+            mock_response.status_code = 401
+            mock_response.text = '{"error": {"message": "Invalid API key"}}'
+            mock_response.json.return_value = {'error': {'message': 'Invalid API key'}}
+
+            import httpx
+
+            raise httpx.HTTPStatusError('Unauthorized', request=Mock(), response=mock_response)
+            yield  # Make it a generator (though this won't be reached)
+
+    class MockRouter:
+        def get_provider_for_request(self, request):
+            return MockProvider(), 'default'
+
+    class MockDumper:
+        def begin(self, request, payload):
+            return DumpHandles(
+                headers_path=None,
+                request_path=None,
+                response_path=None,
+                response_file=None,
+                transformed_request_path=None,
+                transformed_request_file=None,
+                pretransformed_response_path=None,
+                pretransformed_response_file=None,
+                correlation_id='test-correlation-id',
+            )
+
+        def close(self, handles):
+            pass
+
+    class MockServiceContainer:
+        def __init__(self):
+            self.router = MockRouter()
+
+    with patch('app.routers.messages.get_service_container') as mock_get_container:
+        mock_service_container = MockServiceContainer()
+        mock_get_container.return_value = mock_service_container
+
+        # Override the dumper dependency
+        app.dependency_overrides[get_dumper] = lambda: MockDumper()
+
+        response = client.post('/v1/messages', json={'model': 'test-model', 'messages': [{'role': 'user', 'content': 'Hello'}]})
+
+        assert response.status_code == 401
+        assert response.headers['content-type'] == 'application/json'
+
+        # Check that we get proper error response format
+        json_response = response.json()
+        assert 'error' in json_response
+        assert json_response['error']['type'] == 'authentication_error'
+        assert json_response['error']['message'] == 'Invalid API key'

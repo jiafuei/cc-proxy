@@ -18,58 +18,59 @@ logger = get_logger(__name__)
 async def messages(payload: AnthropicRequest, request: Request, dumper: Dumper = Depends(get_dumper)):
     """Handle Anthropic API messages with simplified routing and provider system."""
 
-    # Get the service container (router + providers)
+    # Phase 1: Basic validation - can still return JSON errors
     service_container = get_service_container()
     if not service_container:
         logger.error('Service container not available - check configuration')
-        raise HTTPException(status_code=500, detail={'error': {'type': 'api_error', 'message': 'Service configuration failed'}})
+        return ORJSONResponse({'error': {'type': 'api_error', 'message': 'Service configuration failed'}}, status_code=500)
 
-    # Get provider for request
     provider, routing_key = service_container.router.get_provider_for_request(payload)
     if not provider:
         logger.error('No provider available for request')
-        raise HTTPException(status_code=400, detail={'error': {'type': 'model_not_found', 'message': 'No suitable provider found for request'}})
+        return ORJSONResponse({'error': {'type': 'model_not_found', 'message': 'No suitable provider found for request'}}, status_code=400)
 
     logger.info(f'Request routed to provider: {provider.config.name}, route: {routing_key}')
 
     # Start dumping for debugging/logging
     dumper_handles = dumper.begin(request, payload.to_dict())
 
-    async def generate():
+    # Phase 2: Test provider connectivity by getting first chunk
+    try:
+        provider_generator = provider.process_request(payload, request, routing_key, dumper, dumper_handles)
+        first_chunk = await provider_generator.__anext__()
+    except StopAsyncIteration:
+        # Empty response from provider
+        dumper.close(dumper_handles)
+        logger.error('Provider returned empty response')
+        return ORJSONResponse({'error': {'type': 'api_error', 'message': 'Provider returned empty response'}}, status_code=502)
+    except httpx.HTTPStatusError as e:
+        # HTTP error from provider - return with original status code
+        error_type = map_http_status_to_anthropic_error(e.response.status_code)
+        error_message = extract_error_message(e)
+        logger.error(f'Provider error(HTTP {e.response.status_code}): {error_message}')
+        dumper.close(dumper_handles)
+        return ORJSONResponse({'error': {'type': error_type, 'message': error_message}}, status_code=e.response.status_code)
+    except Exception as e:
+        # Other processing errors
+        logger.error(f'Error processing request: {e}', exc_info=True)
+        dumper.close(dumper_handles)
+        return ORJSONResponse({'error': {'type': 'api_error', 'message': f'Request processing failed: {str(e)}'}}, status_code=500)
+
+    # Phase 3: Provider working - commit to streaming
+    async def stream_remaining():
+        # Send buffered first chunk
+        dumper.write_response_chunk(dumper_handles, first_chunk)
+        yield first_chunk
+
+        # Stream remaining chunks (errors here close connection)
         try:
-            # Process through provider (handles transformers + HTTP + streaming)
-            async for chunk in provider.process_request(payload, request, routing_key, dumper, dumper_handles):
+            async for chunk in provider_generator:
                 dumper.write_response_chunk(dumper_handles, chunk)
                 yield chunk
-
-        except httpx.HTTPStatusError as e:
-            # Map to proper Anthropic error type and extract message
-            error_type = map_http_status_to_anthropic_error(e.response.status_code)
-            error_message = extract_error_message(e)
-            logger.error(f'Provider error(HTTP {e.response.status_code}): {error_message}')
-
-            # Format error as SSE
-            error_chunk = f'event: error\ndata: {{"type": "error", "error": {{"type": f"{error_type}", "message": f"{error_message}"}} }}\n\n'
-
-            dumper.write_response_chunk(dumper_handles, error_chunk.encode())
-            yield error_chunk.encode()
-        except Exception as e:
-            logger.error(f'Error processing request: {e}', exc_info=True)
-
-            # Format error as SSE
-            error_message = f'Request processing failed: {str(e)}'
-            error_chunk = f'event: error\ndata: {{"type": "error", "error": {{"type": "api_error", "message": f"{error_message}"}}}}\n\n'
-
-            dumper.write_response_chunk(dumper_handles, error_chunk.encode())
-            yield error_chunk.encode()
-
         finally:
             dumper.close(dumper_handles)
 
-    try:
-        return StreamingResponse(generate(), media_type='text/event-stream')
-    except HTTPException as e:
-        return ORJSONResponse(e.detail, e.status_code, media_type='application/json')
+    return StreamingResponse(stream_remaining(), media_type='text/event-stream')
 
 
 @router.post('/v1/messages/count_tokens')
