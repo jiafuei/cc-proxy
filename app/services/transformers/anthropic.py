@@ -335,6 +335,7 @@ class ClaudeSystemMessageCleanerTransformer(RequestTransformer):
         """Initialize transformer."""
         self.logger = logger
 
+
     async def transform(self, params: Dict[str, Any]) -> Tuple[Dict[str, Any], Dict[str, str]]:
         """Clean system messages by removing git status suffix."""
         request, headers = params['request'], params['headers']
@@ -347,24 +348,37 @@ class ClaudeSystemMessageCleanerTransformer(RequestTransformer):
         if not request['system']:
             return request, headers
 
-        self._remove_system_git_status_suffix(request)
+        block = request['system'][-1]
+        text = block['text']
+        if not isinstance(text, str):
+            return request, headers
+
+        text = self._remove_system_git_status_suffix(text)
+        text = self._remove_defensive_task_lines(text)
+
+        request['system'][-1]['text'] = text
 
         return request, headers
 
-    def _remove_system_git_status_suffix(self, request: dict[str, Any]):
+    def _remove_system_git_status_suffix(self, text: str):
         """Remove git status suffix from system messages.
 
         Removes the entire chunk starting with '\ngitStatus: ' from the last
         system message to make it more cache-friendly and reusable.
         """
-        block = request['system'][-1]
-        text = block['text']
-        if not isinstance(text, str):
-            return
+
 
         # Remove the entire chunk of 'gitStatus: This is the git status at the start of the conversation....'
         # So the system message can be reused for the entire time Claude Code is open
         git_status_pos = text.rfind('\ngitStatus: ')
         if git_status_pos != -1:  # Only truncate if gitStatus is found
             text = text[:git_status_pos]
-            request['system'][-1]['text'] = text
+        return text
+
+    def _remove_defensive_task_lines(self, text: str):
+        remove_lines = [
+            'IMPORTANT: Assist with defensive',
+            'You are powered',
+            'Assistant knowledge cutoff'
+        ]
+        return '\n'.join((line for line in text.splitlines() if not any(line.startswith(l) for l in remove_lines)))
