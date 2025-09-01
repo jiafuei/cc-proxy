@@ -2,6 +2,7 @@
 
 import copy
 from typing import Any, Dict, Tuple
+from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
 
 from jsonpath_ng import parse
 
@@ -190,3 +191,77 @@ class RequestBodyTransformer(RequestTransformer):
             raise ValueError('Merge requires dict target and dict value')
         context.update(value)
 
+
+class GeminiApiKeyTransformer(RequestTransformer):
+    """Gemini-specific transformer that adds API key as a query parameter.
+
+    Google's Gemini API uses query parameters for authentication (?key=API_KEY)
+    instead of headers. This transformer extracts the API key from headers or
+    provider config and adds it as a URL query parameter.
+    """
+
+    def __init__(self, logger):
+        """Initialize transformer.
+
+        Args:
+            logger: Logger instance
+        """
+        self.logger = logger
+
+    async def transform(self, params: Dict[str, Any]) -> Tuple[Dict[str, Any], Dict[str, str]]:
+        """Add API key as query parameter to provider config URL."""
+        request: dict[str, Any] = params['request']
+        headers: dict[str, str] = params['headers']
+
+        if 'provider_config' not in params:
+            return request, headers
+
+        provider_config: ProviderConfig = params['provider_config']
+
+        # Extract API key from various sources
+        api_key = self._extract_api_key(headers, provider_config)
+
+        if api_key:
+            # Parse current URL
+            parsed = urlparse(provider_config.url)
+            query_params = parse_qs(parsed.query, keep_blank_values=True)
+
+            # Add the key parameter
+            query_params['key'] = [api_key]
+
+            # Rebuild the URL with the new query parameter
+            new_query = urlencode(query_params, doseq=True)
+            new_url = urlunparse((parsed.scheme, parsed.netloc, parsed.path, parsed.params, new_query, parsed.fragment))
+
+            provider_config.url = new_url
+            self.logger.debug('Added API key as query parameter to Gemini URL')
+        else:
+            self.logger.warning('No API key found for Gemini authentication')
+
+        return request, headers
+
+    def _extract_api_key(self, headers: Dict[str, str], provider_config: ProviderConfig) -> str:
+        """Extract API key from headers or provider config.
+
+        Args:
+            headers: Request headers
+            provider_config: Provider configuration
+
+        Returns:
+            API key string or empty string if not found
+        """
+        # Try provider config first
+        if hasattr(provider_config, 'api_key') and provider_config.api_key:
+            return provider_config.api_key
+
+        # Try authorization header
+        if auth_header := headers.get('authorization', ''):
+            if auth_header.lower().startswith('bearer '):
+                return auth_header[7:].strip()
+            return auth_header
+
+        # Try x-goog-api-key header
+        if api_key_header := headers.get('x-goog-api-key', ''):
+            return api_key_header
+
+        return ''
