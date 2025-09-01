@@ -189,3 +189,4 @@ class RequestBodyTransformer(RequestTransformer):
         if not isinstance(context, dict) or not isinstance(value, dict):
             raise ValueError('Merge requires dict target and dict value')
         context.update(value)
+

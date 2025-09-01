@@ -26,37 +26,39 @@ Robust configuration system with validation.
 - [x] Configuration file validation
 - [x] Error handling and user-friendly messages
 
-## Phase 2: Pipelines by Configuration 🚧
-**Status: In Progress**
+## Phase 2: Pipelines by Configuration ✅
+**Status: Complete**
 
 Dynamic pipeline configuration and built-in transformers.
 
 - [x] Request/Response Pipeline engine
 - [x] Pipelines declared by name with ordered transformer refs
-- [x] Wire built-in transformers (Anthropic, OpenAI, Gemini)
-- [ ] Pipeline validation and error recovery
+- [x] Wire built-in transformers (Anthropic, OpenAI)
+- [x] Pipeline validation and error recovery
+- [ ] Gemini transformers (not implemented)
 - [ ] Pipeline debugging and introspection tools
 
-## Phase 3: Routing Stages 📋
-**Status: Planned**
+## Phase 3: Routing Stages ✅
+**Status: Complete**
 
 Advanced routing based on request context and content.
 
-- [ ] ModelRouter with stages: default, thinking, planning, background
-- [ ] Context-aware routing (detect request type from content)
-- [ ] Per-stage provider+model selection
-- [ ] Routing policy configuration
-- [ ] Request classification system
+- [x] ModelRouter with stages: default, thinking, planning, background, plan_and_think
+- [x] Context-aware routing (detect request type from content)
+- [x] Per-stage provider+model selection
+- [x] Routing policy configuration
+- [x] Request classification system
+- [x] Direct routing with '!' suffix
 
-## Phase 4: Extensibility (Plugin SDK) 📋
-**Status: Planned**
+## Phase 4: Extensibility (Plugin SDK) 🚧
+**Status: In Progress**
 
 User-defined transformers and plugin system (without sandboxing).
 
-- [ ] User-defined transformers referenced by name/id
-- [ ] Load transformers from local disk paths
-- [ ] Plugin discovery and registration
-- [ ] Fail-safe fallback mechanisms
+- [x] User-defined transformers referenced by name/id
+- [x] Load transformers from local disk paths
+- [x] Plugin discovery and registration
+- [x] Fail-safe fallback mechanisms
 - [ ] Plugin API documentation
 - [ ] Example plugins and templates
 
@@ -84,11 +86,15 @@ Production-grade reliability features.
 - [ ] Schema validation hardening
 - [ ] Connection pooling optimization
 
-## Phase 7: Tooling & Documentation 📋
-**Status: Planned**
+## Phase 7: Tooling & Documentation 🚧
+**Status: In Progress**
 
 Developer experience improvements.
 
+- [x] Configuration validation API (/api/config/validate)
+- [x] YAML validation endpoint (/api/config/validate-yaml)
+- [x] Configuration reload API (/api/reload)
+- [x] Configuration status endpoint (/api/config/status)
 - [ ] Config lint CLI tool
 - [ ] Dry-run validation mode
 - [ ] Configuration examples and templates
@@ -96,17 +102,18 @@ Developer experience improvements.
 - [ ] Interactive configuration generator
 - [ ] Comprehensive API documentation
 
-## Phase 8: Observability 📋
-**Status: Planned**
+## Phase 8: Observability 🚧
+**Status: In Progress**
 
 Monitoring, metrics, and debugging capabilities.
 
-- [ ] Structured logging with correlation IDs
+- [x] Structured logging with correlation IDs
+- [x] Health check endpoints (/health)
+- [x] Request/response debugging tools (dumping system)
+- [x] Request/response correlation tracking
 - [ ] Metrics collection (requests, latency, errors)
 - [ ] Distributed tracing support
-- [ ] Health check endpoints
 - [ ] Performance monitoring
-- [ ] Request/response debugging tools
 
 ## Phase 9: Security & Policy 📋
 **Status: Future**
@@ -120,13 +127,35 @@ Advanced security and multi-user support.
 - [ ] Audit logging
 - [ ] Multi-tenant support (if needed)
 
+## Additional Implemented Features
+
+**Features that exist but were not in the original roadmap:**
+
+### Message Processing Extensions
+- **Token Counting Endpoint**: `/v1/messages/count_tokens` for request token analysis
+- **Streaming Response Conversion**: Non-streaming responses converted to SSE format for consistency
+
+### Generic Transformers (Phase 4 extras)
+- **UrlPathTransformer**: Modify provider URLs dynamically
+- **AddHeaderTransformer**: Generic header injection
+- **RequestBodyTransformer**: JSONPath-based request modification
+
+### Advanced Caching (Phase 2 extras)
+- **AnthropicCacheTransformer**: Intelligent cache breakpoint optimization
+- **Tool reordering**: Default tools first, MCP tools second
+- **Cache breakpoint management**: Up to 4 breakpoints strategically placed
+
+### Configuration Management APIs (Phase 7 extras)
+- **Real-time config reload**: `/api/reload` without service restart
+- **Config validation**: `/api/config/validate` and `/api/config/validate-yaml`
+- **System status**: `/api/config/status` with provider/model counts
+
 ## Implementation Notes
 
-### Phase Priorities
-- **Phase 0-2**: Core functionality for single-user local development
-- **Phase 3-4**: Advanced features for power users
-- **Phase 5-6**: Production readiness and reliability  
-- **Phase 7-8**: Developer experience and operations
+### Phase Priorities (Updated)
+- **Phase 0-3**: ✅ **COMPLETE** - Core functionality and advanced routing
+- **Phase 4,7-8**: 🚧 **IN PROGRESS** - Extensibility and tooling partially complete  
+- **Phase 5-6**: Production readiness and reliability
 - **Phase 9**: Enterprise and multi-user scenarios
 
 ### Breaking Changes
