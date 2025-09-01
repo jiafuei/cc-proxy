@@ -101,8 +101,9 @@ async def count_tokens(payload: AnthropicRequest, request: Request, dumper: Dump
         if provider.config.api_key:
             current_headers['x-api-key'] = f'{provider.config.api_key}'
 
-        # Dump transformed request
+        # Dump transformed request and headers
         logger.info(f'Count request routed to provider: {provider.config.name}, route: {routing_key}', headers=current_headers)
+        dumper.write_transformed_headers(dumper_handles, current_headers)
         dumper.write_transformed_request(dumper_handles, current_request)
 
         # Send non-streaming request to provider

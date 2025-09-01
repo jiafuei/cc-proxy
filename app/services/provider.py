@@ -80,7 +80,8 @@ class Provider:
 
         logger.debug(f'Request transformed, stream={current_request.get("stream", False)}, headers={current_headers}')
 
-        # Dump transformed request after all transformers are applied
+        # Dump transformed headers and request after all transformers are applied
+        dumper.write_transformed_headers(dumper_handles, current_headers)
         dumper.write_transformed_request(dumper_handles, current_request)
 
         # 2. Check final stream flag after transformations

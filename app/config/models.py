@@ -31,8 +31,6 @@ class ConfigModel(BaseModel):
     dev: bool = Field(default=False)
     dump_requests: bool = Field(default=False)
     dump_responses: bool = Field(default=False)
-    dump_transformed_requests: bool = Field(default=False)
-    dump_pretransformed_responses: bool = Field(default=False)
     dump_headers: bool = Field(default=False)
     dump_dir: str | None = Field(default=None)
     cors_allow_origins: List[str] = Field(default_factory=list)

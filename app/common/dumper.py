@@ -1,7 +1,8 @@
 import os
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import BinaryIO, Dict, Optional
+from enum import Enum
+from typing import Any, BinaryIO, Dict, Optional
 
 import orjson
 from fastapi import Request
@@ -10,17 +11,36 @@ from app.common.utils import get_correlation_id
 from app.config import ConfigModel
 
 
+class DumpType(Enum):
+    """Types of data that can be dumped."""
+
+    ORIGINAL_HEADERS = 'original_headers'
+    TRANSFORMED_HEADERS = 'transformed_headers'
+    ORIGINAL_REQUEST = 'original_request'
+    TRANSFORMED_REQUEST = 'transformed_request'
+    PRETRANSFORMED_RESPONSE = 'pretransformed_response'
+    FINAL_RESPONSE = 'final_response'
+
+
+@dataclass
+class DumpFiles:
+    """File handles for different dump types."""
+
+    original_headers: Optional[str] = None
+    transformed_headers: Optional[str] = None
+    original_request: Optional[str] = None
+    transformed_request: Optional[str] = None
+    pretransformed_response: Optional[str] = None
+    pretransformed_response_file: Optional[BinaryIO] = None
+    final_response: Optional[str] = None
+    final_response_file: Optional[BinaryIO] = None
+
+
 @dataclass
 class DumpHandles:
-    headers_path: Optional[str]
-    request_path: Optional[str]
-    response_path: Optional[str]
-    response_file: Optional[BinaryIO]
-    transformed_request_path: Optional[str]
-    transformed_request_file: Optional[BinaryIO]
-    pretransformed_response_path: Optional[str]
-    pretransformed_response_file: Optional[BinaryIO]
+    files: DumpFiles
     correlation_id: str
+    base_path: str
 
 
 class Dumper:
@@ -49,121 +69,136 @@ class Dumper:
                 result[orig] = headers[orig]
         return result
 
+    def _get_file_path(self, base_path: str, dump_type: DumpType) -> str:
+        """Generate chronologically ordered file paths for different dump types."""
+        # Chronological ordering for easy file exploration
+        ordering = {
+            DumpType.ORIGINAL_HEADERS: 1,
+            DumpType.TRANSFORMED_HEADERS: 2,
+            DumpType.ORIGINAL_REQUEST: 3,
+            DumpType.TRANSFORMED_REQUEST: 4,
+            DumpType.PRETRANSFORMED_RESPONSE: 5,
+            DumpType.FINAL_RESPONSE: 6,
+        }
+        extensions = {
+            DumpType.ORIGINAL_HEADERS: '.json',
+            DumpType.TRANSFORMED_HEADERS: '.json',
+            DumpType.ORIGINAL_REQUEST: '.json',
+            DumpType.TRANSFORMED_REQUEST: '.json',
+            DumpType.PRETRANSFORMED_RESPONSE: '.sse',
+            DumpType.FINAL_RESPONSE: '.sse',
+        }
+        number = ordering[dump_type]
+        return f'{base_path}_{number}_{dump_type.value}{extensions[dump_type]}'
+
+    def _write_json_file(self, file_path: str, data: Any) -> bool:
+        """Write JSON data to file with error handling."""
+        try:
+            with open(file_path, 'wb') as f:
+                f.write(orjson.dumps(data, option=orjson.OPT_INDENT_2))
+            return True
+        except Exception:
+            return False
+
+    def _open_streaming_file(self, file_path: str) -> Optional[BinaryIO]:
+        """Open file for streaming writes with error handling."""
+        try:
+            return open(file_path, 'wb')
+        except Exception:
+            return None
+
     def begin(self, request: Request, payload: object, correlation_id: Optional[str] = None) -> DumpHandles:
         dump_dir = self._ensure_dir()
         corr_id = correlation_id or get_correlation_id()
         ts = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H-%M-%S.%fZ')
 
-        headers_path = request_path = response_path = None
-        transformed_request_path = pretransformed_response_path = None
-        response_file = transformed_request_file = pretransformed_response_file = None
+        files = DumpFiles()
+        base_path = os.path.join(dump_dir, f'{ts}_{corr_id}') if dump_dir else ''
 
-        if dump_dir and self.cfg.dump_headers:
-            headers_path = os.path.join(dump_dir, f'{ts}_{corr_id}_1headers.json')
-            try:
+        handles = DumpHandles(files=files, correlation_id=corr_id, base_path=base_path)
+
+        # Dump original headers and request immediately
+        if dump_dir:
+            if self.cfg.dump_headers:
                 hdrs = dict(request.headers)
                 sanitized = self._sanitize_headers(hdrs)
-                with open(headers_path, 'wb') as f:
-                    f.write(orjson.dumps(sanitized, option=orjson.OPT_INDENT_2))
-            except Exception:
-                headers_path = None
+                self._write_data(handles, DumpType.ORIGINAL_HEADERS, sanitized)
 
-        if dump_dir and self.cfg.dump_requests:
-            request_path = os.path.join(dump_dir, f'{ts}_{corr_id}_2request.json')
-            try:
-                with open(request_path, 'wb') as f:
-                    f.write(orjson.dumps(payload, option=orjson.OPT_INDENT_2))
-            except Exception:
-                request_path = None
+            if self.cfg.dump_requests:
+                self._write_data(handles, DumpType.ORIGINAL_REQUEST, payload)
 
-        if dump_dir and self.cfg.dump_responses:
-            response_path = os.path.join(dump_dir, f'{ts}_{corr_id}_5response.sse')
-            try:
-                response_file = open(response_path, 'wb')
-            except Exception:
-                response_file = None
+            # Open streaming files for responses
+            if self.cfg.dump_responses:
+                path = self._get_file_path(base_path, DumpType.PRETRANSFORMED_RESPONSE)
+                files.pretransformed_response = path
+                files.pretransformed_response_file = self._open_streaming_file(path)
 
-        if dump_dir and self.cfg.dump_transformed_requests:
-            transformed_request_path = os.path.join(dump_dir, f'{ts}_{corr_id}_3transformed_request.json')
-            try:
-                transformed_request_file = open(transformed_request_path, 'wb')
-            except Exception:
-                transformed_request_file = None
+            if self.cfg.dump_responses:
+                path = self._get_file_path(base_path, DumpType.FINAL_RESPONSE)
+                files.final_response = path
+                files.final_response_file = self._open_streaming_file(path)
 
-        if dump_dir and self.cfg.dump_pretransformed_responses:
-            pretransformed_response_path = os.path.join(dump_dir, f'{ts}_{corr_id}_4pretransformed_response.sse')
-            try:
-                pretransformed_response_file = open(pretransformed_response_path, 'wb')
-            except Exception:
-                pretransformed_response_file = None
+        return handles
 
-        return DumpHandles(
-            headers_path=headers_path,
-            request_path=request_path,
-            response_path=response_path,
-            response_file=response_file,
-            transformed_request_path=transformed_request_path,
-            transformed_request_file=transformed_request_file,
-            pretransformed_response_path=pretransformed_response_path,
-            pretransformed_response_file=pretransformed_response_file,
-            correlation_id=corr_id,
-        )
+    def _write_data(self, handles: DumpHandles, dump_type: DumpType, data: Any) -> bool:
+        """Unified method to write different types of data."""
+        if not handles.base_path:
+            return False
 
-    def write_response_chunk(self, handles: DumpHandles, chunk: bytes | str) -> None:
-        f = handles.response_file
-        if not f or not chunk:
-            return
-        try:
-            if isinstance(chunk, str):
-                chunk = bytes(chunk, encoding='utf-8')
-            f.write(chunk)
-            f.flush()
-        except Exception as e:
-            print(f'exception dumping chunk: {e}')
+        # Simplified config checks - each toggle controls both pre/post transformation phases
+        config_checks = {
+            DumpType.ORIGINAL_HEADERS: self.cfg.dump_headers,
+            DumpType.TRANSFORMED_HEADERS: self.cfg.dump_headers,
+            DumpType.ORIGINAL_REQUEST: self.cfg.dump_requests,
+            DumpType.TRANSFORMED_REQUEST: self.cfg.dump_requests,
+            DumpType.PRETRANSFORMED_RESPONSE: self.cfg.dump_responses,
+            DumpType.FINAL_RESPONSE: self.cfg.dump_responses,
+        }
 
-    def close(self, handles: DumpHandles) -> None:
-        # Close response file
-        if handles.response_file:
-            try:
-                handles.response_file.close()
-            except Exception:
-                pass
+        if not config_checks.get(dump_type, False):
+            return False
 
-        # Close transformed request file
-        if handles.transformed_request_file:
-            try:
-                handles.transformed_request_file.close()
-            except Exception:
-                pass
+        file_path = self._get_file_path(handles.base_path, dump_type)
+        return self._write_json_file(file_path, data)
 
-        # Close pretransformed response file
-        if handles.pretransformed_response_file:
-            try:
-                handles.pretransformed_response_file.close()
-            except Exception:
-                pass
-
-    def write_transformed_request(self, handles: DumpHandles, transformed_request: dict) -> None:
-        """Write the transformed request after request transformers are applied."""
-        f = handles.transformed_request_file
-        if not f:
-            return
+    def _write_streaming_data(self, file_handle: Optional[BinaryIO], data: bytes | str) -> bool:
+        """Write streaming data to file handle."""
+        if not file_handle or not data:
+            return False
 
         try:
-            f.write(orjson.dumps(transformed_request, option=orjson.OPT_INDENT_2))
-            f.flush()
+            if isinstance(data, str):
+                data = data.encode('utf-8')
+            file_handle.write(data)
+            file_handle.flush()
+            return True
         except Exception:
-            pass
+            return False
+
+    def write_transformed_headers(self, handles: DumpHandles, headers: Dict[str, str]) -> None:
+        """Write headers after request transformers are applied."""
+        sanitized = self._sanitize_headers(headers)
+        self._write_data(handles, DumpType.TRANSFORMED_HEADERS, sanitized)
+
+    def write_transformed_request(self, handles: DumpHandles, request: dict) -> None:
+        """Write request after transformers are applied."""
+        self._write_data(handles, DumpType.TRANSFORMED_REQUEST, request)
 
     def write_pretransformed_response(self, handles: DumpHandles, chunk: bytes | str) -> None:
-        """Write raw response chunks before response transformers are applied."""
-        f = handles.pretransformed_response_file
-        if not f or not chunk:
-            return
-        try:
-            if isinstance(chunk, str):
-                chunk = chunk.encode('utf-8')
-            f.write(chunk)
-            f.flush()
-        except Exception:
-            pass
+        """Write raw response chunks before transformers are applied."""
+        self._write_streaming_data(handles.files.pretransformed_response_file, chunk)
+
+    def write_response_chunk(self, handles: DumpHandles, chunk: bytes | str) -> None:
+        """Write final response chunks after transformers are applied."""
+        self._write_streaming_data(handles.files.final_response_file, chunk)
+
+    def close(self, handles: DumpHandles) -> None:
+        """Close all open file handles."""
+        files = handles.files
+
+        for file_handle in [files.pretransformed_response_file, files.final_response_file]:
+            if file_handle:
+                try:
+                    file_handle.close()
+                except Exception:
+                    pass
