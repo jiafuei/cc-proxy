@@ -26,8 +26,8 @@ Robust configuration system with validation.
 - [x] Configuration file validation
 - [x] Error handling and user-friendly messages
 
-## Phase 2: Pipelines by Configuration ✅
-**Status: Complete**
+## Phase 2: Pipelines by Configuration 🚧
+**Status: In Progress**
 
 Dynamic pipeline configuration and built-in transformers.
 
@@ -35,7 +35,7 @@ Dynamic pipeline configuration and built-in transformers.
 - [x] Pipelines declared by name with ordered transformer refs
 - [x] Wire built-in transformers (Anthropic, OpenAI)
 - [x] Pipeline validation and error recovery
-- [ ] Gemini transformers (not implemented)
+- [ ] Gemini transformers 
 - [ ] Pipeline debugging and introspection tools
 
 ## Phase 3: Routing Stages ✅
@@ -62,18 +62,7 @@ User-defined transformers and plugin system (without sandboxing).
 - [ ] Plugin API documentation
 - [ ] Example plugins and templates
 
-## Phase 5: Sandbox Capabilities 📋
-**Status: Future**
-
-Secure plugin execution environment.
-
-- [ ] Run plugins in subprocess with CPU/mem/time caps
-- [ ] Process isolation and security boundaries
-- [ ] Graceful fallback when plugins fail
-- [ ] Resource monitoring and limits
-- [ ] Plugin health checks
-
-## Phase 6: Reliability & Streaming Polish 📋
+## Phase 5: Reliability & Streaming Polish 📋
 **Status: Planned**
 
 Production-grade reliability features.
@@ -85,6 +74,19 @@ Production-grade reliability features.
 - [ ] Request/response cancellation
 - [ ] Schema validation hardening
 - [ ] Connection pooling optimization
+
+## Phase 6: Observability 🚧
+**Status: In Progress**
+
+Monitoring, metrics, and debugging capabilities.
+
+- [x] Structured logging with correlation IDs
+- [x] Health check endpoints (/health)
+- [x] Request/response debugging tools (dumping system)
+- [x] Request/response correlation tracking
+- [ ] Metrics collection (requests, latency, errors)
+- [ ] Distributed tracing support
+- [ ] Performance monitoring
 
 ## Phase 7: Tooling & Documentation 🚧
 **Status: In Progress**
@@ -102,20 +104,7 @@ Developer experience improvements.
 - [ ] Interactive configuration generator
 - [ ] Comprehensive API documentation
 
-## Phase 8: Observability 🚧
-**Status: In Progress**
-
-Monitoring, metrics, and debugging capabilities.
-
-- [x] Structured logging with correlation IDs
-- [x] Health check endpoints (/health)
-- [x] Request/response debugging tools (dumping system)
-- [x] Request/response correlation tracking
-- [ ] Metrics collection (requests, latency, errors)
-- [ ] Distributed tracing support
-- [ ] Performance monitoring
-
-## Phase 9: Security & Policy 📋
+## Phase 8: Security & Policy 📋
 **Status: Future**
 
 Advanced security and multi-user support.
@@ -126,6 +115,17 @@ Advanced security and multi-user support.
 - [ ] Rate limiting per user/key
 - [ ] Audit logging
 - [ ] Multi-tenant support (if needed)
+
+## Phase 9: Sandbox Capabilities 📋
+**Status: Future**
+
+Secure plugin execution environment.
+
+- [ ] Run plugins in subprocess with CPU/mem/time caps
+- [ ] Process isolation and security boundaries
+- [ ] Graceful fallback when plugins fail
+- [ ] Resource monitoring and limits
+- [ ] Plugin health checks
 
 ## Additional Implemented Features
 
@@ -153,10 +153,14 @@ Advanced security and multi-user support.
 ## Implementation Notes
 
 ### Phase Priorities (Updated)
-- **Phase 0-3**: ✅ **COMPLETE** - Core functionality and advanced routing
-- **Phase 4,7-8**: 🚧 **IN PROGRESS** - Extensibility and tooling partially complete  
-- **Phase 5-6**: Production readiness and reliability
-- **Phase 9**: Enterprise and multi-user scenarios
+- **Production Readiness** (Phases 4-6): Extensibility → Reliability → Observability
+  - **Phase 4**: 🚧 **IN PROGRESS** - Plugin SDK and extensibility foundation
+  - **Phase 5**: 📋 **PLANNED** - Production reliability and streaming polish
+  - **Phase 6**: 🚧 **IN PROGRESS** - Monitoring and debugging capabilities
+- **Developer Experience** (Phase 7): 🚧 **IN PROGRESS** - Tooling and documentation
+- **Security & Enterprise** (Phases 8-9): Advanced security and isolation
+  - **Phase 8**: 📋 **FUTURE** - Security policies and multi-user support
+  - **Phase 9**: 📋 **FUTURE** - Secure plugin sandbox environment
 
 ### Breaking Changes
 - Configuration format changes will be avoided where possible
