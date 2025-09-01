@@ -339,6 +339,14 @@ class ClaudeSystemMessageCleanerTransformer(RequestTransformer):
         """Clean system messages by removing git status suffix."""
         request, headers = params['request'], params['headers']
 
+        # Validate system key exists
+        if 'system' not in request:
+            return request, headers
+
+        # Validate system array is not empty
+        if not request['system']:
+            return request, headers
+
         self._remove_system_git_status_suffix(request)
 
         return request, headers
@@ -349,13 +357,6 @@ class ClaudeSystemMessageCleanerTransformer(RequestTransformer):
         Removes the entire chunk starting with '\ngitStatus: ' from the last
         system message to make it more cache-friendly and reusable.
         """
-        if 'system' not in request:
-            return
-
-        # Early return if system array is empty
-        if not request['system']:
-            return
-
         block = request['system'][-1]
         text = block['text']
         if not isinstance(text, str):
