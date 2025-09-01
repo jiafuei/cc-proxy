@@ -26,10 +26,11 @@ def _create_default_anthropic_config() -> ProviderConfig:
         api_key=api_key,
         transformers={
             'request': [
+                {'class': 'app.services.transformers.anthropic.ClaudeSystemMessageCleanerTransformer', 'params': {}},
                 {'class': 'app.services.transformers.anthropic.AnthropicCacheTransformer', 'params': {}},
                 {'class': 'app.services.transformers.anthropic.AnthropicHeadersTransformer', 'params': {}},
             ],
-            'response': [],
+            'response': [{'class': 'app.services.transformers.anthropic.AnthropicResponseTransformer', 'params': {}}],
         },
         timeout=300,
     )

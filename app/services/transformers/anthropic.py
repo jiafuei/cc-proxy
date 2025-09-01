@@ -108,7 +108,6 @@ class AnthropicCacheTransformer(RequestTransformer):
             return request, headers
 
         # Remove existing cache breakpoints
-        self._remove_system_git_status_suffix(request)
         self._remove_system_cache_breakpoints(request)
         self._remove_tool_cache_breakpoints(request)
         self._remove_messages_cache_breakpoints(request)
@@ -123,26 +122,6 @@ class AnthropicCacheTransformer(RequestTransformer):
         self.logger.info(f'Applied {total_breakpoints}/4 cache breakpoints for routing_key: {routing_key}')
 
         return request, headers
-
-    def _remove_system_git_status_suffix(self, request: dict[str, Any]):
-        if 'system' not in request:
-            return
-
-        # Early return if system array is empty
-        if not request['system']:
-            return
-
-        block = request['system'][-1]
-        text = block['text']
-        if not isinstance(text, str):
-            return
-
-        # Remove the entire chunk of 'gitStatus: This is the git status at the start of the conversation....'
-        # So the system message can be reused for the entire time Claude Code is open
-        git_status_pos = text.rfind('\ngitStatus: ')
-        if git_status_pos != -1:  # Only truncate if gitStatus is found
-            text = text[:git_status_pos]
-            request['system'][-1]['text'] = text
 
     def _remove_system_cache_breakpoints(self, request: dict[str, Any]):
         if 'system' not in request:
@@ -343,3 +322,48 @@ class AnthropicCacheTransformer(RequestTransformer):
             self.logger.warning(f'Cache breakpoint count ({total_breakpoints}) exceeds limit of 4')
 
         return total_breakpoints
+
+
+class ClaudeSystemMessageCleanerTransformer(RequestTransformer):
+    """Transformer that cleans system messages by removing dynamic content.
+
+    Removes git status information from system messages to make them more
+    cache-friendly and reusable across sessions.
+    """
+
+    def __init__(self, logger):
+        """Initialize transformer."""
+        self.logger = logger
+
+    async def transform(self, params: Dict[str, Any]) -> Tuple[Dict[str, Any], Dict[str, str]]:
+        """Clean system messages by removing git status suffix."""
+        request, headers = params['request'], params['headers']
+
+        self._remove_system_git_status_suffix(request)
+
+        return request, headers
+
+    def _remove_system_git_status_suffix(self, request: dict[str, Any]):
+        """Remove git status suffix from system messages.
+
+        Removes the entire chunk starting with '\ngitStatus: ' from the last
+        system message to make it more cache-friendly and reusable.
+        """
+        if 'system' not in request:
+            return
+
+        # Early return if system array is empty
+        if not request['system']:
+            return
+
+        block = request['system'][-1]
+        text = block['text']
+        if not isinstance(text, str):
+            return
+
+        # Remove the entire chunk of 'gitStatus: This is the git status at the start of the conversation....'
+        # So the system message can be reused for the entire time Claude Code is open
+        git_status_pos = text.rfind('\ngitStatus: ')
+        if git_status_pos != -1:  # Only truncate if gitStatus is found
+            text = text[:git_status_pos]
+            request['system'][-1]['text'] = text
