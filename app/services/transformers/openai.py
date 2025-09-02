@@ -99,24 +99,34 @@ class OpenAIRequestTransformer(RequestTransformer):
                 messages.append({'role': 'assistant', 'content': None, 'tool_calls': pending_tool_calls.copy()})
                 pending_tool_calls.clear()
 
+        def flush_combined():
+            """Flush content and tool_calls, combining them if both exist."""
+            if current_content and pending_tool_calls:
+                # Combine both content and tool_calls into one message
+                messages.append({'role': 'assistant', 'content': self._convert_content_blocks(current_content), 'tool_calls': pending_tool_calls.copy()})
+                current_content.clear()
+                pending_tool_calls.clear()
+            elif current_content:
+                flush_content()
+            elif pending_tool_calls:
+                flush_tool_calls()
+
         for block in content:
             if not isinstance(block, dict):
                 continue
 
             block_type = block.get('type')
             if block_type == 'tool_result':
-                flush_tool_calls()
-                flush_content()
+                flush_combined()
                 messages.append(self._convert_tool_result(block))
             elif block_type == 'tool_use' and role == 'assistant':
-                flush_content()  # Flush content before starting tool calls
+                # Don't flush content - allow text + tool_use to combine
                 pending_tool_calls.append(self._convert_tool_call(block))
             elif block_type in ['text', 'image']:
-                flush_tool_calls()  # Flush tool calls before starting content
+                # Don't flush tool_calls - allow text + tool_use to combine
                 current_content.append(block)
 
-        flush_tool_calls()
-        flush_content()
+        flush_combined()
         return messages
 
     def _convert_content_blocks(self, blocks):
