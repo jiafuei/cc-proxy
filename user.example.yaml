@@ -3,15 +3,15 @@
 
 # Directory paths to search for external transformer modules
 # These paths will be searched for custom transformer classes
-transformer_paths:
-  - '/path/to/custom/transformers'
-  - '/another/transformer/directory'
+transformer_paths: []
+  # - '/path/to/custom/transformers'
+  # - '/another/transformer/directory'
 
 providers:
   # Anthropic/Claude provider example
   # Handles requests to Anthropic's Claude API
   - name: 'anthropic-provider'
-    api_key: !env ANTHROPIC_API_KEY  # Required: Your Anthropic API key from environment
+    api_key: !env [ANTHROPIC_API_KEY, '']  # Required: Your Anthropic API key from environment
     url: !env [ANTHROPIC_URL, 'https://api.anthropic.com/v1/messages']  # Optional: Custom URL with fallback
     timeout: !env [ANTHROPIC_TIMEOUT, 300]  # Request timeout in seconds
     transformers:
@@ -40,7 +40,7 @@ providers:
   # OpenAI provider example
   # Converts Claude API format to/from OpenAI API format
   - name: 'openai-provider'
-    api_key: !env OPENAI_API_KEY  # Required: Your OpenAI API key from environment
+    api_key: !env [OPENAI_API_KEY, '']  # Required: Your OpenAI API key from environment
     url: !env [OPENAI_URL, 'https://api.openai.com/v1/chat/completions']  # Optional: Custom URL with fallback
     timeout: !env [OPENAI_TIMEOUT, 300]
     transformers:
@@ -51,7 +51,7 @@ providers:
             operations:
               - key: 'authorization'
                 prefix: 'Bearer '
-                value: !env OPENAI_API_KEY
+                value: !env [OPENAI_API_KEY, '']
         # Converts Claude request format to OpenAI format
         # - Handles multimodal content (images, text)
         # - Converts tools and tool_choice
@@ -70,7 +70,7 @@ providers:
   # Custom provider with external transformers
   # Example of using custom transformer classes from transformer_paths
   - name: 'custom-provider'
-    api_key: !env CUSTOM_API_KEY  # Required: Custom provider API key
+    api_key: !env [CUSTOM_API_KEY, '']  # Required: Custom provider API key
     url: !env [CUSTOM_API_URL, 'https://custom-api.example.com/v1']  # Required: Custom API URL
     timeout: !env [CUSTOM_TIMEOUT, 300]
     transformers:
@@ -109,10 +109,10 @@ providers:
               - {key: '$.metadata', value: {provider: 'custom-enhanced', version: '2.0'}, op: 'merge'}
               # Modify nested message properties using array wildcards
               - {key: '$.messages[*].metadata.processed', value: true, op: 'set'}
-      response:
-        - class: 'my_transformers.CustomResponseTransformer'
-          params:
-            format_style: 'enhanced'
+      response: {}
+        # - class: 'my_transformers.CustomResponseTransformer'
+        #   params:
+        #     format_style: 'enhanced'
 
 # Model definitions - link model IDs to providers
 # Each model must reference a valid provider name
