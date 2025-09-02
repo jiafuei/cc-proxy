@@ -80,23 +80,13 @@ providers:
           params:
             operations:
               # Set multiple headers with different configurations
-              - key: 'x-api-version'
-                value: 'v1.0'
-                op: 'set'
-              - key: 'cache-control'
-                value: 'no-store'
-                prefix: 'no-cache, '
-                op: 'set'
+              - {key: 'x-api-version', value: 'v1.0', op: 'set'}
+              - {key: 'cache-control', value: 'no-store', prefix: 'no-cache, ', op: 'set'}
               # Remove unwanted headers
-              - key: 'user-agent'
-                op: 'delete'
-              - key: 'x-forwarded-for'
-                op: 'delete'
+              - {key: 'user-agent', op: 'delete'}
+              - {key: 'x-forwarded-for', op: 'delete'}
               # Add custom header with suffix
-              - key: 'x-custom-api'
-                value: !env [CUSTOM_HEADER, 'value-1']
-                suffix: '-enhanced'
-                op: 'set'
+              - {key: 'x-custom-api', value: !env [CUSTOM_HEADER, 'value-1'], suffix: '-enhanced', op: 'set'}
         # Example of using RequestBodyTransformer for multiple request body operations
         # This demonstrates JSONPath-based request modification with operations arrays
         - class: 'app.services.transformers.utils.RequestBodyTransformer'
