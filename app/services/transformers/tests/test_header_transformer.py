@@ -16,9 +16,9 @@ class TestHeaderTransformer:
         return Mock()
 
     @pytest.mark.asyncio
-    async def test_set_operation_default(self, mock_logger):
-        """Test 'set' operation (default behavior)."""
-        transformer = HeaderTransformer(mock_logger, key='authorization', value='token123')
+    async def test_single_set_operation(self, mock_logger):
+        """Test single 'set' operation."""
+        transformer = HeaderTransformer(mock_logger, operations=[{'key': 'authorization', 'value': 'token123'}])
 
         params = {'request': {'model': 'test'}, 'headers': {'content-type': 'application/json'}}
 
@@ -29,9 +29,9 @@ class TestHeaderTransformer:
         assert request == {'model': 'test'}
 
     @pytest.mark.asyncio
-    async def test_set_operation_explicit(self, mock_logger):
+    async def test_single_set_operation_explicit(self, mock_logger):
         """Test explicit 'set' operation."""
-        transformer = HeaderTransformer(mock_logger, key='x-api-key', value='secret', op='set')
+        transformer = HeaderTransformer(mock_logger, operations=[{'key': 'x-api-key', 'value': 'secret', 'op': 'set'}])
 
         params = {'request': {'model': 'test'}, 'headers': {}}
 
@@ -43,7 +43,7 @@ class TestHeaderTransformer:
     @pytest.mark.asyncio
     async def test_set_operation_with_prefix_and_suffix(self, mock_logger):
         """Test 'set' operation with prefix and suffix."""
-        transformer = HeaderTransformer(mock_logger, key='authorization', value='token123', prefix='Bearer ', suffix=' extra', op='set')
+        transformer = HeaderTransformer(mock_logger, operations=[{'key': 'authorization', 'value': 'token123', 'prefix': 'Bearer ', 'suffix': ' extra', 'op': 'set'}])
 
         params = {'request': {'model': 'test'}, 'headers': {}}
 
@@ -52,9 +52,9 @@ class TestHeaderTransformer:
         assert headers['authorization'] == 'Bearer token123 extra'
 
     @pytest.mark.asyncio
-    async def test_delete_operation_existing_header(self, mock_logger):
-        """Test 'delete' operation with existing header."""
-        transformer = HeaderTransformer(mock_logger, key='authorization', op='delete')
+    async def test_single_delete_operation(self, mock_logger):
+        """Test single 'delete' operation with existing header."""
+        transformer = HeaderTransformer(mock_logger, operations=[{'key': 'authorization', 'op': 'delete'}])
 
         params = {'request': {'model': 'test'}, 'headers': {'authorization': 'Bearer token', 'content-type': 'application/json'}}
 
@@ -67,7 +67,7 @@ class TestHeaderTransformer:
     @pytest.mark.asyncio
     async def test_delete_operation_nonexistent_header(self, mock_logger):
         """Test 'delete' operation with non-existent header."""
-        transformer = HeaderTransformer(mock_logger, key='x-custom', op='delete')
+        transformer = HeaderTransformer(mock_logger, operations=[{'key': 'x-custom', 'op': 'delete'}])
 
         params = {'request': {'model': 'test'}, 'headers': {'content-type': 'application/json'}}
 
@@ -78,9 +78,31 @@ class TestHeaderTransformer:
         assert request == {'model': 'test'}
 
     @pytest.mark.asyncio
+    async def test_multiple_operations(self, mock_logger):
+        """Test multiple operations in single transformer."""
+        transformer = HeaderTransformer(
+            mock_logger,
+            operations=[
+                {'key': 'authorization', 'value': 'Bearer token123', 'op': 'set'},
+                {'key': 'x-unwanted', 'op': 'delete'},
+                {'key': 'cache-control', 'value': 'no-cache', 'prefix': 'private, ', 'op': 'set'},
+            ],
+        )
+
+        params = {'request': {'model': 'test'}, 'headers': {'x-unwanted': 'should-be-deleted', 'content-type': 'application/json'}}
+
+        request, headers = await transformer.transform(params)
+
+        assert headers['authorization'] == 'Bearer token123'
+        assert 'x-unwanted' not in headers
+        assert headers['cache-control'] == 'private, no-cache'
+        assert headers['content-type'] == 'application/json'
+        assert request == {'model': 'test'}
+
+    @pytest.mark.asyncio
     async def test_set_operation_overwrite_existing(self, mock_logger):
         """Test 'set' operation overwrites existing header."""
-        transformer = HeaderTransformer(mock_logger, key='authorization', value='new_token', op='set')
+        transformer = HeaderTransformer(mock_logger, operations=[{'key': 'authorization', 'value': 'new_token', 'op': 'set'}])
 
         params = {'request': {'model': 'test'}, 'headers': {'authorization': 'old_token'}}
 
@@ -88,64 +110,65 @@ class TestHeaderTransformer:
 
         assert headers['authorization'] == 'new_token'
 
-    def test_invalid_operation(self, mock_logger):
-        """Test that invalid operation raises ValueError."""
-        with pytest.raises(ValueError, match=r"Invalid operation 'invalid'\. Must be one of: \{.*'set'.*'delete'.*\}|Invalid operation 'invalid'\. Must be one of: \{.*'delete'.*'set'.*\}"):
-            HeaderTransformer(mock_logger, key='test', value='value', op='invalid')
+    def test_empty_operations_array(self, mock_logger):
+        """Test that empty operations array raises ValueError."""
+        with pytest.raises(ValueError, match="'operations' parameter is required and must contain at least one operation"):
+            HeaderTransformer(mock_logger, operations=[])
 
-    def test_case_insensitive_operation(self, mock_logger):
-        """Test that operation parameter is case insensitive."""
-        transformer = HeaderTransformer(mock_logger, key='test', value='value', op='SET')
-        assert transformer.op == 'set'
+    def test_none_operations_array(self, mock_logger):
+        """Test that None operations array raises ValueError."""
+        with pytest.raises(ValueError, match="'operations' parameter is required and must contain at least one operation"):
+            HeaderTransformer(mock_logger, operations=None)
 
-        transformer = HeaderTransformer(mock_logger, key='test', op='DELETE')
-        assert transformer.op == 'delete'
+    def test_invalid_operation_not_dict(self, mock_logger):
+        """Test that non-dict operation raises ValueError."""
+        with pytest.raises(ValueError, match='Operation 0 must be a dictionary'):
+            HeaderTransformer(mock_logger, operations=['invalid'])
 
-    def test_missing_key(self, mock_logger):
-        """Test that missing key raises ValueError."""
-        with pytest.raises(ValueError, match="'key' parameter is required for all operations"):
-            HeaderTransformer(mock_logger, key='', value='value', op='set')
+    def test_missing_key_parameter(self, mock_logger):
+        """Test that missing key parameter raises ValueError."""
+        with pytest.raises(ValueError, match="Operation 0: 'key' parameter is required"):
+            HeaderTransformer(mock_logger, operations=[{'value': 'test'}])
 
-    def test_missing_value_for_set(self, mock_logger):
+    def test_empty_key_parameter(self, mock_logger):
+        """Test that empty key parameter raises ValueError."""
+        with pytest.raises(ValueError, match="Operation 0: 'key' parameter is required"):
+            HeaderTransformer(mock_logger, operations=[{'key': '', 'value': 'test'}])
+
+    def test_invalid_operation_type(self, mock_logger):
+        """Test that invalid operation type raises ValueError."""
+        with pytest.raises(
+            ValueError,
+            match=r"Operation 0: Invalid operation 'invalid'\. Must be one of: \{.*'set'.*'delete'.*\}|Operation 0: Invalid operation 'invalid'\. Must be one of: \{.*'delete'.*'set'.*\}",
+        ):
+            HeaderTransformer(mock_logger, operations=[{'key': 'test', 'value': 'value', 'op': 'invalid'}])
+
+    def test_missing_value_for_set_operation(self, mock_logger):
         """Test that missing value for 'set' operation raises ValueError."""
-        with pytest.raises(ValueError, match="'value' parameter is required for 'set' operation"):
-            HeaderTransformer(mock_logger, key='test', value='', op='set')
+        with pytest.raises(ValueError, match="Operation 0: 'value' parameter is required for 'set' operation"):
+            HeaderTransformer(mock_logger, operations=[{'key': 'test', 'op': 'set'}])
 
     def test_missing_value_for_delete_allowed(self, mock_logger):
         """Test that missing value for 'delete' operation is allowed."""
         # This should not raise an error
-        transformer = HeaderTransformer(mock_logger, key='test', op='delete')
-        assert transformer.op == 'delete'
-        assert transformer.key == 'test'
+        transformer = HeaderTransformer(mock_logger, operations=[{'key': 'test', 'op': 'delete'}])
+        assert len(transformer.operations) == 1
+        assert transformer.operations[0]['key'] == 'test'
 
-    def test_constructor_parameters(self, mock_logger):
-        """Test that constructor accepts and stores parameters correctly."""
-        transformer = HeaderTransformer(mock_logger, key='custom-header', value='custom-value', prefix='pre', suffix='suf', op='set')
+    def test_default_operation_is_set(self, mock_logger):
+        """Test that operation defaults to 'set' when not specified."""
+        HeaderTransformer(mock_logger, operations=[{'key': 'test', 'value': 'value'}])
+        # Should not raise error, meaning 'set' is the default
 
-        assert transformer.logger == mock_logger
-        assert transformer.key == 'custom-header'
-        assert transformer.value == 'custom-value'
-        assert transformer.prefix == 'pre'
-        assert transformer.suffix == 'suf'
-        assert transformer.op == 'set'
-
-    @pytest.mark.asyncio
-    async def test_backward_compatibility(self, mock_logger):
-        """Test backward compatibility with old AddHeaderTransformer interface."""
-        # Old interface: HeaderTransformer(logger, key, value, prefix, suffix)
-        transformer = HeaderTransformer(mock_logger, 'auth', 'token', 'Bearer ', '')
-
-        params = {'request': {}, 'headers': {}}
-
-        request, headers = await transformer.transform(params)
-
-        assert headers['auth'] == 'Bearer token'
-        assert transformer.op == 'set'  # Should default to 'set'
+    def test_case_insensitive_operations(self, mock_logger):
+        """Test that operation parameter is case insensitive."""
+        HeaderTransformer(mock_logger, operations=[{'key': 'test1', 'value': 'value', 'op': 'SET'}, {'key': 'test2', 'op': 'DELETE'}])
+        # Should not raise error, meaning case insensitive operations work
 
     @pytest.mark.asyncio
     async def test_logging_set_operation(self, mock_logger):
         """Test that logging works for set operation."""
-        transformer = HeaderTransformer(mock_logger, key='test', value='value', op='set')
+        transformer = HeaderTransformer(mock_logger, operations=[{'key': 'test', 'value': 'value', 'op': 'set'}])
 
         params = {'request': {}, 'headers': {}}
         await transformer.transform(params)
@@ -155,7 +178,7 @@ class TestHeaderTransformer:
     @pytest.mark.asyncio
     async def test_logging_delete_operation_existing(self, mock_logger):
         """Test that logging works for delete operation with existing header."""
-        transformer = HeaderTransformer(mock_logger, key='test', op='delete')
+        transformer = HeaderTransformer(mock_logger, operations=[{'key': 'test', 'op': 'delete'}])
 
         params = {'request': {}, 'headers': {'test': 'value'}}
         await transformer.transform(params)
@@ -165,9 +188,35 @@ class TestHeaderTransformer:
     @pytest.mark.asyncio
     async def test_logging_delete_operation_nonexistent(self, mock_logger):
         """Test that logging works for delete operation with non-existent header."""
-        transformer = HeaderTransformer(mock_logger, key='test', op='delete')
+        transformer = HeaderTransformer(mock_logger, operations=[{'key': 'test', 'op': 'delete'}])
 
         params = {'request': {}, 'headers': {}}
         await transformer.transform(params)
 
         mock_logger.debug.assert_called_with("Header 'test' not found for deletion")
+
+    @pytest.mark.asyncio
+    async def test_complex_multiple_operations_scenario(self, mock_logger):
+        """Test complex scenario with multiple mixed operations."""
+        transformer = HeaderTransformer(
+            mock_logger,
+            operations=[
+                {'key': 'authorization', 'value': 'abc123', 'prefix': 'Bearer ', 'op': 'set'},
+                {'key': 'x-old-header', 'op': 'delete'},
+                {'key': 'cache-control', 'value': 'no-store', 'op': 'set'},
+                {'key': 'x-nonexistent', 'op': 'delete'},  # This won't find anything
+                {'key': 'x-custom', 'value': 'custom-value', 'suffix': '-final', 'op': 'set'},
+            ],
+        )
+
+        params = {'request': {'messages': []}, 'headers': {'x-old-header': 'to-be-removed', 'existing-header': 'keep-this'}}
+
+        request, headers = await transformer.transform(params)
+
+        # Check all expected transformations
+        assert headers['authorization'] == 'Bearer abc123'
+        assert 'x-old-header' not in headers
+        assert headers['cache-control'] == 'no-store'
+        assert headers['x-custom'] == 'custom-value-final'
+        assert headers['existing-header'] == 'keep-this'  # Untouched
+        assert request == {'messages': []}

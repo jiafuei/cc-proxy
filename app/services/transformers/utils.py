@@ -1,7 +1,7 @@
 """Generic transformers for common operations."""
 
 import copy
-from typing import Any, Dict, Tuple
+from typing import Any, Dict, List, Tuple
 from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
 
 from jsonpath_ng import parse
@@ -41,59 +41,85 @@ class UrlPathTransformer(RequestTransformer):
 
 
 class HeaderTransformer(RequestTransformer):
-    """Generic header transformer that can add or delete headers with configurable operations.
+    """Generic header transformer that performs multiple header operations.
 
-    Supports 'set' operation to add/modify headers with full control over construction,
-    and 'delete' operation to remove headers from the request.
+    Supports an array of operations, each with 'set' or 'delete' operations.
     """
 
-    def __init__(self, logger, key: str, value: str = '', prefix: str = '', suffix: str = '', op: str = 'set'):
+    def __init__(self, logger, operations: List[Dict[str, Any]]):
         """Initialize transformer.
 
         Args:
             logger: Logger instance
-            key: Header name/key to operate on
-            value: Header value (used literally, no resolution) - required for 'set' operation
-            prefix: Text to prepend to the value (default: '') - only used for 'set' operation
-            suffix: Text to append to the value (default: '') - only used for 'set' operation
-            op: Operation to perform - 'set' to add/modify header, 'delete' to remove header
+            operations: List of operation dictionaries, each containing:
+                - key: Header name/key to operate on (required)
+                - op: Operation to perform - 'set' or 'delete' (default: 'set')
+                - value: Header value for 'set' operation (required for 'set')
+                - prefix: Text to prepend to value (default: '', only for 'set')
+                - suffix: Text to append to value (default: '', only for 'set')
         """
         self.logger = logger
-        self.key = key
-        self.value = value
-        self.prefix = prefix
-        self.suffix = suffix
-        self.op = op.lower()
+        self.operations = operations or []
 
+        if not self.operations:
+            raise ValueError("'operations' parameter is required and must contain at least one operation")
+
+        # Validate each operation
+        for i, op in enumerate(self.operations):
+            self._validate_operation(op, i)
+
+    def _validate_operation(self, operation: Dict[str, Any], index: int) -> None:
+        """Validate a single operation.
+
+        Args:
+            operation: Operation dictionary
+            index: Index of operation in list (for error messages)
+        """
+        if not isinstance(operation, dict):
+            raise ValueError(f'Operation {index} must be a dictionary')
+
+        # Check required key parameter
+        if 'key' not in operation or not operation['key']:
+            raise ValueError(f"Operation {index}: 'key' parameter is required")
+
+        # Get operation type, default to 'set'
+        op_type = operation.get('op', 'set').lower()
         valid_ops = {'set', 'delete'}
-        if self.op not in valid_ops:
-            raise ValueError(f"Invalid operation '{self.op}'. Must be one of: {valid_ops}")
+        if op_type not in valid_ops:
+            raise ValueError(f"Operation {index}: Invalid operation '{op_type}'. Must be one of: {valid_ops}")
 
-        if self.op == 'set' and not key:
-            raise ValueError("'key' parameter is required for all operations")
-
-        if self.op == 'set' and not value:
-            raise ValueError("'value' parameter is required for 'set' operation")
+        # For 'set' operations, require value
+        if op_type == 'set' and not operation.get('value'):
+            raise ValueError(f"Operation {index}: 'value' parameter is required for 'set' operation")
 
     async def transform(self, params: Dict[str, Any]) -> Tuple[Dict[str, Any], Dict[str, str]]:
-        """Perform header operation based on configured operation type."""
+        """Perform all header operations."""
         request: dict[str, Any] = params['request']
         headers: dict[str, str] = params['headers']
 
-        if self.op == 'set':
-            # Construct header value with prefix and suffix
-            header_value = f'{self.prefix}{self.value}{self.suffix}'
-            # Add/modify header
-            headers[self.key] = header_value
-            self.logger.debug(f"Set header '{self.key}' = '{header_value}'")
+        # Process each operation
+        for operation in self.operations:
+            key = operation['key']
+            op_type = operation.get('op', 'set').lower()
 
-        elif self.op == 'delete':
-            # Remove header if it exists
-            if self.key in headers:
-                del headers[self.key]
-                self.logger.debug(f"Deleted header '{self.key}'")
-            else:
-                self.logger.debug(f"Header '{self.key}' not found for deletion")
+            if op_type == 'set':
+                value = operation['value']
+                prefix = operation.get('prefix', '')
+                suffix = operation.get('suffix', '')
+
+                # Construct header value with prefix and suffix
+                header_value = f'{prefix}{value}{suffix}'
+                # Add/modify header
+                headers[key] = header_value
+                self.logger.debug(f"Set header '{key}' = '{header_value}'")
+
+            elif op_type == 'delete':
+                # Remove header if it exists
+                if key in headers:
+                    del headers[key]
+                    self.logger.debug(f"Deleted header '{key}'")
+                else:
+                    self.logger.debug(f"Header '{key}' not found for deletion")
 
         return request, headers
 

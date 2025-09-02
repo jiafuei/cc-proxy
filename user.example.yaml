@@ -43,9 +43,10 @@ providers:
         # Generic auth header transformer (reusable across providers)
         - class: 'app.services.transformers.utils.HeaderTransformer'
           params:
-            key: 'authorization'
-            prefix: 'Bearer '
-            value: !env OPENAI_API_KEY
+            operations:
+              - key: 'authorization'
+                prefix: 'Bearer '
+                value: !env OPENAI_API_KEY
         # Converts Claude request format to OpenAI format
         # - Handles multimodal content (images, text)
         # - Converts tools and tool_choice
@@ -73,11 +74,29 @@ providers:
           params:
             api_key: !env CUSTOM_SPECIAL_KEY  # Alternative API key for special auth
             special_header: !env [CUSTOM_HEADER, 'value-1']  # Custom header value
-        # Example of using HeaderTransformer to remove unwanted headers
+        # Example of using HeaderTransformer for multiple header operations
+        # This demonstrates the power of operations arrays
         - class: 'app.services.transformers.utils.HeaderTransformer'
           params:
-            key: 'user-agent'
-            op: 'delete'  # Remove the user-agent header
+            operations:
+              # Set multiple headers with different configurations
+              - key: 'x-api-version'
+                value: 'v1.0'
+                op: 'set'
+              - key: 'cache-control'
+                value: 'no-store'
+                prefix: 'no-cache, '
+                op: 'set'
+              # Remove unwanted headers
+              - key: 'user-agent'
+                op: 'delete'
+              - key: 'x-forwarded-for'
+                op: 'delete'
+              # Add custom header with suffix
+              - key: 'x-custom-api'
+                value: !env [CUSTOM_HEADER, 'value-1']
+                suffix: '-enhanced'
+                op: 'set'
       response:
         - class: 'my_transformers.CustomResponseTransformer'
           params:

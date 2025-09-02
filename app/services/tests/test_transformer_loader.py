@@ -23,21 +23,20 @@ def test_load_built_in_transformer():
     """Test loading a built-in transformer."""
     loader = TransformerLoader()
 
-    config = {'class': 'app.services.transformers.utils.HeaderTransformer', 'params': {'key': 'authorization', 'prefix': 'Bearer ', 'value': 'api_key'}}
+    config = {'class': 'app.services.transformers.utils.HeaderTransformer', 'params': {'operations': [{'key': 'authorization', 'prefix': 'Bearer ', 'value': 'api_key'}]}}
 
     transformer = loader.load_transformer(config)
     assert transformer is not None
-    assert hasattr(transformer, 'key')
-    assert hasattr(transformer, 'prefix')
-    assert hasattr(transformer, 'value')
-    assert hasattr(transformer, 'suffix')
+    assert hasattr(transformer, 'operations')
+    assert len(transformer.operations) == 1
+    assert transformer.operations[0]['key'] == 'authorization'
 
 
 def test_load_transformer_caching():
     """Test that transformers are cached properly."""
     loader = TransformerLoader()
 
-    config = {'class': 'app.services.transformers.utils.HeaderTransformer', 'params': {'key': 'authorization', 'prefix': 'Bearer ', 'value': 'api_key'}}
+    config = {'class': 'app.services.transformers.utils.HeaderTransformer', 'params': {'operations': [{'key': 'authorization', 'prefix': 'Bearer ', 'value': 'api_key'}]}}
 
     # Load transformer twice
     transformer1 = loader.load_transformer(config)
@@ -52,9 +51,9 @@ def test_load_transformer_different_params():
     """Test that transformers with different params are not cached together."""
     loader = TransformerLoader()
 
-    config1 = {'class': 'app.services.transformers.utils.HeaderTransformer', 'params': {'key': 'authorization', 'prefix': 'Bearer ', 'value': 'api_key'}}
+    config1 = {'class': 'app.services.transformers.utils.HeaderTransformer', 'params': {'operations': [{'key': 'authorization', 'prefix': 'Bearer ', 'value': 'api_key'}]}}
 
-    config2 = {'class': 'app.services.transformers.utils.HeaderTransformer', 'params': {'key': 'x-api-key', 'prefix': '', 'value': 'api_key'}}
+    config2 = {'class': 'app.services.transformers.utils.HeaderTransformer', 'params': {'operations': [{'key': 'x-api-key', 'prefix': '', 'value': 'api_key'}]}}
 
     transformer1 = loader.load_transformer(config1)
     transformer2 = loader.load_transformer(config2)
@@ -79,7 +78,7 @@ def test_load_multiple_transformers():
     loader = TransformerLoader()
 
     configs = [
-        {'class': 'app.services.transformers.utils.HeaderTransformer', 'params': {'key': 'authorization', 'prefix': 'Bearer ', 'value': 'api_key'}},
+        {'class': 'app.services.transformers.utils.HeaderTransformer', 'params': {'operations': [{'key': 'authorization', 'prefix': 'Bearer ', 'value': 'api_key'}]}},
         {'class': 'app.services.transformers.anthropic.AnthropicResponseTransformer', 'params': {}},
     ]
 
@@ -93,7 +92,7 @@ def test_load_multiple_transformers_with_failure():
     loader = TransformerLoader()
 
     configs = [
-        {'class': 'app.services.transformers.utils.HeaderTransformer', 'params': {'key': 'authorization', 'prefix': 'Bearer ', 'value': 'api_key'}},
+        {'class': 'app.services.transformers.utils.HeaderTransformer', 'params': {'operations': [{'key': 'authorization', 'prefix': 'Bearer ', 'value': 'api_key'}]}},
         {'class': 'non.existent.Transformer', 'params': {}},
         {'class': 'app.services.transformers.anthropic.AnthropicResponseTransformer', 'params': {}},
     ]
@@ -107,7 +106,7 @@ def test_clear_cache():
     """Test clearing the transformer cache."""
     loader = TransformerLoader()
 
-    config = {'class': 'app.services.transformers.utils.HeaderTransformer', 'params': {'key': 'authorization', 'prefix': 'Bearer ', 'value': 'api_key'}}
+    config = {'class': 'app.services.transformers.utils.HeaderTransformer', 'params': {'operations': [{'key': 'authorization', 'prefix': 'Bearer ', 'value': 'api_key'}]}}
 
     loader.load_transformer(config)
     assert len(loader._cache) == 1
@@ -124,7 +123,7 @@ def test_get_cache_info():
     assert info['cached_transformers'] == 0
     assert info['cache_keys'] == []
 
-    config = {'class': 'app.services.transformers.utils.HeaderTransformer', 'params': {'key': 'authorization', 'prefix': 'Bearer ', 'value': 'api_key'}}
+    config = {'class': 'app.services.transformers.utils.HeaderTransformer', 'params': {'operations': [{'key': 'authorization', 'prefix': 'Bearer ', 'value': 'api_key'}]}}
 
     loader.load_transformer(config)
 

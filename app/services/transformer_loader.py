@@ -4,6 +4,8 @@ import importlib
 import sys
 from typing import Any, Dict, List, Optional
 
+import orjson
+
 from app.config.log import get_logger
 
 logger = get_logger(__name__)
@@ -28,6 +30,22 @@ class TransformerLoader:
                 sys.path.insert(0, path)
                 logger.debug(f'Added transformer path: {path}')
 
+    def _create_cache_key(self, class_path: str, params: Dict[str, Any]) -> str:
+        """Create a hashable cache key from class path and parameters.
+
+        Args:
+            class_path: Full class path
+            params: Parameters dictionary (may contain lists/dicts)
+
+        Returns:
+            Cache key string
+        """
+        # Exclude logger from cache key and convert to JSON for consistent hashing
+        cache_params = {k: v for k, v in params.items() if k != 'logger'}
+        # Use orjson serialization to handle complex objects consistently
+        params_json = orjson.dumps(cache_params, option=orjson.OPT_SORT_KEYS).decode('utf-8')
+        return f'{class_path}:{hash(params_json)}'
+
     def load_transformer(self, transformer_config: Dict[str, Any]) -> Any:
         """Load transformer from configuration.
 
@@ -46,9 +64,8 @@ class TransformerLoader:
         class_path = transformer_config['class']
         params = transformer_config.get('params', {})
 
-        # Use cached instance if available - exclude logger from cache key
-        cache_params = {k: v for k, v in params.items() if k != 'logger'}
-        cache_key = f'{class_path}:{hash(frozenset(cache_params.items()))}'
+        # Use cached instance if available
+        cache_key = self._create_cache_key(class_path, params)
         if cache_key in self._cache:
             logger.debug(f'Using cached transformer: {class_path}')
             return self._cache[cache_key]
