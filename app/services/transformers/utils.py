@@ -40,38 +40,60 @@ class UrlPathTransformer(RequestTransformer):
         return request, headers
 
 
-class AddHeaderTransformer(RequestTransformer):
-    """Generic header transformer that adds any header with configurable key, prefix, value, and suffix.
+class HeaderTransformer(RequestTransformer):
+    """Generic header transformer that can add or delete headers with configurable operations.
 
-    Adds a header to the request with full control over its construction.
+    Supports 'set' operation to add/modify headers with full control over construction,
+    and 'delete' operation to remove headers from the request.
     """
 
-    def __init__(self, logger, key: str, value: str, prefix: str = '', suffix: str = ''):
+    def __init__(self, logger, key: str, value: str = '', prefix: str = '', suffix: str = '', op: str = 'set'):
         """Initialize transformer.
 
         Args:
             logger: Logger instance
-            key: Header name/key to add
-            value: Header value (used literally, no resolution)
-            prefix: Text to prepend to the value (default: '')
-            suffix: Text to append to the value (default: '')
+            key: Header name/key to operate on
+            value: Header value (used literally, no resolution) - required for 'set' operation
+            prefix: Text to prepend to the value (default: '') - only used for 'set' operation
+            suffix: Text to append to the value (default: '') - only used for 'set' operation
+            op: Operation to perform - 'set' to add/modify header, 'delete' to remove header
         """
         self.logger = logger
         self.key = key
         self.value = value
         self.prefix = prefix
         self.suffix = suffix
+        self.op = op.lower()
+
+        valid_ops = {'set', 'delete'}
+        if self.op not in valid_ops:
+            raise ValueError(f"Invalid operation '{self.op}'. Must be one of: {valid_ops}")
+
+        if self.op == 'set' and not key:
+            raise ValueError("'key' parameter is required for all operations")
+
+        if self.op == 'set' and not value:
+            raise ValueError("'value' parameter is required for 'set' operation")
 
     async def transform(self, params: Dict[str, Any]) -> Tuple[Dict[str, Any], Dict[str, str]]:
-        """Add header with configured key, prefix, value, and suffix."""
+        """Perform header operation based on configured operation type."""
         request: dict[str, Any] = params['request']
         headers: dict[str, str] = params['headers']
 
-        # Construct header value with prefix and suffix
-        header_value = f'{self.prefix}{self.value}{self.suffix}'
+        if self.op == 'set':
+            # Construct header value with prefix and suffix
+            header_value = f'{self.prefix}{self.value}{self.suffix}'
+            # Add/modify header
+            headers[self.key] = header_value
+            self.logger.debug(f"Set header '{self.key}' = '{header_value}'")
 
-        # Add header
-        headers[self.key] = header_value
+        elif self.op == 'delete':
+            # Remove header if it exists
+            if self.key in headers:
+                del headers[self.key]
+                self.logger.debug(f"Deleted header '{self.key}'")
+            else:
+                self.logger.debug(f"Header '{self.key}' not found for deletion")
 
         return request, headers
 

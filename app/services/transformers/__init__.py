@@ -6,4 +6,4 @@ from app.services.transformers.interfaces import RequestTransformer as RequestTr
 from app.services.transformers.interfaces import ResponseTransformer as ResponseTransformer
 from app.services.transformers.openai import OpenAIRequestTransformer as OpenAIRequestTransformer
 from app.services.transformers.openai import OpenAIResponseTransformer as OpenAIResponseTransformer
-from app.services.transformers.utils import AddHeaderTransformer as AddHeaderTransformer
+from app.services.transformers.utils import HeaderTransformer as HeaderTransformer

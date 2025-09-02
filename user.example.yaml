@@ -24,15 +24,9 @@ providers:
           params:
             max_tools_breakpoints: 1  # Maximum cache breakpoints for tools (default: 1)
         # Filters headers to include only Anthropic-compatible prefixes
+        # Also injects x-api-key from provider config automatically
         - class: 'app.services.transformers.anthropic.AnthropicHeadersTransformer'
           params: {}
-        # Handles authentication headers for Anthropic API
-        # API key is automatically taken from provider config
-        - class: 'app.services.transformers.utils.AddHeaderTransformer'
-          params:
-            key: 'authorization'
-            prefix: 'Bearer '
-            value: 'api_key'
       response:
         # Passthrough transformer for Anthropic responses (no conversion needed)
         - class: 'app.services.transformers.anthropic.AnthropicResponseTransformer'
@@ -47,7 +41,7 @@ providers:
     transformers:
       request:
         # Generic auth header transformer (reusable across providers)
-        - class: 'app.services.transformers.utils.AddHeaderTransformer'
+        - class: 'app.services.transformers.utils.HeaderTransformer'
           params:
             key: 'authorization'
             prefix: 'Bearer '
@@ -79,6 +73,11 @@ providers:
           params:
             api_key: !env CUSTOM_SPECIAL_KEY  # Alternative API key for special auth
             special_header: !env [CUSTOM_HEADER, 'value-1']  # Custom header value
+        # Example of using HeaderTransformer to remove unwanted headers
+        - class: 'app.services.transformers.utils.HeaderTransformer'
+          params:
+            key: 'user-agent'
+            op: 'delete'  # Remove the user-agent header
       response:
         - class: 'my_transformers.CustomResponseTransformer'
           params:
