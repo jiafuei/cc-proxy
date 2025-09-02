@@ -103,32 +103,17 @@ providers:
           params:
             operations:
               # Set model to a specific version
-              - key: '$.model'
-                value: 'claude-3-5-sonnet-20241022'
-                op: 'set'
+              - {key: '$.model', value: 'claude-3-5-sonnet-20241022', op: 'set'}
               # Set temperature for consistency
-              - key: '$.temperature'
-                value: 0.7
-                op: 'set'
+              - {key: '$.temperature', value: 0.7, op: 'set'}
               # Prepend a system message to guide behavior
-              - key: '$.messages'
-                value:
-                  role: 'system'
-                  content: 'You are a helpful assistant optimized for this custom provider.'
-                op: 'prepend'
+              - {key: '$.messages', value: {role: 'system', content: 'You are a helpful assistant optimized for this custom provider.'}, op: 'prepend'}
               # Remove any unwanted metadata
-              - key: '$.metadata.debug_info'
-                op: 'delete'
+              - {key: '$.metadata.debug_info', op: 'delete'}
               # Add custom metadata for tracking
-              - key: '$.metadata'
-                value:
-                  provider: 'custom-enhanced'
-                  version: '2.0'
-                op: 'merge'
+              - {key: '$.metadata', value: {provider: 'custom-enhanced', version: '2.0'}, op: 'merge'}
               # Modify nested message properties using array wildcards
-              - key: '$.messages[*].metadata.processed'
-                value: true
-                op: 'set'
+              - {key: '$.messages[*].metadata.processed', value: true, op: 'set'}
       response:
         - class: 'my_transformers.CustomResponseTransformer'
           params:
