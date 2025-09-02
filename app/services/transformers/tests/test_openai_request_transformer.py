@@ -644,31 +644,27 @@ class TestOpenAIRequestTransformer:
 
         result = transformer._convert_messages(claude_request)
 
-        # Should create 5 messages: user → assistant(content) → assistant(tool_calls) → tool → assistant(content)
-        assert len(result) == 5
+        # Should create 4 messages: user → assistant(content+tool_calls) → tool → assistant(content)
+        assert len(result) == 4
 
         # User message
         assert result[0]['role'] == 'user'
         assert result[0]['content'] == 'Please read the config file'
 
-        # Assistant content message
+        # Assistant message with both content and tool_calls combined
         assert result[1]['role'] == 'assistant'
         assert result[1]['content'] == "I'll read the config file for you."
-
-        # Assistant tool_calls message
-        assert result[2]['role'] == 'assistant'
-        assert result[2]['content'] is None
-        assert len(result[2]['tool_calls']) == 1
-        assert result[2]['tool_calls'][0]['id'] == 'toolu_config'
+        assert len(result[1]['tool_calls']) == 1
+        assert result[1]['tool_calls'][0]['id'] == 'toolu_config'
 
         # Tool result message
-        assert result[3]['role'] == 'tool'
-        assert result[3]['tool_call_id'] == 'toolu_config'
-        assert result[3]['content'] == 'port: 8080\ndebug: true'
+        assert result[2]['role'] == 'tool'
+        assert result[2]['tool_call_id'] == 'toolu_config'
+        assert result[2]['content'] == 'port: 8080\ndebug: true'
 
         # Final assistant message
-        assert result[4]['role'] == 'assistant'
-        assert result[4]['content'] == 'The config shows port 8080 and debug mode enabled.'
+        assert result[3]['role'] == 'assistant'
+        assert result[3]['content'] == 'The config shows port 8080 and debug mode enabled.'
 
     def test_user_tool_use_blocks_ignored(self, transformer):
         """Test that tool_use blocks in user messages are ignored (not converted)."""
@@ -694,3 +690,34 @@ class TestOpenAIRequestTransformer:
         # Should create 1 user message with only text content
         assert len(result) == 1
         assert result[0] == {'role': 'user', 'content': [{'type': 'text', 'text': 'Here is some text'}]}
+
+    def test_user_text_followed_by_assistant_tool_call(self, transformer):
+        """Test user text message followed by assistant tool call."""
+        claude_request = {
+            'messages': [
+                {'role': 'user', 'content': 'Please read the config file'},
+                {
+                    'role': 'assistant',
+                    'content': [
+                        {'type': 'tool_use', 'id': 'toolu_read123', 'name': 'Read', 'input': {'file_path': 'config.yaml'}},
+                    ],
+                },
+            ]
+        }
+
+        result = transformer._convert_messages(claude_request)
+
+        # Should create 2 messages: user text → assistant tool call
+        assert len(result) == 2
+        
+        # User message (string content gets converted to simple string format)
+        assert result[0] == {'role': 'user', 'content': 'Please read the config file'}
+        
+        # Assistant message with tool call
+        assert result[1] == {
+            'role': 'assistant',
+            'content': None,
+            'tool_calls': [
+                {'id': 'toolu_read123', 'type': 'function', 'function': {'name': 'Read', 'arguments': '{"file_path":"config.yaml"}'}}
+            ],
+        }
