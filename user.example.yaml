@@ -28,9 +28,10 @@ providers:
           params:
             max_tools_breakpoints: 1  # Maximum cache breakpoints for tools (default: 1)
         # Filters headers to include only Anthropic-compatible prefixes
-        # Also injects x-api-key from provider config automatically
+        # Also injects API key using configurable auth header
         - class: 'app.services.transformers.anthropic.AnthropicHeadersTransformer'
-          params: {}
+          params: 
+            auth_header: 'x-api-key'  # Use 'x-api-key' or 'authorization' (with Bearer prefix)
       response:
         # Passthrough transformer for Anthropic responses (no conversion needed)
         - class: 'app.services.transformers.anthropic.AnthropicResponseTransformer'

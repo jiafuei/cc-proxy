@@ -13,9 +13,15 @@ class AnthropicHeadersTransformer(RequestTransformer):
     required by the Anthropic API.
     """
 
-    def __init__(self, logger):
-        """Initialize transformer."""
+    def __init__(self, logger, auth_header: str):
+        """Initialize transformer.
+
+        Args:
+            logger: Logger instance
+            auth_header: Authentication header to use ('x-api-key' or 'authorization')
+        """
         self.logger = logger
+        self.auth_header = auth_header
 
     async def transform(self, params: Dict[str, Any]) -> Tuple[Dict[str, Any], Dict[str, str]]:
         """Filter headers to only include Anthropic-compatible prefixes."""
@@ -33,7 +39,6 @@ class AnthropicHeadersTransformer(RequestTransformer):
                         'x-',
                         'anthropic',
                         'user-',
-                        'authorization',  # Keep auth header
                     )
                 )
             )
@@ -42,10 +47,15 @@ class AnthropicHeadersTransformer(RequestTransformer):
         # Inject API key from provider config if available
         provider_config = params.get('provider_config')
         if provider_config and provider_config.api_key:
-            # Anthropic expects x-api-key header
-            filtered_headers['x-api-key'] = provider_config.api_key
-            # Remove any authorization header since we're using x-api-key
-            filtered_headers.pop('authorization', None)
+            # Set the configured auth header
+            if self.auth_header == 'x-api-key':
+                filtered_headers[self.auth_header] = provider_config.api_key
+                # Remove authorization header to avoid conflicts
+                filtered_headers.pop('authorization', None)
+            elif self.auth_header == 'authorization':
+                filtered_headers[self.auth_header] = f'Bearer {provider_config.api_key}'
+                # Remove x-api-key header to avoid conflicts
+                filtered_headers.pop('x-api-key', None)
 
         return request, filtered_headers
 
