@@ -21,9 +21,9 @@ cors_allow_origins:
 # Request/Response Dumping - for debugging and development
 # Each toggle controls both original and transformed data (pre/post transformer processing)
 # Files are numbered chronologically: 1_original, 2_transformed, 3_original, etc.
-dump_headers: !env [CC_PROXY_DUMP_HEADERS, false]     # Dump both original and transformed HTTP headers
-dump_requests: !env [CC_PROXY_DUMP_REQUESTS, false]   # Dump both original and transformed request payloads  
-dump_responses: !env [CC_PROXY_DUMP_RESPONSES, false] # Dump both pre-transformed and final response data
+dump_headers: false     # Dump both original and transformed HTTP headers
+dump_requests: false   # Dump both original and transformed request payloads  
+dump_responses: false # Dump both pre-transformed and final response data
 dump_dir: !env [CC_PROXY_DUMP_DIR, "~/.cc-proxy/dumps"] # Directory to save dump files
 
 # Headers to redact in dumps for security

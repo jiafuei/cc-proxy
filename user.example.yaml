@@ -160,8 +160,8 @@ models:
 # Routes different types of requests to appropriate models
 # You must use aliases defined above (no longer supports model IDs directly)
 routing:
-  default: !env [CC_PROXY_DEFAULT_MODEL, 'sonnet']        # Default model for requests
-  background: !env [CC_PROXY_BACKGROUND_MODEL, 'haiku']   # flavor text, light summarization, topic detection etc
-  planning: !env [CC_PROXY_PLANNING_MODEL, 'sonnet']      # Plan mode
-  thinking: !env [CC_PROXY_THINKING_MODEL, 'sonnet']      # Whenever you add any of the phrases to your prompt: "think" < "think hard" < "think harder" < "ultrathink." Ref: https://www.anthropic.com/engineering/claude-code-best-practices
-  plan_and_think: !env [CC_PROXY_PLAN_THINK_MODEL, 'sonnet']  # When thinking is activated in plan mode
+  default: 'sonnet'        # Default model for requests
+  background: 'haiku'   # flavor text, light summarization, topic detection etc
+  planning: 'sonnet'      # Plan mode
+  thinking: 'sonnet'      # Whenever you add any of the phrases to your prompt: "think" < "think hard" < "think harder" < "ultrathink." Ref: https://www.anthropic.com/engineering/claude-code-best-practices
+  plan_and_think: 'sonnet'  # When thinking is activated in plan mode
