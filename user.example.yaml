@@ -75,10 +75,10 @@ providers:
     timeout: !env [CUSTOM_TIMEOUT, 300]
     transformers:
       request:
-        - class: 'my_transformers.CustomAuthTransformer'
-          params:
-            api_key: !env CUSTOM_SPECIAL_KEY  # Alternative API key for special auth
-            special_header: !env [CUSTOM_HEADER, 'value-1']  # Custom header value
+        # - class: 'my_transformers.CustomAuthTransformer'
+        #   params:
+        #     api_key: !env [CUSTOM_SPECIAL_KEY, '']  # Alternative API key for special auth
+        #     special_header: !env [CUSTOM_HEADER, 'value-1']  # Custom header value
         # Example of using HeaderTransformer for multiple header operations
         # This demonstrates the power of operations arrays
         - class: 'app.services.transformers.utils.HeaderTransformer'

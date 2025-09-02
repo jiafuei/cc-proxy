@@ -118,7 +118,7 @@ See the example files for complete configuration options with detailed comments.
 
 1. **Start cc-proxy** (if not already running)
    ```bash
-   uv run python -m app.main
+   uv run fastapi run
    ```
 
 2. **Configure Claude Code** to use the proxy
@@ -183,7 +183,7 @@ python -m pytest app/ -v
 uvx ruff check --fix && uvx ruff format .
 
 # Start development server
-uv run python -m app.main
+uv run fastapi dev
 ```
 
 ## Contributing & Support
