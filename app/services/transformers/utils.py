@@ -127,32 +127,67 @@ class HeaderTransformer(RequestTransformer):
 class RequestBodyTransformer(RequestTransformer):
     """Transformer that modifies request body content using JSONPath expressions.
 
-    Parameters
-    - key: path expression (JSONPath when jsonPath=True, otherwise treated as JSONPath too)
-    - value: value to use for operation
-    - op: one of 'set', 'delete', 'append', 'prepend', 'merge'
+    Supports multiple operations on request body content using JSONPath expressions.
+    Each operation contains:
+    - key: JSONPath expression (required)
+    - value: value to use for operation (required for non-delete operations)
+    - op: one of 'set', 'delete', 'append', 'prepend', 'merge' (default: 'set')
     - jsonPath: boolean flag; kept for API compatibility (always uses JSONPath)
     """
 
-    def __init__(self, logger, key: str = '', value: Any = None, op: str = 'set', jsonPath: bool = True):
+    def __init__(self, logger, operations: List[Dict[str, Any]]):
         super().__init__(logger)
-        self.key = key
-        self.value = value
-        self.op = op.lower()
-        self.jsonPath = bool(jsonPath)
+        self.operations = operations or []
 
+        if not self.operations:
+            raise ValueError("'operations' parameter is required and must contain at least one operation")
+
+        # Validate and pre-compile each operation
+        self.compiled_operations = []
+        for i, operation in enumerate(self.operations):
+            self._validate_operation(operation, i)
+            compiled_op = self._compile_operation(operation)
+            self.compiled_operations.append(compiled_op)
+
+    def _validate_operation(self, operation: Dict[str, Any], index: int) -> None:
+        """Validate a single operation.
+
+        Args:
+            operation: Operation dictionary
+            index: Index of operation in list (for error messages)
+        """
+        if not isinstance(operation, dict):
+            raise ValueError(f'Operation {index} must be a dictionary')
+
+        # Check required key parameter
+        if 'key' not in operation or not operation['key']:
+            raise ValueError(f"Operation {index}: 'key' parameter is required")
+
+        # Get operation type, default to 'set'
+        op_type = operation.get('op', 'set').lower()
         valid_ops = {'set', 'delete', 'append', 'prepend', 'merge'}
-        if self.op not in valid_ops:
-            raise ValueError(f"Invalid operation '{self.op}'. Must be one of: {valid_ops}")
+        if op_type not in valid_ops:
+            raise ValueError(f"Operation {index}: Invalid operation '{op_type}'. Must be one of: {valid_ops}")
 
-        if not self.key:
-            raise ValueError("'key' parameter is required and must be a JSONPath expression")
+        # For 'set', 'append', 'prepend', 'merge' operations, require value
+        if op_type in {'set', 'append', 'prepend', 'merge'} and operation.get('value') is None:
+            raise ValueError(f"Operation {index}: 'value' parameter is required for '{op_type}' operation")
 
-        # Pre-compile JSONPath
+    def _compile_operation(self, operation: Dict[str, Any]) -> Dict[str, Any]:
+        """Compile JSONPath expression for an operation.
+
+        Args:
+            operation: Operation dictionary
+
+        Returns:
+            Compiled operation with JSONPath expression
+        """
+        compiled_op = operation.copy()
         try:
-            self.expr = parse(self.key)
+            compiled_op['expr'] = parse(operation['key'])
         except Exception as e:
-            raise ValueError(f"Invalid JSONPath expression '{self.key}': {e}")
+            raise ValueError(f"Invalid JSONPath expression '{operation['key']}': {e}")
+        return compiled_op
 
     async def transform(self, params: Dict[str, Any]) -> Tuple[Dict[str, Any], Dict[str, str]]:
         request = params['request']
@@ -160,30 +195,35 @@ class RequestBodyTransformer(RequestTransformer):
 
         transformed_request = copy.deepcopy(request)
 
-        try:
-            matches = list(self.expr.find(transformed_request))
+        # Apply all operations sequentially
+        for operation in self.compiled_operations:
+            try:
+                matches = list(operation['expr'].find(transformed_request))
+                op_type = operation.get('op', 'set').lower()
+                value = operation.get('value')
+                key = operation['key']
 
-            if self.op == 'delete':
-                for match in matches:
-                    self._delete_match(transformed_request, match)
+                if op_type == 'delete':
+                    for match in matches:
+                        self._delete_match(transformed_request, match)
 
-            elif self.op == 'set':
-                for match in matches:
-                    self._set_match(transformed_request, match, self.value)
+                elif op_type == 'set':
+                    for match in matches:
+                        self._set_match(transformed_request, match, value)
 
-            elif self.op in {'append', 'prepend'}:
-                for match in matches:
-                    self._list_insert_match(transformed_request, match, self.value, self.op)
+                elif op_type in {'append', 'prepend'}:
+                    for match in matches:
+                        self._list_insert_match(transformed_request, match, value, op_type)
 
-            elif self.op == 'merge':
-                for match in matches:
-                    self._merge_match(transformed_request, match, self.value)
+                elif op_type == 'merge':
+                    for match in matches:
+                        self._merge_match(transformed_request, match, value)
 
-            self.logger.debug(f"Applied {self.op} operation using JSONPath '{self.key}'")
+                self.logger.debug(f"Applied {op_type} operation using JSONPath '{key}'")
 
-        except Exception as e:
-            self.logger.error(f"Failed to apply {self.op} operation using JSONPath '{self.key}': {e}")
-            return request, headers
+            except Exception as e:
+                self.logger.error(f"Failed to apply {op_type} operation using JSONPath '{key}': {e}")
+                return request, headers
 
         return transformed_request, headers
 
