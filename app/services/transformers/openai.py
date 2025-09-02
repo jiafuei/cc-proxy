@@ -87,12 +87,17 @@ class OpenAIRequestTransformer(RequestTransformer):
         elif not isinstance(content, list):
             return []
 
-        messages, current_content = [], []
+        messages, current_content, pending_tool_calls = [], [], []
 
         def flush_content():
             if current_content:
                 messages.append({'role': role, 'content': self._convert_content_blocks(current_content)})
                 current_content.clear()
+
+        def flush_tool_calls():
+            if pending_tool_calls:
+                messages.append({'role': 'assistant', 'content': None, 'tool_calls': pending_tool_calls.copy()})
+                pending_tool_calls.clear()
 
         for block in content:
             if not isinstance(block, dict):
@@ -100,14 +105,17 @@ class OpenAIRequestTransformer(RequestTransformer):
 
             block_type = block.get('type')
             if block_type == 'tool_result':
+                flush_tool_calls()
                 flush_content()
                 messages.append(self._convert_tool_result(block))
             elif block_type == 'tool_use' and role == 'assistant':
-                flush_content()
-                messages.append({'role': 'assistant', 'content': None, 'tool_calls': [self._convert_tool_call(block)]})
+                flush_content()  # Flush content before starting tool calls
+                pending_tool_calls.append(self._convert_tool_call(block))
             elif block_type in ['text', 'image']:
+                flush_tool_calls()  # Flush tool calls before starting content
                 current_content.append(block)
 
+        flush_tool_calls()
         flush_content()
         return messages
 
