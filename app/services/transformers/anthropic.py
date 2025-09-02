@@ -39,18 +39,13 @@ class AnthropicHeadersTransformer(RequestTransformer):
             )
         }
 
-        # Prefer x-api-key over authorization header
-        if 'x-api-key' in filtered_headers and 'authorization' in filtered_headers:
-            # Remove authorization if x-api-key exists
-            filtered_headers.pop('authorization')
-        elif 'x-api-key' not in filtered_headers and 'authorization' in filtered_headers:
-            # Convert authorization to x-api-key if no x-api-key exists
-            auth_value = filtered_headers.pop('authorization')
-            # Remove 'bearer ' prefix if present (case-insensitive)
-            bearer_prefix = 'bearer '
-            if auth_value.lower().startswith(bearer_prefix):
-                auth_value = auth_value[len(bearer_prefix) :].strip()
-            filtered_headers['x-api-key'] = auth_value
+        # Inject API key from provider config if available
+        provider_config = params.get('provider_config')
+        if provider_config and provider_config.api_key:
+            # Anthropic expects x-api-key header
+            filtered_headers['x-api-key'] = provider_config.api_key
+            # Remove any authorization header since we're using x-api-key
+            filtered_headers.pop('authorization', None)
 
         return request, filtered_headers
 
@@ -335,7 +330,6 @@ class ClaudeSystemMessageCleanerTransformer(RequestTransformer):
         """Initialize transformer."""
         self.logger = logger
 
-
     async def transform(self, params: Dict[str, Any]) -> Tuple[Dict[str, Any], Dict[str, str]]:
         """Clean system messages by removing git status suffix."""
         request, headers = params['request'], params['headers']
@@ -367,7 +361,6 @@ class ClaudeSystemMessageCleanerTransformer(RequestTransformer):
         system message to make it more cache-friendly and reusable.
         """
 
-
         # Remove the entire chunk of 'gitStatus: This is the git status at the start of the conversation....'
         # So the system message can be reused for the entire time Claude Code is open
         git_status_pos = text.rfind('\ngitStatus: ')
@@ -376,9 +369,5 @@ class ClaudeSystemMessageCleanerTransformer(RequestTransformer):
         return text
 
     def _remove_defensive_task_lines(self, text: str):
-        remove_lines = [
-            'IMPORTANT: Assist with defensive',
-            'You are powered',
-            'Assistant knowledge cutoff'
-        ]
-        return '\n'.join((line for line in text.splitlines() if not any(line.startswith(l) for l in remove_lines)))
+        remove_lines = ['IMPORTANT: Assist with defensive', 'You are powered', 'Assistant knowledge cutoff']
+        return '\n'.join((line for line in text.splitlines() if not any(line.startswith(remove_line) for remove_line in remove_lines)))
