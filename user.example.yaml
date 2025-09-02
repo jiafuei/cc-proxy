@@ -16,6 +16,10 @@ providers:
     timeout: !env [ANTHROPIC_TIMEOUT, 300]  # Request timeout in seconds
     transformers:
       request:
+        # Cleans system messages by removing dynamic content (git status, etc.)
+        # to make them more cache-friendly and reusable across sessions
+        - class: 'app.services.transformers.anthropic.ClaudeSystemMessageCleanerTransformer'
+          params: {}
         # Optimizes cache breakpoints for Anthropic API (uses 4 max breakpoints)
         # - Removes cache from 'You are Claude' system message
         # - Adds cache to last system message and tools
