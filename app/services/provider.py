@@ -1,5 +1,6 @@
 """Enhanced provider system for the simplified architecture."""
 
+import asyncio
 from dataclasses import dataclass
 from typing import Any, AsyncIterator, Dict, List, Optional, Tuple
 
@@ -220,6 +221,7 @@ class Provider:
             # Create content_block_stop event
             content_block_stop = {'type': 'content_block_stop', 'index': index}
             yield f'event: content_block_stop\ndata: {orjson.dumps(content_block_stop).decode()}\n\n'.encode()
+            await asyncio.sleep(0.007)
 
         # Create message_delta event with final stop reason
         message_delta = {

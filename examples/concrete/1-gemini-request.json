@@ -1,0 +1,59 @@
+{
+    "contents": [
+      {
+        "parts": [
+          {
+            "text": "Hello! What is the meaning of yellow sunsets. You must reply in this way: \n1. \"let me get that for ya\" and add some flavor text of 2-3 sentences.\nThen call the get_meaning and get_extra_meaning tool."
+          }
+        ]
+      }
+    ],
+    "tools": [
+      {
+        "function_declarations": [
+          {
+            "name": "get_meaning",
+            "description": "Returns the meaning of the subject",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "subject": {
+                  "type": "string",
+                  "description": "The subject"
+                }
+              },
+              "required": [
+                "subject"
+              ]
+            }
+          },
+          {
+            "name": "get_extra_meaning",
+            "description": "Returns the extra meaning of the subject",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "subject": {
+                  "type": "string",
+                  "description": "The subject"
+                },
+                "thoughts": {
+                  "type": "string",
+                  "description": "Your own thoughts on the meaning of the subject"
+                }
+              },
+              "required": [
+                "subject"
+              ]
+            }
+          }
+        ]
+      }
+    ],
+    "generationConfig": {
+      "thinkingConfig": {
+        "thinkingBudget": 20000,
+        "includeThoughts": true
+      }
+    }
+  }

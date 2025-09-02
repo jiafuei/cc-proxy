@@ -292,13 +292,9 @@ class GeminiRequestTransformer(RequestTransformer):
 
         if top_p := request.get('top_p'):
             config['topP'] = top_p
-        else:
-            config['topP'] = 1.0  # Default value for compatibility
 
         if top_k := request.get('top_k'):
             config['topK'] = top_k
-        else:
-            config['topK'] = 40  # Default value for compatibility
 
         # Always set candidateCount to 1 for Anthropic compatibility
         config['candidateCount'] = 1
