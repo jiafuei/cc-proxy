@@ -23,10 +23,7 @@ class TestRequestBodyTransformer:
     def test_init_valid_operations(self):
         """Test initialization with valid operations."""
         mock_logger = Mock()
-        operations = [
-            {'key': 'model', 'value': 'new-model', 'op': 'set'},
-            {'key': 'temperature', 'value': 0.8, 'op': 'set'}
-        ]
+        operations = [{'key': 'model', 'value': 'new-model', 'op': 'set'}, {'key': 'temperature', 'value': 0.8, 'op': 'set'}]
         transformer = RequestBodyTransformer(mock_logger, operations=operations)
 
         assert len(transformer.operations) == 2
@@ -52,7 +49,7 @@ class TestRequestBodyTransformer:
         """Test initialization with invalid operation format raises ValueError."""
         mock_logger = Mock()
 
-        with pytest.raises(ValueError, match="Operation 0 must be a dictionary"):
+        with pytest.raises(ValueError, match='Operation 0 must be a dictionary'):
             RequestBodyTransformer(mock_logger, operations=['invalid'])
 
     def test_init_missing_key(self):
@@ -165,7 +162,7 @@ class TestRequestBodyTransformer:
         operations = [
             {'key': 'model', 'value': 'new-model', 'op': 'set'},
             {'key': 'temperature', 'value': 0.8, 'op': 'set'},
-            {'key': 'metadata', 'value': {'version': '2.0'}, 'op': 'merge'}
+            {'key': 'metadata', 'value': {'version': '2.0'}, 'op': 'merge'},
         ]
         transformer = RequestBodyTransformer(mock_logger, operations=operations)
 
@@ -182,10 +179,7 @@ class TestRequestBodyTransformer:
     async def test_transform_sequential_operations_same_path(self, sample_request):
         """Test transform with sequential operations on same path."""
         mock_logger = Mock()
-        operations = [
-            {'key': 'model', 'value': 'first-model', 'op': 'set'},
-            {'key': 'model', 'value': 'final-model', 'op': 'set'}
-        ]
+        operations = [{'key': 'model', 'value': 'first-model', 'op': 'set'}, {'key': 'model', 'value': 'final-model', 'op': 'set'}]
         transformer = RequestBodyTransformer(mock_logger, operations=operations)
 
         params = {'request': sample_request, 'headers': {}}
@@ -202,7 +196,7 @@ class TestRequestBodyTransformer:
             {'key': 'messages', 'value': new_message, 'op': 'prepend'},
             {'key': 'temperature', 'op': 'delete'},
             {'key': 'metadata', 'value': {'version': '2.0'}, 'op': 'merge'},
-            {'key': 'model', 'value': 'updated-model', 'op': 'set'}
+            {'key': 'model', 'value': 'updated-model', 'op': 'set'},
         ]
         transformer = RequestBodyTransformer(mock_logger, operations=operations)
 
@@ -248,10 +242,7 @@ class TestRequestBodyTransformer:
     async def test_transform_nested_jsonpath_operations(self, sample_request):
         """Test transform with nested JSONPath expressions."""
         mock_logger = Mock()
-        operations = [
-            {'key': 'messages[0].content', 'value': 'Updated content', 'op': 'set'},
-            {'key': 'metadata.user_id', 'value': '456', 'op': 'set'}
-        ]
+        operations = [{'key': 'messages[0].content', 'value': 'Updated content', 'op': 'set'}, {'key': 'metadata.user_id', 'value': '456', 'op': 'set'}]
         transformer = RequestBodyTransformer(mock_logger, operations=operations)
 
         params = {'request': sample_request, 'headers': {}}
@@ -312,7 +303,7 @@ class TestRequestBodyTransformer:
         mock_logger = Mock()
         operations = [
             {'key': 'model', 'value': 'new-model', 'op': 'set'},  # This should work
-            {'key': 'model', 'value': 'item', 'op': 'append'}  # This will fail
+            {'key': 'model', 'value': 'item', 'op': 'append'},  # This will fail
         ]
         transformer = RequestBodyTransformer(mock_logger, operations=operations)
 
@@ -322,3 +313,23 @@ class TestRequestBodyTransformer:
         # Should return original request due to second operation error
         assert result_request is sample_request
         mock_logger.error.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_transform_merge_root_to_create_new_fields(self, sample_request):
+        """Test using merge with root '$' to create new fields - alternative approach."""
+        mock_logger = Mock()
+        operations = [{'key': '$', 'value': {'new_field': 'new_value', 'another_field': 42}, 'op': 'merge'}]
+        transformer = RequestBodyTransformer(mock_logger, operations=operations)
+
+        params = {'request': sample_request, 'headers': {}}
+        result_request, result_headers = await transformer.transform(params)
+
+        # New fields should be created via merge
+        assert result_request['new_field'] == 'new_value'
+        assert result_request['another_field'] == 42
+        # Existing fields should be preserved
+        assert result_request['model'] == 'claude-3'
+        assert result_request['temperature'] == 0.7
+        # Original unchanged
+        assert 'new_field' not in sample_request
+        assert 'another_field' not in sample_request

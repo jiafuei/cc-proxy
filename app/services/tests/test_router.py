@@ -3,6 +3,7 @@
 from unittest.mock import Mock, patch
 
 from app.common.models import AnthropicRequest
+from app.common.models.anthropic import AnthropicSystemMessage
 from app.config.user_models import RoutingConfig
 from app.services.router import RequestInspector, SimpleRouter
 from app.services.transformer_loader import TransformerLoader
@@ -491,6 +492,8 @@ def test_simple_router_direct_routing_bypasses_content_analysis():
 
     with patch('app.services.router.RequestInspector') as mock_inspector_class:
         mock_inspector = Mock()
+        # Mock the agent routing method to return None (no agent routing)
+        mock_inspector._scan_for_agent_routing.return_value = None
         mock_inspector_class.return_value = mock_inspector
 
         router = SimpleRouter(mock_provider_manager, routing_config, mock_transformer_loader)
@@ -514,3 +517,135 @@ def test_simple_router_direct_routing_bypasses_content_analysis():
 
         # Should have looked up the stripped alias
         mock_provider_manager.get_provider_for_model.assert_called_once_with('custom-alias')
+
+
+def test_request_inspector_agent_routing_string_system():
+    """Test agent routing detection in string system message."""
+    inspector = RequestInspector()
+
+    request = AnthropicRequest(model='test', messages=[], system='--agent:[claude-3-5-sonnet]--\nOther content follows')
+
+    result = inspector._scan_for_agent_routing(request)
+    assert result == 'claude-3-5-sonnet'
+
+
+def test_request_inspector_agent_routing_list_system():
+    """Test agent routing detection in list system message."""
+    inspector = RequestInspector()
+
+    request = AnthropicRequest(
+        model='test',
+        messages=[],
+        system=[AnthropicSystemMessage(type='text', text='First message'), AnthropicSystemMessage(type='text', text='  --agent:[gpt-4]--  \nSome instructions')],
+    )
+
+    result = inspector._scan_for_agent_routing(request)
+    assert result == 'gpt-4'
+
+
+def test_request_inspector_agent_routing_no_pattern():
+    """Test agent routing when no pattern is present."""
+    inspector = RequestInspector()
+
+    request = AnthropicRequest(model='test', messages=[], system='Regular system message without pattern')
+
+    result = inspector._scan_for_agent_routing(request)
+    assert result is None
+
+
+def test_request_inspector_agent_routing_none_system():
+    """Test agent routing with no system message."""
+    inspector = RequestInspector()
+
+    request = AnthropicRequest(model='test', messages=[], system=None)
+
+    result = inspector._scan_for_agent_routing(request)
+    assert result is None
+
+
+def test_request_inspector_agent_routing_malformed_pattern():
+    """Test agent routing with malformed patterns."""
+    inspector = RequestInspector()
+
+    # Missing closing bracket
+    request1 = AnthropicRequest(model='test', messages=[], system='--agent:[claude-3-5-sonnet--')
+    assert inspector._scan_for_agent_routing(request1) is None
+
+    # Empty alias
+    request2 = AnthropicRequest(model='test', messages=[], system='--agent:[]--')
+    assert inspector._scan_for_agent_routing(request2) is None
+
+    # Pattern not on first line
+    request3 = AnthropicRequest(model='test', messages=[], system='Some text\n--agent:[claude-3-5-sonnet]--')
+    assert inspector._scan_for_agent_routing(request3) is None
+
+
+def test_simple_router_agent_routing_success():
+    """Test successful agent routing."""
+    mock_provider_manager = Mock()
+    mock_provider = Mock()
+    mock_provider.config.name = 'test-provider'
+    mock_provider_manager.get_provider_for_model.return_value = (mock_provider, 'claude-3-5-sonnet-20240620')
+
+    routing_config = RoutingConfig(default='sonnet')
+    mock_transformer_loader = Mock()
+
+    router = SimpleRouter(mock_provider_manager, routing_config, mock_transformer_loader)
+
+    request = AnthropicRequest(model='original-model', messages=[], system='--agent:[claude-3-5-sonnet]--\nYou are an AI assistant.')
+
+    provider, routing_key = router.get_provider_for_request(request)
+
+    assert routing_key == 'agent_direct'
+    assert provider == mock_provider
+    assert request.model == 'claude-3-5-sonnet-20240620'  # Should be updated to resolved model
+    mock_provider_manager.get_provider_for_model.assert_called_once_with('claude-3-5-sonnet')
+
+
+def test_simple_router_agent_routing_fallback():
+    """Test agent routing fallback to default provider."""
+    mock_provider_manager = Mock()
+    mock_provider_manager.get_provider_for_model.return_value = None  # No configured provider
+
+    routing_config = RoutingConfig(default='sonnet')
+    mock_transformer_loader = Mock()
+
+    router = SimpleRouter(mock_provider_manager, routing_config, mock_transformer_loader)
+
+    request = AnthropicRequest(model='original-model', messages=[], system='--agent:[unknown-model]--\nYou are an AI assistant.')
+
+    provider, routing_key = router.get_provider_for_request(request)
+
+    assert routing_key == 'agent_direct'
+    assert provider == router.default_provider
+    assert request.model == 'original-model'  # Should remain unchanged for fallback
+    mock_provider_manager.get_provider_for_model.assert_called_once_with('unknown-model')
+
+
+def test_simple_router_agent_routing_priority():
+    """Test that agent routing takes priority over direct and content-based routing."""
+    mock_provider_manager = Mock()
+    mock_provider = Mock()
+    mock_provider.config.name = 'agent-provider'
+    mock_provider_manager.get_provider_for_model.return_value = (mock_provider, 'agent-resolved')
+
+    routing_config = RoutingConfig(default='sonnet')
+    mock_transformer_loader = Mock()
+
+    router = SimpleRouter(mock_provider_manager, routing_config, mock_transformer_loader)
+
+    # Request with agent routing, direct routing suffix, AND content-based triggers
+    request = AnthropicRequest(
+        model='direct-model!',  # Has direct routing suffix
+        max_tokens=100,  # Would trigger background routing
+        messages=[{'role': 'user', 'content': '<system-reminder>\nPlan mode is active.'}],
+        thinking={'type': 'enabled', 'budget_tokens': 2000},  # Would trigger thinking
+        system='--agent:[priority-model]--\nAgent instructions',
+    )
+
+    provider, routing_key = router.get_provider_for_request(request)
+
+    # Agent routing should win
+    assert routing_key == 'agent_direct'
+    assert provider == mock_provider
+    mock_provider_manager.get_provider_for_model.assert_called_once_with('priority-model')

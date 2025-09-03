@@ -49,7 +49,7 @@ class TestGeminiRequestTransformer:
         assert gen_config['temperature'] == 0.7
         assert gen_config['maxOutputTokens'] == 1000
         assert gen_config['topP'] == 1.0  # Default value
-        assert gen_config['topK'] == 40   # Default value
+        assert gen_config['topK'] == 40  # Default value
         assert gen_config['candidateCount'] == 1
 
         # Check header filtering - should NOT contain auth headers (uses query params)
@@ -376,7 +376,7 @@ class TestGeminiRequestTransformer:
             'max_tokens': 2000,
             'stop_sequences': ['END', 'STOP'],
             'top_p': 0.95,
-            'top_k': 50
+            'top_k': 50,
         }
 
         params = {'request': anthropic_request, 'headers': {}}
@@ -384,7 +384,7 @@ class TestGeminiRequestTransformer:
 
         assert 'generationConfig' in gemini_request
         gen_config = gemini_request['generationConfig']
-        
+
         # Check all mapped parameters
         assert gen_config['temperature'] == 0.8
         assert gen_config['maxOutputTokens'] == 2000
@@ -398,7 +398,7 @@ class TestGeminiRequestTransformer:
         """Test that generation config includes default values when parameters not provided."""
         anthropic_request = {
             'messages': [{'role': 'user', 'content': 'Test defaults'}],
-            'temperature': 0.7  # Only provide temperature
+            'temperature': 0.7,  # Only provide temperature
         }
 
         params = {'request': anthropic_request, 'headers': {}}
@@ -406,15 +406,15 @@ class TestGeminiRequestTransformer:
 
         assert 'generationConfig' in gemini_request
         gen_config = gemini_request['generationConfig']
-        
+
         # Check provided parameter
         assert gen_config['temperature'] == 0.7
-        
+
         # Check defaults are applied
         assert gen_config['topP'] == 1.0
         assert gen_config['topK'] == 40
         assert gen_config['candidateCount'] == 1
-        
+
         # Parameters not provided should not be in config
         assert 'maxOutputTokens' not in gen_config
         assert 'stopSequences' not in gen_config
@@ -425,7 +425,7 @@ class TestGeminiRequestTransformer:
         anthropic_request = {
             'messages': [{'role': 'user', 'content': 'Test partial params'}],
             'max_tokens': 1500,
-            'top_p': 0.9
+            'top_p': 0.9,
             # No temperature, top_k, or stop_sequences
         }
 
@@ -433,15 +433,15 @@ class TestGeminiRequestTransformer:
         gemini_request, _ = await self.transformer.transform(params)
 
         gen_config = gemini_request['generationConfig']
-        
+
         # Check provided parameters
         assert gen_config['maxOutputTokens'] == 1500
         assert gen_config['topP'] == 0.9
-        
+
         # Check defaults for missing parameters
         assert gen_config['topK'] == 40
         assert gen_config['candidateCount'] == 1
-        
+
         # Parameters not provided should not be in config
         assert 'temperature' not in gen_config
         assert 'stopSequences' not in gen_config
@@ -451,13 +451,7 @@ class TestGeminiRequestTransformer:
         """Test that toolConfig is added when tools are present."""
         anthropic_request = {
             'messages': [{'role': 'user', 'content': 'Use tools'}],
-            'tools': [
-                {
-                    'name': 'test_tool',
-                    'description': 'A test tool',
-                    'input_schema': {'type': 'object', 'properties': {}}
-                }
-            ]
+            'tools': [{'name': 'test_tool', 'description': 'A test tool', 'input_schema': {'type': 'object', 'properties': {}}}],
         }
 
         params = {'request': anthropic_request, 'headers': {}}
@@ -466,7 +460,7 @@ class TestGeminiRequestTransformer:
         # Should have tools
         assert 'tools' in gemini_request
         assert len(gemini_request['tools']) == 1
-        
+
         # Should have toolConfig
         assert 'toolConfig' in gemini_request
         tool_config = gemini_request['toolConfig']
@@ -475,9 +469,7 @@ class TestGeminiRequestTransformer:
     @pytest.mark.asyncio
     async def test_no_tool_config_without_tools(self):
         """Test that toolConfig is not added when no tools are present."""
-        anthropic_request = {
-            'messages': [{'role': 'user', 'content': 'No tools needed'}]
-        }
+        anthropic_request = {'messages': [{'role': 'user', 'content': 'No tools needed'}]}
 
         params = {'request': anthropic_request, 'headers': {}}
         gemini_request, _ = await self.transformer.transform(params)

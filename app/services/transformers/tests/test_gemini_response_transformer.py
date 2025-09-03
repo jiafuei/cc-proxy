@@ -57,9 +57,7 @@ class TestGeminiResponseTransformer:
             'model': 'gemini-2.0-flash-exp',
             'candidates': [
                 {
-                    'content': {
-                        'parts': [{'text': "I'll get the weather for you."}, {'functionCall': {'name': 'get_weather', 'args': {'city': 'San Francisco'}}}]
-                    },
+                    'content': {'parts': [{'text': "I'll get the weather for you."}, {'functionCall': {'name': 'get_weather', 'args': {'city': 'San Francisco'}}}]},
                     'finishReason': 'STOP',
                 }
             ],

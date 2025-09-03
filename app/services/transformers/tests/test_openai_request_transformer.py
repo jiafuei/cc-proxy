@@ -709,15 +709,13 @@ class TestOpenAIRequestTransformer:
 
         # Should create 2 messages: user text → assistant tool call
         assert len(result) == 2
-        
+
         # User message (string content gets converted to simple string format)
         assert result[0] == {'role': 'user', 'content': 'Please read the config file'}
-        
+
         # Assistant message with tool call
         assert result[1] == {
             'role': 'assistant',
             'content': None,
-            'tool_calls': [
-                {'id': 'toolu_read123', 'type': 'function', 'function': {'name': 'Read', 'arguments': '{"file_path":"config.yaml"}'}}
-            ],
+            'tool_calls': [{'id': 'toolu_read123', 'type': 'function', 'function': {'name': 'Read', 'arguments': '{"file_path":"config.yaml"}'}}],
         }

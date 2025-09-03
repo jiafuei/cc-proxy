@@ -1,6 +1,7 @@
 """Simple router system for the simplified architecture."""
 
 import os
+import re
 from typing import Optional, Tuple
 
 from app.common.models import AnthropicRequest
@@ -38,6 +39,9 @@ def _create_default_anthropic_config() -> ProviderConfig:
 
 class RequestInspector:
     """Analyzes requests to determine routing key."""
+
+    # Compiled regex for efficient agent routing pattern matching
+    AGENT_PATTERN = re.compile(r'^--agent:\[([^\]]+)\]--$')
 
     def __init__(self):
         """Initialize the request inspector."""
@@ -118,6 +122,35 @@ class RequestInspector:
 
         return False
 
+    def _scan_for_agent_routing(self, request: AnthropicRequest) -> Optional[str]:
+        """Scan last system message for agent routing pattern.
+
+        Args:
+            request: Anthropic API request
+
+        Returns:
+            Model alias if --agent:[model-alias]-- found as first line, None otherwise
+        """
+        if not request.system:
+            return None
+
+        # Get last system message content
+        if isinstance(request.system, str):
+            content = request.system
+        elif isinstance(request.system, list) and request.system:
+            content = request.system[-1].text
+        else:
+            return None
+
+        # Check first line after trimming
+        trimmed = content.strip()
+        if not trimmed:
+            return None
+
+        first_line = trimmed.split('\n', 1)[0].strip()
+        match = self.AGENT_PATTERN.match(first_line)
+        return match.group(1) if match else None
+
 
 class SimpleRouter:
     """Simple router that maps requests to providers based on routing configuration."""
@@ -145,8 +178,14 @@ class SimpleRouter:
         Returns:
             Tuple (Provider, routing_key)
         """
+        # Check for agent routing in system message first
+        agent_model_alias = self.inspector._scan_for_agent_routing(request)
+        if agent_model_alias:
+            model_alias = agent_model_alias
+            routing_key = 'agent_direct'
+            logger.debug(f'Agent routing detected in system message: --agent:[{model_alias}]--')
         # Check for direct routing with '!' suffix
-        if request.model.endswith('!'):
+        elif request.model.endswith('!'):
             model_alias = request.model[:-1]  # Strip '!'
             routing_key = 'direct'
             logger.debug(f'Direct routing detected: {request.model} -> {model_alias}')
@@ -164,7 +203,9 @@ class SimpleRouter:
             provider, resolved_model_id = provider_result
             # Update request.model to the resolved model ID
             request.model = resolved_model_id
-            if routing_key == 'direct':
+            if routing_key == 'agent_direct':
+                logger.info(f'Agent routing: --agent:[{model_alias}]-- -> {model_alias} -> {resolved_model_id} -> {provider.config.name}')
+            elif routing_key == 'direct':
                 logger.info(f'Direct routing: {model_alias}! -> {model_alias} -> {resolved_model_id} -> {provider.config.name}')
             else:
                 logger.info(f'Routed request: {routing_key} -> {model_alias} -> {resolved_model_id} -> {provider.config.name}')
@@ -172,7 +213,9 @@ class SimpleRouter:
 
         # 4. Use default provider as fallback (guaranteed to exist)
         # For fallback, keep request.model as is (don't modify it)
-        if routing_key == 'direct':
+        if routing_key == 'agent_direct':
+            logger.info(f'Agent routing to fallback: --agent:[{model_alias}]-- -> {model_alias} -> {request.model} (unchanged) -> {self.default_provider.config.name}')
+        elif routing_key == 'direct':
             logger.info(f'Direct routing to fallback: {model_alias}! -> {model_alias} -> {request.model} (unchanged) -> {self.default_provider.config.name}')
         else:
             logger.info(f'Routed request to fallback: {routing_key} -> {model_alias} -> {request.model} (unchanged) -> {self.default_provider.config.name}')
