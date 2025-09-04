@@ -99,7 +99,8 @@ async def count_tokens(payload: AnthropicRequest, request: Request, dumper: Dump
 
         # Manually set authorization header with provider's API key
         if provider.config.api_key:
-            current_headers['x-api-key'] = f'{provider.config.api_key}'
+            current_headers['authorization'] = f'Bearer {provider.config.api_key}'
+            current_headers.pop('x-api-key', None)
 
         # Dump transformed request and headers
         logger.info(f'Count request routed to provider: {provider.config.name}, route: {routing_key}', headers=current_headers)

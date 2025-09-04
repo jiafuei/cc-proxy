@@ -71,8 +71,9 @@ Automatically route different types of requests to different models:
 - Background tasks → Specialized or cheaper models
 
 ### 🔧 **Flexible Transformations**
-- **Request transforms**: Add authentication, modify prompts, inject context
-- **Response transforms**: Normalize outputs, add metadata, apply filters
+- **Request transforms**: Add authentication, modify prompts, inject context, merge tool calls
+- **Response transforms**: Normalize outputs, add metadata, apply filters, clean system messages
+- **Smart routing**: Subagent routing with intelligent message handling
 - **Custom plugins**: Write your own transformers in Python
 
 ### 📦 **Drop-in Replacement**
@@ -169,10 +170,9 @@ Place Python files in directories listed in `transformer_paths` and reference th
 - **Comprehensive logging** and debugging tools
 
 ### API Compatibility
-- **Anthropic Messages API** - Full compatibility with v1/messages endpoint
-- **OpenAI Chat Completions** - Automatic format conversion
-- **Streaming support** - Real-time response streaming maintained
-- **Tool calling** - Function calling preserved across providers
+- **OpenAI Chat Completions** - Automatic format conversions
+- **Streaming support** - Real-time response streaming
+- **Subagent routing** - Advanced routing capabilities for complex workflows
 
 ### Development Commands
 ```bash

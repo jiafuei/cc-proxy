@@ -134,10 +134,13 @@ Secure plugin execution environment.
 ### Message Processing Extensions
 - **Token Counting Endpoint**: `/v1/messages/count_tokens` for request token analysis
 - **Streaming Response Conversion**: Non-streaming responses converted to SSE format for consistency
+- **Subagent Routing**: Advanced routing capabilities for complex AI workflows
 
 ### Generic Transformers (Phase 4 extras)
 - **UrlPathTransformer**: Modify provider URLs dynamically
 - **AddHeaderTransformer**: Generic header injection
+- **AnthropicHeadersTransformer**: Configurable auth header support
+- **ClaudeSystemMessageCleanerTransformer**: System message processing
 - **RequestBodyTransformer**: JSONPath-based request modification
 
 ### Advanced Caching (Phase 2 extras)
