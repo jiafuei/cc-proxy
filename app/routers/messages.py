@@ -6,10 +6,10 @@ from fastapi.responses import ORJSONResponse, StreamingResponse
 from app.common.anthropic_errors import extract_error_message, map_http_status_to_anthropic_error
 from app.common.dumper import Dumper
 from app.common.models import AnthropicRequest
+from app.common.sse_converter import convert_json_to_sse
 from app.config.log import get_logger
 from app.dependencies.dumper import get_dumper
 from app.dependencies.service_container import get_service_container
-from app.routers.sse_converter import convert_json_to_sse
 
 router = APIRouter()
 logger = get_logger(__name__)
