@@ -9,6 +9,7 @@ from app.common.models import AnthropicRequest
 from app.config.log import get_logger
 from app.dependencies.dumper import get_dumper
 from app.dependencies.service_container import get_service_container
+from app.routers.sse_converter import convert_json_to_sse
 
 router = APIRouter()
 logger = get_logger(__name__)
@@ -16,9 +17,9 @@ logger = get_logger(__name__)
 
 @router.post('/v1/messages')
 async def messages(payload: AnthropicRequest, request: Request, dumper: Dumper = Depends(get_dumper)):
-    """Handle Anthropic API messages with simplified routing and provider system."""
+    """Handle Anthropic API messages with always-JSON architecture."""
 
-    # Phase 1: Basic validation - can still return JSON errors
+    # Phase 1: Validation
     service_container = get_service_container()
     if not service_container:
         logger.error('Service container not available - check configuration')
@@ -34,15 +35,23 @@ async def messages(payload: AnthropicRequest, request: Request, dumper: Dumper =
     # Start dumping for debugging/logging
     dumper_handles = dumper.begin(request, payload.to_dict())
 
-    # Phase 2: Test provider connectivity by getting first chunk
+    # Phase 2: Get JSON response from provider (always JSON now)
     try:
-        provider_generator = provider.process_request(payload, request, routing_key, dumper, dumper_handles)
-        first_chunk = await provider_generator.__anext__()
-    except StopAsyncIteration:
-        # Empty response from provider
-        dumper.close(dumper_handles)
-        logger.error('Provider returned empty response')
-        return ORJSONResponse({'error': {'type': 'api_error', 'message': 'Provider returned empty response'}}, status_code=502)
+        json_response = await provider.process_request(payload, request, routing_key, dumper, dumper_handles)
+
+        # Phase 3: Route based on ORIGINAL stream parameter from client
+        original_stream_requested = payload.stream is True
+
+        if not original_stream_requested:
+            # Non-streaming: return JSON directly
+            response_bytes = orjson.dumps(json_response)
+            dumper.write_response_chunk(dumper_handles, response_bytes)
+            dumper.close(dumper_handles)
+            return ORJSONResponse(json_response)
+        else:
+            # Streaming: convert JSON to SSE format
+            return StreamingResponse(convert_json_to_sse(json_response, dumper, dumper_handles), media_type='text/event-stream')
+
     except httpx.HTTPStatusError as e:
         # HTTP error from provider - return with original status code
         error_type = map_http_status_to_anthropic_error(e.response.status_code)
@@ -55,22 +64,6 @@ async def messages(payload: AnthropicRequest, request: Request, dumper: Dumper =
         logger.error(f'Error processing request: {e}', exc_info=True)
         dumper.close(dumper_handles)
         return ORJSONResponse({'error': {'type': 'api_error', 'message': f'Request processing failed: {str(e)}'}}, status_code=500)
-
-    # Phase 3: Provider working - commit to streaming
-    async def stream_remaining():
-        # Send buffered first chunk
-        dumper.write_response_chunk(dumper_handles, first_chunk)
-        yield first_chunk
-
-        # Stream remaining chunks (errors here close connection)
-        try:
-            async for chunk in provider_generator:
-                dumper.write_response_chunk(dumper_handles, chunk)
-                yield chunk
-        finally:
-            dumper.close(dumper_handles)
-
-    return StreamingResponse(stream_remaining(), media_type='text/event-stream')
 
 
 @router.post('/v1/messages/count_tokens')

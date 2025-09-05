@@ -30,6 +30,7 @@ def _create_default_anthropic_config() -> ProviderConfig:
                 {'class': 'app.services.transformers.anthropic.ClaudeSystemMessageCleanerTransformer', 'params': {}},
                 {'class': 'app.services.transformers.anthropic.AnthropicCacheTransformer', 'params': {}},
                 {'class': 'app.services.transformers.anthropic.AnthropicHeadersTransformer', 'params': {'auth_header': 'x-api-key'}},
+                {'class': 'app.services.transformers.anthropic.ToolDescriptionOptimizerTransformer', 'params': {}},
             ],
             'response': [{'class': 'app.services.transformers.anthropic.AnthropicResponseTransformer', 'params': {}}],
         },
