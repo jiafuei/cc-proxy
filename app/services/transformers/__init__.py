@@ -7,3 +7,4 @@ from app.services.transformers.interfaces import ResponseTransformer as Response
 from app.services.transformers.openai import OpenAIRequestTransformer as OpenAIRequestTransformer
 from app.services.transformers.openai import OpenAIResponseTransformer as OpenAIResponseTransformer
 from app.services.transformers.utils import HeaderTransformer as HeaderTransformer
+from app.services.transformers.utils import ToolDescriptionOptimizerTransformer as ToolDescriptionOptimizerTransformer

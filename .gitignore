@@ -206,6 +206,7 @@ __marimo__/
 .claude/**/*.local.*
 CLAUDE.local.md
 
+exports/
 dumps/
 config.yaml
 config.yml

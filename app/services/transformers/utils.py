@@ -353,3 +353,96 @@ class GeminiApiKeyTransformer(RequestTransformer):
             return api_key_header
 
         return ''
+
+
+class ToolDescriptionOptimizerTransformer(RequestTransformer):
+    """Transformer that optimizes tool descriptions based on a hardcoded mapping.
+
+    Replaces tool descriptions with optimized versions based on tool names.
+    Tools not in the mapping are left unchanged.
+    """
+
+    # Hardcoded mapping of tool names to optimized descriptions
+    TOOL_DESCRIPTION_MAP = {
+        "Bash": """<purpose>
+Executes bash commands in a persistent shell session with timeout support and security measures. Use this tool for running system commands, file operations, development tasks, and git workflows while maintaining session state across multiple command executions.
+</purpose>
+
+<parameters>
+- command (required): The bash command to execute
+- description (recommended): Clear 5-10 word description of what the command does
+- timeout (optional): Timeout in milliseconds (default: 120000ms, max: 600000ms)
+- run_in_background (optional): Execute command in background for long-running processes
+</parameters>
+
+<pre_execution_verification>
+Before executing commands that create files or directories:
+1. Use the LS tool to verify the parent directory exists
+2. Confirm you're in the correct location for the operation
+3. Example: Before `mkdir foo/bar`, verify `foo` directory exists
+</pre_execution_verification>
+
+<file_path_handling>
+Always quote file paths containing spaces with double quotes:
+- Correct: `cd "/Users/name/My Documents"`
+- Incorrect: `cd /Users/name/My Documents`
+- Correct: `python "/path/with spaces/script.py"`
+- Incorrect: `python /path/with spaces/script.py`
+</file_path_handling>
+
+<critical_constraints>
+- MUST use Read tool instead of `cat`, `head`, or `tail` for reading files
+- MUST use Grep, Glob, or Task tools instead of `find` or `grep` for searching
+- If grep is absolutely necessary, use `rg` (ripgrep) which is pre-installed
+- MUST combine multiple commands using `&&` or `;` operators, NOT newlines
+- MUST maintain working directory by using absolute paths instead of `cd` when possible
+- NEVER use interactive flags like `git rebase -i` or `git add -i`
+</critical_constraints>
+
+<command_chaining>
+Combine multiple related commands for efficiency:
+- Preferred: `uvx ruff check --fix && uvx ruff format path/to/code`
+- Preferred: `pytest /absolute/path/to/tests`
+- Avoid: `cd /some/path && pytest tests` (unless user explicitly requests cd)
+</command_chaining>
+
+<background_execution>
+Use `run_in_background: true` for long-running processes:
+- Monitor output using BashOutput tool as it becomes available
+- Do not append `&` to commands when using this parameter
+- Never use background execution for `sleep` commands
+</background_execution>
+""",
+    }
+
+    def __init__(self, logger):
+        """Initialize transformer.
+
+        Args:
+            logger: Logger instance
+        """
+        self.logger = logger
+
+    async def transform(self, params: Dict[str, Any]) -> Tuple[Dict[str, Any], Dict[str, str]]:
+        """Optimize tool descriptions based on hardcoded mapping.
+
+        Args:
+            params: Dictionary containing request and headers
+
+        Returns:
+            Tuple of (transformed_request, headers)
+        """
+        request: dict[str, Any] = params['request']
+        headers: dict[str, str] = params['headers']
+
+        # Transform tool descriptions if tools exist in request
+        if 'tools' in request and isinstance(request['tools'], list):
+            for tool in request['tools']:
+                if isinstance(tool, dict) and 'name' in tool and 'description' in tool:
+                    tool_name = tool['name']
+                    if tool_name in self.TOOL_DESCRIPTION_MAP:
+                        old_description = tool['description']
+                        new_description = self.TOOL_DESCRIPTION_MAP[tool_name]
+                        tool['description'] = new_description
+
+        return request, headers
