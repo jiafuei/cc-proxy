@@ -142,6 +142,7 @@ Secure plugin execution environment.
 - **AnthropicHeadersTransformer**: Configurable auth header support
 - **ClaudeSystemMessageCleanerTransformer**: System message processing
 - **RequestBodyTransformer**: JSONPath-based request modification
+- **ClaudeSoftwareEngineeringSystemMessageTransformer**: Software engineering optimized system message
 
 ### Advanced Caching (Phase 2 extras)
 - **AnthropicCacheTransformer**: Intelligent cache breakpoint optimization

@@ -20,6 +20,9 @@ providers:
         # to make them more cache-friendly and reusable across sessions
         - class: 'app.services.transformers.anthropic.ClaudeSystemMessageCleanerTransformer'
           params: {}
+        # Specialized system message for software engineering tasks
+        - class: 'app.services.transformers.anthropic.ClaudeSoftwareEngineeringSystemMessageTransformer'
+          params: {}
         # Optimizes cache breakpoints for Anthropic API (uses 4 max breakpoints)
         # - Removes cache from 'You are Claude' system message
         # - Adds cache to last system message and tools

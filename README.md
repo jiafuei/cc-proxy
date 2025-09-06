@@ -75,6 +75,7 @@ Automatically route different types of requests to different models:
 - **Response transforms**: Normalize outputs, add metadata, apply filters, clean system messages
 - **Smart routing**: Subagent routing with intelligent message handling
 - **Custom plugins**: Write your own transformers in Python
+- **Software Engineering Mode**: Specialized system message for coding tasks
 
 ### 📦 **Drop-in Replacement**
 Point Claude Code at `http://localhost:8000` and everything just works. No configuration changes needed in Claude Code itself.
