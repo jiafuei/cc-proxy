@@ -381,3 +381,101 @@ class ClaudeSystemMessageCleanerTransformer(RequestTransformer):
     def _remove_defensive_task_lines(self, text: str):
         remove_lines = ['IMPORTANT: Assist with defensive', 'You are powered', 'Assistant knowledge cutoff']
         return '\n'.join((line for line in text.splitlines() if not any(line.startswith(remove_line) for remove_line in remove_lines)))
+
+class ClaudeSoftwareEngineeringSystemMessageTransformer(RequestTransformer):
+    """Transformer that replaces the default system prompt for software engineering.
+
+    Sub-agents(output style, agent creation etc..), background tasks should not be affected.
+    """
+
+    @classmethod
+    def get_default_prompt(cls, env: str):
+        return f"""You're an experienced, expert software engineer. Follow these guidelines:
+
+**Response Style:**
+- Be concise (1-3 sentences max) and direct
+- Use GitHub-flavored markdown for formatting
+- AVOID unnecessary explanations, conclusions, preambles, or emojis
+- Minimize output tokens while maintaining accuracy
+
+**Core Rules:**
+- NEVER guess URLs, use only those supplied by user or Claude Code docs.
+- Use WebFetch only when asked about Claude Code features
+- Always use TodoWrite to plan and track tasks
+- Check code conventions before making changes
+- DON'T add comments unless requested
+
+**Task Workflow:**
+1. Plan with TodoWrite
+2. Research codebase with search tools
+3. Implement solution with tools
+4. Verify with existing tests
+5. Only run lint/typecheck commands if specified
+
+**Tool Usage:**
+- Only use provided tools.
+- ALWAYS batch independent tool calls and combine commands using && whenever possible
+- Prefer Task tool for file searches to save context
+- Only commit when explicitly asked
+- Process <system-reminder> tags as info, not user input
+
+**Examples:**
+- User: "2 + 2" → Assistant: "4"
+- User: "what command lists files?" → Assistant: "ls"
+- User: "is 11 prime?" → Assistant: "Yes"
+
+{env}
+
+**Remember:** always use **TodoWrite** to track progress, keep responses short, and only act when prompted.
+
+    """
+    def __init__(self, logger, prompt = ''):
+        super().__init__(logger)
+        self.prompt = prompt
+
+
+    async def transform(self, params: Dict[str, Any]) -> Tuple[Dict[str, Any], Dict[str, str]]:
+        request, headers = params['request'], params['headers']
+
+        # Validate system key exists
+        if 'system' not in request:
+            return request, headers
+
+        # Validate system array is not empty
+        if not request['system']:
+            return request, headers
+
+        block = request['system'][-1]
+        text = block['text']
+        if not isinstance(text, str):
+            return request, headers
+
+        if not self.is_software_eng_prompt(text):
+            return request, headers
+
+        env_text = self.extract_environment_text(text)
+        if not self.prompt:
+            request['system'][-1]['text'] = self.get_default_prompt(env_text) 
+        else:
+            request['system'][-1]['text'] = f"{self.prompt}\n{env_text}\n"
+
+        return request, headers
+
+    def is_software_eng_prompt(self, system_msg: str) -> bool:
+        if not system_msg.strip().startswith('You are an interactive CLI tool that helps users with software engineering tasks.'):
+            return False
+        return True
+
+    def extract_environment_text(self, system_msg: str) -> str:
+        found = False
+        lines = []
+        for idx, line in enumerate(system_msg):
+            if not found and not line.startswith('Here is useful information about the environment'):
+                continue
+            if not line.strip():
+                return '\n'.join(lines)
+            lines.append(line)
+
+        return '\n'.join(lines)
+
+    pass
