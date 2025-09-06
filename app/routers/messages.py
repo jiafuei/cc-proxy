@@ -7,7 +7,7 @@ from app.common.anthropic_errors import extract_error_message, map_http_status_t
 from app.common.dumper import Dumper
 from app.common.models import AnthropicRequest
 from app.common.sse_converter import convert_json_to_sse
-from app.common.utils import get_current_request_context
+from app.common.vars import get_request_context
 from app.config.log import get_logger
 from app.dependencies.dumper import get_dumper
 from app.dependencies.service_container import get_service_container
@@ -21,7 +21,7 @@ async def messages(payload: AnthropicRequest, request: Request, dumper: Dumper =
     """Handle Anthropic API messages with unified context."""
 
     # Context is already created by middleware
-    ctx = get_current_request_context()
+    ctx = get_request_context()
     ctx.original_model = payload.model
 
     # Phase 1: Validation

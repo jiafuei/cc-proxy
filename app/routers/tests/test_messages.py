@@ -264,7 +264,7 @@ def test_messages_endpoint_with_dumping(tmp_path):
         def begin(self, request, payload):
             from datetime import datetime, timezone
 
-            from app.common.utils import get_correlation_id
+            from app.common.vars import get_correlation_id
 
             dump_dir = self.tmp_dir
             corr_id = get_correlation_id()

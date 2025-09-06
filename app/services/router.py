@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from typing import Optional, Tuple
 
 from app.common.models import AnthropicRequest
-from app.common.utils import get_current_request_context
+from app.common.vars import get_request_context
 from app.config.log import get_logger
 from app.config.user_models import ProviderConfig, RoutingConfig
 from app.services.provider import Provider, ProviderManager
@@ -245,7 +245,7 @@ class SimpleRouter:
         )
         
         # Update request context
-        ctx = get_current_request_context()
+        ctx = get_request_context()
         ctx.original_model = original_model
         ctx.update_routing_info(
             model_alias=model_alias,

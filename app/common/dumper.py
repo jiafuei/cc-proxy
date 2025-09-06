@@ -2,13 +2,32 @@ import os
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from enum import Enum
-from typing import Any, BinaryIO, Dict, Optional
+from typing import Any, BinaryIO, Dict, List, Optional
 
 import orjson
 from fastapi import Request
 
-from app.common.utils import get_correlation_id
+from app.common.vars import get_correlation_id
 from app.config import ConfigModel
+
+
+class HeaderSanitizer:
+    def __init__(self, redact_headers: List[str] = None):
+        base_sensitive = {'authorization', 'cookie', 'set-cookie'}
+        additional = set(x.lower() for x in (redact_headers or []))
+        self.sensitive_headers = base_sensitive | additional
+
+    def sanitize(self, headers: Dict[str, str]) -> Dict[str, str]:
+        """Pure function for header sanitization."""
+        result = {}
+        lower_keys = {k.lower(): k for k in headers.keys()}
+
+        for lk, orig in lower_keys.items():
+            if lk in self.sensitive_headers:
+                result[orig] = '***REDACTED***'
+            else:
+                result[orig] = headers[orig]
+        return result
 
 
 class DumpType(Enum):
@@ -20,6 +39,32 @@ class DumpType(Enum):
     TRANSFORMED_REQUEST = 'transformed_request'
     PRETRANSFORMED_RESPONSE = 'pretransformed_response'
     FINAL_RESPONSE = 'final_response'
+
+
+class DumpPathGenerator:
+    # Centralized path and extension logic
+    EXTENSIONS = {
+        DumpType.ORIGINAL_HEADERS: '.json',
+        DumpType.TRANSFORMED_HEADERS: '.json',
+        DumpType.ORIGINAL_REQUEST: '.json',
+        DumpType.TRANSFORMED_REQUEST: '.json',
+        DumpType.PRETRANSFORMED_RESPONSE: '.sse',
+        DumpType.FINAL_RESPONSE: '.sse',
+    }
+
+    ORDERING = {
+        DumpType.ORIGINAL_HEADERS: 1,
+        DumpType.TRANSFORMED_HEADERS: 2,
+        DumpType.ORIGINAL_REQUEST: 3,
+        DumpType.TRANSFORMED_REQUEST: 4,
+        DumpType.PRETRANSFORMED_RESPONSE: 5,
+        DumpType.FINAL_RESPONSE: 6,
+    }
+
+    def generate_path(self, base_path: str, dump_type: DumpType) -> str:
+        number = self.ORDERING[dump_type]
+        extension = self.EXTENSIONS[dump_type]
+        return f'{base_path}_{number}_{dump_type.value}{extension}'
 
 
 @dataclass
@@ -46,6 +91,8 @@ class DumpHandles:
 class Dumper:
     def __init__(self, cfg: ConfigModel):
         self.cfg = cfg
+        self.sanitizer = HeaderSanitizer(cfg.redact_headers)
+        self.path_generator = DumpPathGenerator()
 
     def _ensure_dir(self) -> Optional[str]:
         if not self.cfg.dump_dir:
@@ -57,39 +104,11 @@ class Dumper:
             return None
 
     def _sanitize_headers(self, headers: Dict[str, str]) -> Dict[str, str]:
-        lower_keys = {k.lower(): k for k in headers.keys()}
-        result: Dict[str, str] = {}
-        base = {'authorization', 'cookie', 'set-cookie'}
-        addl = set(x.lower() for x in (self.cfg.redact_headers or []))
-        sensitive = base | addl
-        for lk, orig in lower_keys.items():
-            if lk in sensitive:
-                result[orig] = '***REDACTED***'
-            else:
-                result[orig] = headers[orig]
-        return result
+        return self.sanitizer.sanitize(headers)
 
     def _get_file_path(self, base_path: str, dump_type: DumpType) -> str:
         """Generate chronologically ordered file paths for different dump types."""
-        # Chronological ordering for easy file exploration
-        ordering = {
-            DumpType.ORIGINAL_HEADERS: 1,
-            DumpType.TRANSFORMED_HEADERS: 2,
-            DumpType.ORIGINAL_REQUEST: 3,
-            DumpType.TRANSFORMED_REQUEST: 4,
-            DumpType.PRETRANSFORMED_RESPONSE: 5,
-            DumpType.FINAL_RESPONSE: 6,
-        }
-        extensions = {
-            DumpType.ORIGINAL_HEADERS: '.json',
-            DumpType.TRANSFORMED_HEADERS: '.json',
-            DumpType.ORIGINAL_REQUEST: '.json',
-            DumpType.TRANSFORMED_REQUEST: '.json',
-            DumpType.PRETRANSFORMED_RESPONSE: '.sse',
-            DumpType.FINAL_RESPONSE: '.sse',
-        }
-        number = ordering[dump_type]
-        return f'{base_path}_{number}_{dump_type.value}{extensions[dump_type]}'
+        return self.path_generator.generate_path(base_path, dump_type)
 
     def _write_json_file(self, file_path: str, data: Any) -> bool:
         """Write JSON data to file with error handling."""
@@ -140,22 +159,23 @@ class Dumper:
 
         return handles
 
-    def _write_data(self, handles: DumpHandles, dump_type: DumpType, data: Any) -> bool:
-        """Unified method to write different types of data."""
-        if not handles.base_path:
-            return False
-
-        # Simplified config checks - each toggle controls both pre/post transformation phases
-        config_checks = {
+    def _should_dump(self, dump_type: DumpType) -> bool:
+        """Centralized config checking for dump types."""
+        return {
             DumpType.ORIGINAL_HEADERS: self.cfg.dump_headers,
             DumpType.TRANSFORMED_HEADERS: self.cfg.dump_headers,
             DumpType.ORIGINAL_REQUEST: self.cfg.dump_requests,
             DumpType.TRANSFORMED_REQUEST: self.cfg.dump_requests,
             DumpType.PRETRANSFORMED_RESPONSE: self.cfg.dump_responses,
             DumpType.FINAL_RESPONSE: self.cfg.dump_responses,
-        }
+        }.get(dump_type, False)
 
-        if not config_checks.get(dump_type, False):
+    def _write_data(self, handles: DumpHandles, dump_type: DumpType, data: Any) -> bool:
+        """Unified method to write different types of data."""
+        if not handles.base_path:
+            return False
+
+        if not self._should_dump(dump_type):
             return False
 
         file_path = self._get_file_path(handles.base_path, dump_type)
