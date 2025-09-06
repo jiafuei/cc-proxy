@@ -155,14 +155,17 @@ def _create_log_handlers(log_config, log_dir: Path) -> list:
     return handlers
 
 
-def _correlation_id_processor(logger, method_name, event_dict):
-    """Add correlation ID to log events if available in context."""
-    from app.common.utils import get_correlation_id
-
-    if 'correlation_id' not in event_dict:
-        correlation_id = get_correlation_id()
-        event_dict['correlation_id'] = correlation_id
-
+def _request_context_processor(logger, method_name, event_dict):
+    """Add request context fields to log events."""
+    from app.common.vars import get_request_context
+    
+    ctx = get_request_context()
+    # Add context fields that aren't already in event_dict
+    context_data = ctx.to_dict(include_none=False)
+    for key, value in context_data.items():
+        if key not in event_dict:
+            event_dict[key] = value
+    
     return event_dict
 
 
@@ -198,7 +201,7 @@ def configure_structlog() -> None:
         structlog.processors.add_log_level,
         structlog.processors.format_exc_info,
         structlog.processors.TimeStamper(fmt='ISO', utc=True),
-        _correlation_id_processor,
+        _request_context_processor,
         structlog.processors.UnicodeDecoder(),
         structlog.stdlib.ProcessorFormatter.wrap_for_formatter,
     ]

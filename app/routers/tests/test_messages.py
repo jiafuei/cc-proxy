@@ -6,7 +6,7 @@ from unittest.mock import Mock, patch
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from app.common.dumper import DumpHandles, DumpFiles
+from app.common.dumper import DumpFiles, DumpHandles
 from app.dependencies.dumper import get_dumper
 from app.routers.messages import router
 

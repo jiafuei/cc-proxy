@@ -1,6 +1,10 @@
 import uuid
 from pathlib import Path
 
+from .request_context import RequestContext
+from .vars import get_correlation_id as _get_correlation_id
+from .vars import get_request_context
+
 
 def generate_correlation_id() -> str:
     """Generate a new correlation ID for request tracing."""
@@ -8,9 +12,31 @@ def generate_correlation_id() -> str:
 
 
 def get_correlation_id() -> str:
-    from .vars import correlation_id
+    """Get correlation ID from request context."""
+    return _get_correlation_id()
 
-    return correlation_id.get()
+
+def get_current_request_context() -> RequestContext:
+    """Get current request context if available."""
+    return get_request_context()
+
+
+def update_routing_context(
+    model_alias: str,
+    resolved_model_id: str,
+    provider_name: str,
+    routing_key: str,
+    **kwargs
+) -> None:
+    """Update routing information in current request context."""
+    ctx = get_request_context()
+    ctx.update_routing_info(
+        model_alias=model_alias,
+        resolved_model_id=resolved_model_id,
+        provider_name=provider_name,
+        routing_key=routing_key,
+        **kwargs
+    )
 
 
 def get_app_dir() -> Path:

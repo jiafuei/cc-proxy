@@ -61,12 +61,17 @@ class Provider:
         Returns:
             JSON response dictionary
         """
+        # Context is automatically available via ContextVar
+        
+        # Log with full context
+        logger.debug('Starting request transformation')
+        
         # 1. Convert AnthropicRequest to Dict and apply request transformers sequentially
         current_request = request.to_dict()  # Use to_dict() method
         current_headers = dict(original_request.headers)  # Copy headers
         config = self.config.model_copy()
 
-        logger.debug(f'Before transform, headers={current_headers}')
+        logger.debug('Request headers prepared')
         for transformer in self.request_transformers:
             transform_params = {
                 'request': current_request,
@@ -77,7 +82,7 @@ class Provider:
             }
             current_request, current_headers = await transformer.transform(transform_params)
 
-        logger.debug(f'Request transformed, stream={current_request.get("stream", False)}, headers={current_headers}')
+        logger.debug('Request transformers applied')
 
         # Dump transformed headers and request after all transformers are applied
         dumper.write_transformed_headers(dumper_handles, current_headers)
@@ -94,7 +99,15 @@ class Provider:
         dumper.write_pretransformed_response(dumper_handles, response_text)
 
         # Apply response transformers to full response
-        transformed_response = response.json()
+        try:
+            transformed_response = response.json()
+        except Exception:
+            logger.error(
+                'Unable to convert response body to JSON',
+                response_length=len(response_text),
+                exc_info=True
+            )
+            raise
         response_params = {}  # Initialize once outside loop for consistency
         for transformer in self.response_transformers:
             response_params.update(
@@ -116,7 +129,7 @@ class Provider:
         # Use headers from transformers (which may include auth)
         final_headers = headers
 
-        logger.debug(f'Non-streaming request to {config.url}')
+        logger.debug('Sending request to provider')
 
         response = await self.http_client.post(config.url, json=request_data, headers=final_headers)
         try:

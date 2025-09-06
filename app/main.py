@@ -11,8 +11,7 @@ from app.config import get_config, setup_config
 from app.config.log import configure_structlog, get_logger
 from app.dependencies.dumper import get_dumper
 from app.dependencies.service_container import get_service_container
-from app.middlewares.context import ContextMiddleware
-from app.middlewares.correlation_id import CorrelationIdMiddleware
+from app.middlewares.request_context import RequestContextMiddleware
 from app.middlewares.security_headers import SecurityHeadersMiddleware
 from app.routers.config import router as config_router
 from app.routers.health import router as health_router
@@ -51,8 +50,7 @@ app.add_middleware(
     allow_headers=['*'],
 )
 app.add_middleware(SecurityHeadersMiddleware)
-app.add_middleware(CorrelationIdMiddleware)
-app.add_middleware(ContextMiddleware)
+app.add_middleware(RequestContextMiddleware)
 
 logger = get_logger(__name__)
 

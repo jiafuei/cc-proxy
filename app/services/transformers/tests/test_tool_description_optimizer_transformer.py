@@ -1,7 +1,8 @@
 """Tests for ToolDescriptionOptimizerTransformer."""
 
-import pytest
 from unittest.mock import MagicMock
+
+import pytest
 
 from app.services.transformers.utils import ToolDescriptionOptimizerTransformer
 

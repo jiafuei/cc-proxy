@@ -7,6 +7,7 @@ from app.common.anthropic_errors import extract_error_message, map_http_status_t
 from app.common.dumper import Dumper
 from app.common.models import AnthropicRequest
 from app.common.sse_converter import convert_json_to_sse
+from app.common.utils import get_current_request_context
 from app.config.log import get_logger
 from app.dependencies.dumper import get_dumper
 from app.dependencies.service_container import get_service_container
@@ -17,7 +18,11 @@ logger = get_logger(__name__)
 
 @router.post('/v1/messages')
 async def messages(payload: AnthropicRequest, request: Request, dumper: Dumper = Depends(get_dumper)):
-    """Handle Anthropic API messages with always-JSON architecture."""
+    """Handle Anthropic API messages with unified context."""
+
+    # Context is already created by middleware
+    ctx = get_current_request_context()
+    ctx.original_model = payload.model
 
     # Phase 1: Validation
     service_container = get_service_container()
@@ -25,19 +30,21 @@ async def messages(payload: AnthropicRequest, request: Request, dumper: Dumper =
         logger.error('Service container not available - check configuration')
         return ORJSONResponse({'error': {'type': 'api_error', 'message': 'Service configuration failed'}}, status_code=500)
 
-    provider, routing_key = service_container.router.get_provider_for_request(payload)
-    if not provider:
+    # Get routing result - context is automatically updated
+    routing_result = service_container.router.get_provider_for_request(payload)
+    if not routing_result.provider:
         logger.error('No provider available for request')
         return ORJSONResponse({'error': {'type': 'model_not_found', 'message': 'No suitable provider found for request'}}, status_code=400)
 
-    logger.info(f'Request routed to provider: {provider.config.name}, route: {routing_key}')
+    # Context is now fully populated with routing info
+    logger.info('Processing request')
 
     # Start dumping for debugging/logging
     dumper_handles = dumper.begin(request, payload.to_dict())
 
     # Phase 2: Get JSON response from provider (always JSON now)
     try:
-        json_response = await provider.process_request(payload, request, routing_key, dumper, dumper_handles)
+        json_response = await routing_result.provider.process_request(payload, request, routing_result.routing_key, dumper, dumper_handles)
 
         # Phase 3: Route based on ORIGINAL stream parameter from client
         original_stream_requested = payload.stream is True
@@ -76,9 +83,9 @@ async def count_tokens(payload: AnthropicRequest, request: Request, dumper: Dump
         logger.error('Service container not available - check configuration')
         raise HTTPException(status_code=500, detail={'error': {'type': 'api_error', 'message': 'Service configuration failed'}})
 
-    # Get provider for request
-    provider, routing_key = service_container.router.get_provider_for_request(payload)
-    if not provider:
+    # Get routing result - context is automatically updated
+    routing_result = service_container.router.get_provider_for_request(payload)
+    if not routing_result.provider:
         logger.error('No provider available for request')
         raise HTTPException(status_code=400, detail={'error': {'type': 'model_not_found', 'message': 'No suitable provider found for request'}})
 
@@ -91,20 +98,20 @@ async def count_tokens(payload: AnthropicRequest, request: Request, dumper: Dump
         current_headers = {k: v for k, v in dict(request.headers).items() if k.lower() not in ('content-length', 'host', 'connection')}
 
         # Manually set authorization header with provider's API key
-        if provider.config.api_key:
-            current_headers['authorization'] = f'Bearer {provider.config.api_key}'
+        if routing_result.provider.config.api_key:
+            current_headers['authorization'] = f'Bearer {routing_result.provider.config.api_key}'
             current_headers.pop('x-api-key', None)
 
         # Dump transformed request and headers
-        logger.info(f'Count request routed to provider: {provider.config.name}, route: {routing_key}', headers=current_headers)
+        logger.info('Count request processing')
         dumper.write_transformed_headers(dumper_handles, current_headers)
         dumper.write_transformed_request(dumper_handles, current_request)
 
         # Send non-streaming request to provider
         # Create config with count_tokens URL
-        count_tokens_config = provider.config.model_copy()
+        count_tokens_config = routing_result.provider.config.model_copy()
         count_tokens_config.url += '/count_tokens'
-        response = await provider._send_request(count_tokens_config, current_request, current_headers)
+        response = await routing_result.provider._send_request(count_tokens_config, current_request, current_headers)
 
         # Parse JSON response
         response_json = response.json()

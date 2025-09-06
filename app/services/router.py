@@ -2,15 +2,29 @@
 
 import os
 import re
+from dataclasses import dataclass
 from typing import Optional, Tuple
 
 from app.common.models import AnthropicRequest
+from app.common.utils import get_current_request_context
 from app.config.log import get_logger
 from app.config.user_models import ProviderConfig, RoutingConfig
 from app.services.provider import Provider, ProviderManager
 from app.services.transformer_loader import TransformerLoader
 
 logger = get_logger(__name__)
+
+
+@dataclass
+class RoutingResult:
+    """Complete routing information for a request."""
+    provider: Provider
+    routing_key: str
+    model_alias: str
+    resolved_model_id: str
+    is_direct_routing: bool = False
+    is_agent_routing: bool = False
+    used_fallback: bool = False
 
 
 def _create_default_anthropic_config() -> ProviderConfig:
@@ -30,7 +44,7 @@ def _create_default_anthropic_config() -> ProviderConfig:
                 {'class': 'app.services.transformers.anthropic.ClaudeSystemMessageCleanerTransformer', 'params': {}},
                 {'class': 'app.services.transformers.anthropic.AnthropicCacheTransformer', 'params': {}},
                 {'class': 'app.services.transformers.anthropic.AnthropicHeadersTransformer', 'params': {'auth_header': 'x-api-key'}},
-                {'class': 'app.services.transformers.anthropic.ToolDescriptionOptimizerTransformer', 'params': {}},
+                {'class': 'app.services.transformers.utils.ToolDescriptionOptimizerTransformer', 'params': {}},
             ],
             'response': [{'class': 'app.services.transformers.anthropic.AnthropicResponseTransformer', 'params': {}}],
         },
@@ -170,25 +184,33 @@ class SimpleRouter:
         self.default_provider = Provider(default_config, self.transformer_loader)
         logger.info(f"Loaded default provider '{default_config.name}'")
 
-    def get_provider_for_request(self, request: AnthropicRequest) -> Tuple[Provider, str]:
+    def get_provider_for_request(self, request: AnthropicRequest) -> RoutingResult:
         """Get the appropriate provider for a request.
 
         Args:
             request: Anthropic API request
 
         Returns:
-            Tuple (Provider, routing_key)
+            RoutingResult with complete routing information
         """
+        # Initialize routing flags
+        is_direct_routing = False
+        is_agent_routing = False
+        used_fallback = False
+        original_model = request.model
+        
         # Check for agent routing in system message first
         agent_model_alias = self.inspector._scan_for_agent_routing(request)
         if agent_model_alias:
             model_alias = agent_model_alias
             routing_key = 'agent_direct'
+            is_agent_routing = True
             logger.debug(f'Agent routing detected in system message: --agent:[{model_alias}]--')
         # Check for direct routing with '!' suffix
         elif request.model.endswith('!'):
             model_alias = request.model[:-1]  # Strip '!'
             routing_key = 'direct'
+            is_direct_routing = True
             logger.debug(f'Direct routing detected: {request.model} -> {model_alias}')
         else:
             # 1. Determine routing key based on request content
@@ -204,23 +226,54 @@ class SimpleRouter:
             provider, resolved_model_id = provider_result
             # Update request.model to the resolved model ID
             request.model = resolved_model_id
-            if routing_key == 'agent_direct':
-                logger.info(f'Agent routing: --agent:[{model_alias}]-- -> {model_alias} -> {resolved_model_id} -> {provider.config.name}')
-            elif routing_key == 'direct':
-                logger.info(f'Direct routing: {model_alias}! -> {model_alias} -> {resolved_model_id} -> {provider.config.name}')
-            else:
-                logger.info(f'Routed request: {routing_key} -> {model_alias} -> {resolved_model_id} -> {provider.config.name}')
-            return provider, routing_key
-
-        # 4. Use default provider as fallback (guaranteed to exist)
-        # For fallback, keep request.model as is (don't modify it)
-        if routing_key == 'agent_direct':
-            logger.info(f'Agent routing to fallback: --agent:[{model_alias}]-- -> {model_alias} -> {request.model} (unchanged) -> {self.default_provider.config.name}')
-        elif routing_key == 'direct':
-            logger.info(f'Direct routing to fallback: {model_alias}! -> {model_alias} -> {request.model} (unchanged) -> {self.default_provider.config.name}')
         else:
-            logger.info(f'Routed request to fallback: {routing_key} -> {model_alias} -> {request.model} (unchanged) -> {self.default_provider.config.name}')
-        return self.default_provider, routing_key
+            # 4. Use default provider as fallback (guaranteed to exist)
+            provider = self.default_provider
+            resolved_model_id = original_model  # Keep original model for fallback
+            used_fallback = True
+
+        # Build result
+        result = RoutingResult(
+            provider=provider,
+            routing_key=routing_key,
+            model_alias=model_alias,
+            resolved_model_id=resolved_model_id,
+            is_direct_routing=is_direct_routing,
+            is_agent_routing=is_agent_routing,
+            used_fallback=used_fallback
+        )
+        
+        # Update request context
+        ctx = get_current_request_context()
+        ctx.original_model = original_model
+        ctx.update_routing_info(
+            model_alias=model_alias,
+            resolved_model_id=resolved_model_id,
+            provider_name=provider.config.name,
+            routing_key=routing_key,
+            is_direct_routing=is_direct_routing,
+            is_agent_routing=is_agent_routing,
+            used_fallback=used_fallback
+        )
+        
+        # Structured logging with context (context fields will be auto-added)
+        if routing_key == 'agent_direct':
+            if used_fallback:
+                logger.debug(f'Agent routing to fallback: --agent:[{model_alias}]-- -> {model_alias} -> {resolved_model_id} (unchanged) -> {provider.config.name}')
+            else:
+                logger.debug(f'Agent routing: --agent:[{model_alias}]-- -> {model_alias} -> {resolved_model_id} -> {provider.config.name}')
+        elif routing_key == 'direct':
+            if used_fallback:
+                logger.debug(f'Direct routing to fallback: {model_alias}! -> {model_alias} -> {resolved_model_id} (unchanged) -> {provider.config.name}')
+            else:
+                logger.debug(f'Direct routing: {model_alias}! -> {model_alias} -> {resolved_model_id} -> {provider.config.name}')
+        else:
+            if used_fallback:
+                logger.debug(f'Routed request to fallback: {routing_key} -> {model_alias} -> {resolved_model_id} (unchanged) -> {provider.config.name}')
+            else:
+                logger.debug(f'Routed request: {routing_key} -> {model_alias} -> {resolved_model_id} -> {provider.config.name}')
+        
+        return result
 
     def _get_model_for_key(self, routing_key: str) -> str:
         """Get model alias for a routing key."""
