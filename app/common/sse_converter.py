@@ -6,7 +6,9 @@ from typing import Any, AsyncIterator, Dict
 import orjson
 
 from app.common.dumper import Dumper, DumpHandles
+from app.config.log import get_logger
 
+logger = get_logger(__name__)
 
 async def convert_json_to_sse(response: Dict[str, Any], dumper: Dumper, dumper_handles: DumpHandles) -> AsyncIterator[bytes]:
     """Convert a JSON response to SSE format.
@@ -83,6 +85,7 @@ async def convert_json_to_sse(response: Dict[str, Any], dumper: Dumper, dumper_h
     message_stop = {'type': 'message_stop'}
     chunk = f'event: message_stop\ndata: {orjson.dumps(message_stop).decode()}\n\n'.encode()
     dumper.write_response_chunk(dumper_handles, chunk)
+    logger.info("Finished processing request")
     yield chunk
 
 

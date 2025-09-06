@@ -54,6 +54,7 @@ async def messages(payload: AnthropicRequest, request: Request, dumper: Dumper =
             response_bytes = orjson.dumps(json_response)
             dumper.write_response_chunk(dumper_handles, response_bytes)
             dumper.close(dumper_handles)
+            logger.info("Finished processing request")
             return ORJSONResponse(json_response)
         else:
             # Streaming: convert JSON to SSE format
