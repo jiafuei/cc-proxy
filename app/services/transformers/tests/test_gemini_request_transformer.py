@@ -284,18 +284,17 @@ class TestGeminiRequestTransformer:
 
     @pytest.mark.asyncio
     async def test_no_generation_config_when_empty(self):
-        """Test that generationConfig is not included when no parameters are set."""
+        """Test that generationConfig includes only candidateCount when no parameters are set."""
         anthropic_request = {'messages': [{'role': 'user', 'content': 'Test'}]}
 
         params = {'request': anthropic_request, 'headers': {}}
         gemini_request, _ = await self.transformer.transform(params)
 
-        # With new implementation, generationConfig is always included with defaults
+        # When no generation parameters are provided, generationConfig should only contain candidateCount
         assert 'generationConfig' in gemini_request
         gen_config = gemini_request['generationConfig']
-        assert gen_config['topP'] == 1.0
-        assert gen_config['topK'] == 40
         assert gen_config['candidateCount'] == 1
+        assert len(gen_config) == 1  # Only candidateCount should be present
 
     @pytest.mark.asyncio
     async def test_invalid_image_source_handling(self):
@@ -394,7 +393,7 @@ class TestGeminiRequestTransformer:
 
     @pytest.mark.asyncio
     async def test_generation_config_defaults(self):
-        """Test that generation config includes default values when parameters not provided."""
+        """Test that generation config includes only provided parameters plus candidateCount."""
         anthropic_request = {
             'messages': [{'role': 'user', 'content': 'Test defaults'}],
             'temperature': 0.7,  # Only provide temperature
@@ -409,14 +408,14 @@ class TestGeminiRequestTransformer:
         # Check provided parameter
         assert gen_config['temperature'] == 0.7
 
-        # Check defaults are applied
-        assert gen_config['topP'] == 1.0
-        assert gen_config['topK'] == 40
+        # Check only required default is applied
         assert gen_config['candidateCount'] == 1
 
         # Parameters not provided should not be in config
         assert 'maxOutputTokens' not in gen_config
         assert 'stopSequences' not in gen_config
+        assert 'topP' not in gen_config
+        assert 'topK' not in gen_config
 
     @pytest.mark.asyncio
     async def test_generation_config_partial_parameters(self):
@@ -437,13 +436,13 @@ class TestGeminiRequestTransformer:
         assert gen_config['maxOutputTokens'] == 1500
         assert gen_config['topP'] == 0.9
 
-        # Check defaults for missing parameters
-        assert gen_config['topK'] == 40
+        # Check required default
         assert gen_config['candidateCount'] == 1
 
         # Parameters not provided should not be in config
         assert 'temperature' not in gen_config
         assert 'stopSequences' not in gen_config
+        assert 'topK' not in gen_config
 
     @pytest.mark.asyncio
     async def test_tool_config_added_with_tools(self):

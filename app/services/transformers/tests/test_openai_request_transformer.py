@@ -123,7 +123,7 @@ class TestOpenAIRequestTransformer:
         result = transformer._convert_messages(claude_request)
 
         assert len(result) == 1
-        assert result[0] == {'role': 'user', 'content': [{'type': 'text', 'text': ''}]}
+        assert result[0] == {'role': 'user', 'content': ''}
 
     def test_convert_user_message_no_convertible_blocks(self, transformer):
         """Test user message with no convertible blocks (unsupported types)."""
@@ -193,8 +193,8 @@ class TestOpenAIRequestTransformer:
 
         assert len(result) == 3  # system + 2 user messages
         assert result[0] == {'role': 'system', 'content': 'You are Claude Code\n - a helpful assistant for coding.'}
-        assert result[1] == {'role': 'user', 'content': [{'type': 'text', 'text': 'Hello'}]}
-        assert result[2] == {'role': 'user', 'content': [{'type': 'text', 'text': 'Hi there!'}]}
+        assert result[1] == {'role': 'user', 'content': 'Hello'}
+        assert result[2] == {'role': 'user', 'content': 'Hi there!'}
 
     def test_convert_messages_no_system(self, transformer):
         """Test messages conversion without system messages."""
@@ -203,8 +203,8 @@ class TestOpenAIRequestTransformer:
         result = transformer._convert_messages(claude_request)
 
         assert len(result) == 2  # user and assistant messages both converted
-        assert result[0] == {'role': 'user', 'content': [{'type': 'text', 'text': 'Hello'}]}
-        assert result[1] == {'role': 'assistant', 'content': [{'type': 'text', 'text': 'Hi!'}]}
+        assert result[0] == {'role': 'user', 'content': 'Hello'}
+        assert result[1] == {'role': 'assistant', 'content': 'Hi!'}
 
     def test_convert_messages_empty_system(self, transformer):
         """Test messages conversion with empty system array."""
@@ -213,7 +213,7 @@ class TestOpenAIRequestTransformer:
         result = transformer._convert_messages(claude_request)
 
         assert len(result) == 1  # 1 user message converted
-        assert result[0] == {'role': 'user', 'content': [{'type': 'text', 'text': 'Hello'}]}
+        assert result[0] == {'role': 'user', 'content': 'Hello'}
 
     def test_convert_messages_no_messages_field(self, transformer):
         """Test messages conversion when messages field is missing."""
@@ -279,15 +279,6 @@ class TestOpenAIRequestTransformer:
 
         assert result == {'role': 'tool', 'tool_call_id': 'toolu_preserve', 'content': 'Actual error message'}
 
-    def test_convert_tool_result_to_message_invalid_type(self, transformer):
-        """Test that non-tool_result blocks are not converted."""
-        block = {'type': 'text', 'text': 'Not a tool result'}
-
-        # This test no longer applies since _convert_tool_result doesn't validate type
-        # The validation is now done at the message processing level
-        result = transformer._convert_tool_result(block)
-        assert result['role'] == 'tool'  # Will still create a tool message with None ID
-
     def test_convert_tool_result_to_message_missing_id(self, transformer):
         """Test tool_result block with missing tool_use_id."""
         tool_result_block = {'type': 'tool_result', 'content': 'Some content'}
@@ -301,7 +292,7 @@ class TestOpenAIRequestTransformer:
 
         result = transformer._convert_content_blocks(blocks)
 
-        assert result == [{'type': 'text', 'text': 'Hello world'}]
+        assert result == 'Hello world'
 
     def test_convert_content_block_image(self, transformer):
         """Test converting image content block through _convert_content_blocks."""
@@ -337,9 +328,9 @@ class TestOpenAIRequestTransformer:
 
         # Should create 3 messages: user → tool → user
         assert len(result) == 3
-        assert result[0] == {'role': 'user', 'content': [{'type': 'text', 'text': 'Before tool'}]}
+        assert result[0] == {'role': 'user', 'content': 'Before tool'}
         assert result[1] == {'role': 'tool', 'tool_call_id': 'toolu_123', 'content': 'Tool result'}
-        assert result[2] == {'role': 'user', 'content': [{'type': 'text', 'text': 'After tool'}]}
+        assert result[2] == {'role': 'user', 'content': 'After tool'}
 
     def test_queue_processing_multiple_tool_results(self, transformer):
         """Test queue processing with multiple tool_results in sequence."""
@@ -362,13 +353,13 @@ class TestOpenAIRequestTransformer:
         # Should create 4 messages: user → tool → tool → user
         assert len(result) == 4
         assert result[0]['role'] == 'user'
-        assert result[0]['content'] == [{'type': 'text', 'text': 'Start'}]
+        assert result[0]['content'] == 'Start'
         assert result[1]['role'] == 'tool'
         assert result[1]['tool_call_id'] == 'toolu_A'
         assert result[2]['role'] == 'tool'
         assert result[2]['tool_call_id'] == 'toolu_B'
         assert result[3]['role'] == 'user'
-        assert result[3]['content'] == [{'type': 'text', 'text': 'End'}]
+        assert result[3]['content'] == 'End'
 
     def test_queue_processing_only_tool_results(self, transformer):
         """Test queue processing with message containing only tool_results."""
@@ -413,7 +404,7 @@ class TestOpenAIRequestTransformer:
 
         # Third message: text
         assert result[2]['role'] == 'user'
-        assert result[2]['content'] == [{'type': 'text', 'text': 'What do you think?'}]
+        assert result[2]['content'] == 'What do you think?'
 
     def test_queue_processing_preserves_message_boundaries(self, transformer):
         """Test that separate user messages remain separate (message boundary preservation)."""
@@ -423,8 +414,8 @@ class TestOpenAIRequestTransformer:
 
         # Should create 2 separate user messages
         assert len(result) == 2
-        assert result[0] == {'role': 'user', 'content': [{'type': 'text', 'text': 'First message'}]}
-        assert result[1] == {'role': 'user', 'content': [{'type': 'text', 'text': 'Second message'}]}
+        assert result[0] == {'role': 'user', 'content': 'First message'}
+        assert result[1] == {'role': 'user', 'content': 'Second message'}
 
     def test_convert_assistant_message_text_only(self, transformer):
         """Test assistant message with only text content."""
@@ -433,7 +424,7 @@ class TestOpenAIRequestTransformer:
         result = transformer._convert_messages(claude_request)
 
         assert len(result) == 1
-        assert result[0] == {'role': 'assistant', 'content': [{'type': 'text', 'text': 'Hello, I can help you with that.'}]}
+        assert result[0] == {'role': 'assistant', 'content': 'Hello, I can help you with that.'}
 
     def test_convert_assistant_message_with_thinking_blocks(self, transformer):
         """Test assistant message with thinking blocks (should be filtered out)."""
@@ -486,9 +477,9 @@ class TestOpenAIRequestTransformer:
 
         # Should create 3 messages: user → assistant → user
         assert len(result) == 3
-        assert result[0] == {'role': 'user', 'content': [{'type': 'text', 'text': 'What is the weather today?'}]}
-        assert result[1] == {'role': 'assistant', 'content': [{'type': 'text', 'text': 'I can help you check the weather.'}]}
-        assert result[2] == {'role': 'user', 'content': [{'type': 'text', 'text': 'Thank you!'}]}
+        assert result[0] == {'role': 'user', 'content': 'What is the weather today?'}
+        assert result[1] == {'role': 'assistant', 'content': 'I can help you check the weather.'}
+        assert result[2] == {'role': 'user', 'content': 'Thank you!'}
 
     def test_convert_assistant_message_string_content(self, transformer):
         """Test assistant message with string content (converted to array)."""
@@ -497,7 +488,7 @@ class TestOpenAIRequestTransformer:
         result = transformer._convert_messages(claude_request)
 
         assert len(result) == 1
-        assert result[0] == {'role': 'assistant', 'content': [{'type': 'text', 'text': 'Simple string response'}]}
+        assert result[0] == {'role': 'assistant', 'content': 'Simple string response'}
 
     @pytest.mark.asyncio
     async def test_full_transform_integration(self, transformer, sample_claude_request):
@@ -518,11 +509,11 @@ class TestOpenAIRequestTransformer:
         # Check user message conversion
         user_msg1 = openai_request['messages'][1]
         assert user_msg1['role'] == 'user'
-        assert user_msg1['content'] == [{'type': 'text', 'text': 'Hello'}]
+        assert user_msg1['content'] == 'Hello'
 
         user_msg2 = openai_request['messages'][2]
         assert user_msg2['role'] == 'user'
-        assert user_msg2['content'] == [{'type': 'text', 'text': 'Hi there!'}]
+        assert user_msg2['content'] == 'Hi there!'
 
         # Check other fields are preserved
         assert openai_request['model'] == 'claude-sonnet-4-20250514'
@@ -689,7 +680,7 @@ class TestOpenAIRequestTransformer:
 
         # Should create 1 user message with only text content
         assert len(result) == 1
-        assert result[0] == {'role': 'user', 'content': [{'type': 'text', 'text': 'Here is some text'}]}
+        assert result[0] == {'role': 'user', 'content': 'Here is some text'}
 
     def test_user_text_followed_by_assistant_tool_call(self, transformer):
         """Test user text message followed by assistant tool call."""
