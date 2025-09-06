@@ -469,7 +469,7 @@ class ClaudeSoftwareEngineeringSystemMessageTransformer(RequestTransformer):
     def extract_environment_text(self, system_msg: str) -> str:
         found = False
         lines = []
-        for idx, line in enumerate(system_msg):
+        for idx, line in enumerate(system_msg.splitlines()[150:]):
             if not found and not line.startswith('Here is useful information about the environment'):
                 continue
             if not line.strip():
