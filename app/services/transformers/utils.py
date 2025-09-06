@@ -421,7 +421,7 @@ Use `run_in_background: true` for long-running processes:
 - Analyze changes and draft a commit message
     - Summarize the nature of changes (eg. new feature, enhancement, bug fix, refactors, tests, docs etc.)
     - Do not commit sensitive information or secrets
-    - Draft concise (1-2 sentences) message that focuses on "why" rather than "what"
+    - Draft concise (1-2 sentences) message that focuses on "why" rather than "what". The message must accurately reflect the changes and their purpose.
 - If commit fails due to pre-commit hook changes, retry the commit ONCE to include the changes. Stop if it fails again.
 </git_commit_workflow>
 
