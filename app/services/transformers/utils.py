@@ -400,7 +400,7 @@ Always quote file paths containing spaces with double quotes:
 </critical_constraints>
 
 <command_chaining>
-Combine multiple related commands for efficiency:
+ALWAYS combine multiple related commands for efficiency:
 - Preferred: `uvx ruff check --fix && uvx ruff format path/to/code`
 - Preferred: `pytest /absolute/path/to/tests`
 - Avoid: `cd /some/path && pytest tests` (unless user explicitly requests cd)
@@ -412,6 +412,20 @@ Use `run_in_background: true` for long-running processes:
 - Do not append `&` to commands when using this parameter
 - Never use background execution for `sleep` commands
 </background_execution>
+
+<git_commit_workflow>
+- Run the following commands in parallel with the Bash tool
+    - git status: see untracked files
+    - git diff: see staged and unstaged changes to be committed
+    - git log: see recent commit messages
+- Analyze changes and draft a commit message
+    - Summarize the nature of changes (eg. new feature, enhancement, bug fix, refactors, tests, docs etc.)
+    - Do not commit sensitive information or secrets
+    - Draft concise (1-2 sentences) message that focuses on "why" rather than "what"
+- If commit fails due to pre-commit hook changes, retry the commit ONCE to include the changes. Stop if it fails again.
+</git_commit_workflow>
+
+Remember to always parallelize and chain commands where possible.
 """,
     }
 
