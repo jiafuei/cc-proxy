@@ -9,6 +9,7 @@ from fastapi.testclient import TestClient
 from app.common.dumper import DumpFiles, DumpHandles
 from app.dependencies.dumper import get_dumper
 from app.routers.messages import router
+from app.services.router import RoutingResult
 
 
 def test_messages_endpoint():
@@ -29,24 +30,19 @@ def test_messages_endpoint():
                 'id': 'msg_test123',
                 'model': 'claude-3-haiku',
                 'role': 'assistant',
-                'content': [
-                    {'type': 'text', 'text': 'Hello from test!'}
-                ],
+                'content': [{'type': 'text', 'text': 'Hello from test!'}],
                 'stop_reason': 'end_turn',
-                'usage': {'input_tokens': 10, 'output_tokens': 5}
+                'usage': {'input_tokens': 10, 'output_tokens': 5},
             }
 
     class MockRouter:
         def get_provider_for_request(self, request):
-            return MockProvider(), 'default'
+            provider = MockProvider()
+            return RoutingResult(provider=provider, routing_key='default', model_alias='test-model', resolved_model_id='claude-3-haiku')
 
     class MockDumper:
         def begin(self, request, payload):
-            return DumpHandles(
-                files=DumpFiles(),
-                correlation_id='test-correlation-id',
-                base_path='/tmp'
-            )
+            return DumpHandles(files=DumpFiles(), correlation_id='test-correlation-id', base_path='/tmp')
 
         def write_response_chunk(self, handles, chunk):
             pass
@@ -84,13 +80,8 @@ def test_messages_count_endpoint():
     class MockProvider:
         def __init__(self, name='test-provider'):
             from app.config.user_models import ProviderConfig
-            self.config = ProviderConfig(
-                name=name,
-                url='https://api.test.com/v1/messages',
-                api_key='test-api-key',
-                transformers={'request': [], 'response': []},
-                timeout=30
-            )
+
+            self.config = ProviderConfig(name=name, url='https://api.test.com/v1/messages', api_key='test-api-key', transformers={'request': [], 'response': []}, timeout=30)
             self.request_transformers = []
 
         async def _send_request(self, config, request_data, headers):
@@ -104,15 +95,12 @@ def test_messages_count_endpoint():
 
     class MockRouter:
         def get_provider_for_request(self, request):
-            return MockProvider(), 'default'
+            provider = MockProvider()
+            return RoutingResult(provider=provider, routing_key='default', model_alias='test-model', resolved_model_id='claude-3-haiku')
 
     class MockDumper:
         def begin(self, request, payload):
-            return DumpHandles(
-                files=DumpFiles(),
-                correlation_id='test-correlation-id',
-                base_path='/tmp'
-            )
+            return DumpHandles(files=DumpFiles(), correlation_id='test-correlation-id', base_path='/tmp')
 
         def write_transformed_request(self, handles, request):
             pass
@@ -159,7 +147,12 @@ def test_messages_count_endpoint_no_provider():
 
     class MockRouter:
         def get_provider_for_request(self, request):
-            return None, 'default'  # No provider available
+            return RoutingResult(
+                provider=None,  # No provider available
+                routing_key='default',
+                model_alias='test-model',
+                resolved_model_id='unknown',
+            )
 
     class MockServiceContainer:
         def __init__(self):
@@ -183,7 +176,12 @@ def test_messages_endpoint_no_provider():
 
     class MockRouter:
         def get_provider_for_request(self, request):
-            return None, 'default'  # No provider available
+            return RoutingResult(
+                provider=None,  # No provider available
+                routing_key='default',
+                model_alias='test-model',
+                resolved_model_id='unknown',
+            )
 
     class MockServiceContainer:
         def __init__(self):
@@ -245,19 +243,18 @@ def test_messages_endpoint_with_dumping(tmp_path):
 
         async def process_request(self, payload, request, routing_key=None, dumper=None, dumper_handles=None):
             return {
-                'id': 'msg_test456', 
+                'id': 'msg_test456',
                 'model': 'claude-3-haiku',
                 'role': 'assistant',
-                'content': [
-                    {'type': 'text', 'text': 'Test response'}
-                ],
+                'content': [{'type': 'text', 'text': 'Test response'}],
                 'stop_reason': 'end_turn',
-                'usage': {'input_tokens': 8, 'output_tokens': 3}
+                'usage': {'input_tokens': 8, 'output_tokens': 3},
             }
 
     class MockRouter:
         def get_provider_for_request(self, request):
-            return MockProvider(), 'default'
+            provider = MockProvider()
+            return RoutingResult(provider=provider, routing_key='default', model_alias='test-model', resolved_model_id='claude-3-haiku')
 
     class MockDumper:
         def __init__(self):
@@ -277,13 +274,9 @@ def test_messages_endpoint_with_dumping(tmp_path):
 
             # Create response file
             response_path = os.path.join(dump_dir, f'{ts}_{corr_id}_response.sse')
-            response_file = open(response_path, 'wb')
+            open(response_path, 'wb')
 
-            return DumpHandles(
-                files=DumpFiles(),
-                correlation_id=corr_id,
-                base_path=dump_dir
-            )
+            return DumpHandles(files=DumpFiles(), correlation_id=corr_id, base_path=dump_dir)
 
         def write_response_chunk(self, handles, chunk):
             # Mock implementation - in real dumper this would write to files
@@ -310,7 +303,6 @@ def test_messages_endpoint_with_dumping(tmp_path):
         assert response.status_code == 200
 
         # Consume the response to trigger the generator
-        content = response.content
 
         # Check that dump files were created (mock doesn't actually create files)
         # Just verify we get a valid response
@@ -343,15 +335,12 @@ def test_messages_endpoint_provider_http_error():
 
     class MockRouter:
         def get_provider_for_request(self, request):
-            return MockProvider(), 'default'
+            provider = MockProvider()
+            return RoutingResult(provider=provider, routing_key='default', model_alias='test-model', resolved_model_id='claude-3-haiku')
 
     class MockDumper:
         def begin(self, request, payload):
-            return DumpHandles(
-                files=DumpFiles(),
-                correlation_id='test-correlation-id',
-                base_path='/tmp'
-            )
+            return DumpHandles(files=DumpFiles(), correlation_id='test-correlation-id', base_path='/tmp')
 
         def close(self, handles):
             pass

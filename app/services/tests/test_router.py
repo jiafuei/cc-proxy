@@ -70,7 +70,8 @@ def test_simple_router_success():
     # Create a request
     request = AnthropicRequest(model='claude-3-sonnet', messages=[{'role': 'user', 'content': 'Hello'}])
 
-    provider, _ = router.get_provider_for_request(request)
+    result = router.get_provider_for_request(request)
+    provider = result.provider
     assert provider == mock_provider
     # Check that request.model was updated to resolved model ID
     assert request.model == 'claude-3-5-sonnet-resolved'
@@ -97,7 +98,8 @@ def test_simple_router_no_provider():
 
             request = AnthropicRequest(model='claude-3-sonnet', messages=[{'role': 'user', 'content': 'Hello'}])
 
-            provider, _ = router.get_provider_for_request(request)
+            result = router.get_provider_for_request(request)
+            provider = result.provider
             # Should always return a provider (fallback provider in this case)
             assert provider == mock_default_provider
             assert provider is not None
@@ -119,7 +121,8 @@ def test_simple_router_planning_request():
     # Create a planning request with plan mode activation text
     request = AnthropicRequest(model='claude-3-sonnet', messages=[{'role': 'user', 'content': '<system-reminder>\nPlan mode is active. Create a detailed plan for this project'}])
 
-    provider, _ = router.get_provider_for_request(request)
+    result = router.get_provider_for_request(request)
+    provider = result.provider
     assert provider == mock_provider
     # Check that request.model was updated to resolved model ID
     assert request.model == 'claude-3-opus-resolved'
@@ -204,7 +207,8 @@ def test_simple_router_default_provider_fallback():
             request = AnthropicRequest(model='test', messages=[{'role': 'user', 'content': 'Hello'}])
 
             # Should always return default provider since no configured provider found
-            provider, _ = router.get_provider_for_request(request)
+            result = router.get_provider_for_request(request)
+            provider = result.provider
             assert provider == mock_default_provider
             assert provider is not None  # Never returns None
 
@@ -229,7 +233,8 @@ def test_simple_router_empty_routing_config():
             request = AnthropicRequest(model='test', messages=[{'role': 'user', 'content': 'Hello'}])
 
             # Should use empty string and return default provider
-            provider, _ = router.get_provider_for_request(request)
+            result = router.get_provider_for_request(request)
+            provider = result.provider
             assert provider == mock_default_provider
             assert provider is not None
 
@@ -439,7 +444,9 @@ def test_simple_router_direct_routing_with_suffix():
         thinking={'type': 'enabled', 'budget_tokens': 1000},  # Would normally trigger thinking
     )
 
-    provider, routing_key = router.get_provider_for_request(request)
+    result = router.get_provider_for_request(request)
+    provider = result.provider
+    routing_key = result.routing_key
 
     # Should use direct routing, not content-based analysis
     assert routing_key == 'direct'
@@ -469,7 +476,9 @@ def test_simple_router_direct_routing_fallback():
             original_model = 'unknown!'
             request = AnthropicRequest(model=original_model, messages=[{'role': 'user', 'content': 'test'}])
 
-            provider, routing_key = router.get_provider_for_request(request)
+            result = router.get_provider_for_request(request)
+            provider = result.provider
+            routing_key = result.routing_key
 
             # Should use fallback provider and direct routing
             assert routing_key == 'direct'
@@ -506,7 +515,9 @@ def test_simple_router_direct_routing_bypasses_content_analysis():
             thinking={'type': 'enabled', 'budget_tokens': 2000},  # Would trigger thinking
         )
 
-        provider, routing_key = router.get_provider_for_request(request)
+        result = router.get_provider_for_request(request)
+        provider = result.provider
+        routing_key = result.routing_key
 
         # Verify direct routing
         assert routing_key == 'direct'
@@ -594,7 +605,9 @@ def test_simple_router_agent_routing_success():
 
     request = AnthropicRequest(model='original-model', messages=[], system='--agent:[claude-3-5-sonnet]--\nYou are an AI assistant.')
 
-    provider, routing_key = router.get_provider_for_request(request)
+    result = router.get_provider_for_request(request)
+    provider = result.provider
+    routing_key = result.routing_key
 
     assert routing_key == 'agent_direct'
     assert provider == mock_provider
@@ -614,7 +627,9 @@ def test_simple_router_agent_routing_fallback():
 
     request = AnthropicRequest(model='original-model', messages=[], system='--agent:[unknown-model]--\nYou are an AI assistant.')
 
-    provider, routing_key = router.get_provider_for_request(request)
+    result = router.get_provider_for_request(request)
+    provider = result.provider
+    routing_key = result.routing_key
 
     assert routing_key == 'agent_direct'
     assert provider == router.default_provider
@@ -643,7 +658,9 @@ def test_simple_router_agent_routing_priority():
         system='--agent:[priority-model]--\nAgent instructions',
     )
 
-    provider, routing_key = router.get_provider_for_request(request)
+    result = router.get_provider_for_request(request)
+    provider = result.provider
+    routing_key = result.routing_key
 
     # Agent routing should win
     assert routing_key == 'agent_direct'

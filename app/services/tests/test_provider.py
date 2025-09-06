@@ -132,234 +132,40 @@ class TestProvider:
     def mock_dumper(self):
         """Create mock dumper."""
         dumper = Mock(spec=Dumper)
-        handles = DumpHandles(None, None, None, None, None, None, None, None, 'test-correlation')
+        from app.common.dumper import DumpFiles
+
+        handles = DumpHandles(files=DumpFiles(), correlation_id='test-correlation', base_path='/tmp')
         dumper.begin.return_value = handles
         return dumper
 
     @pytest.mark.asyncio
-    async def test_streaming_state_preservation(self, provider, mock_anthropic_request, mock_fastapi_request, mock_dumper):
-        """Test that sse_state is preserved between streaming chunks."""
+    async def test_process_request_returns_json_response(self, provider, mock_anthropic_request, mock_fastapi_request, mock_dumper):
+        """Test that process_request returns proper JSON response."""
 
-        # Mock HTTP streaming response with multiple chunks
-        mock_chunks = [
-            b'data: {"id":"test-1","choices":[{"delta":{"role":"assistant"}}]}\n\n',
-            b'data: {"id":"test-1","choices":[{"delta":{"content":"Hello"}}]}\n\n',
-            b'data: {"id":"test-1","choices":[{"delta":{"content":" world"}}]}\n\n',
-            b'data: [DONE]\n\n',
-        ]
-
-        # Mock the HTTP client stream properly
+        # Mock HTTP response
         mock_response = Mock()
         mock_response.raise_for_status = Mock()
+        mock_response.json.return_value = {
+            'id': 'msg_test123',
+            'model': 'claude-3-haiku',
+            'role': 'assistant',
+            'content': [{'type': 'text', 'text': 'Hello world'}],
+            'stop_reason': 'end_turn',
+            'usage': {'input_tokens': 10, 'output_tokens': 5},
+        }
 
-        async def aiter_bytes():
-            for chunk in mock_chunks:
-                yield chunk
-
-        mock_response.aiter_bytes = aiter_bytes
-
-        # Create a proper async context manager mock
-        stream_context_manager = AsyncMock()
-        stream_context_manager.__aenter__ = AsyncMock(return_value=mock_response)
-        stream_context_manager.__aexit__ = AsyncMock(return_value=False)
-
-        provider.http_client.stream = Mock(return_value=stream_context_manager)
+        # Mock the HTTP client
+        provider.http_client.post = AsyncMock(return_value=mock_response)
 
         # Process the request
-        handles = mock_dumper.begin('test')
-        results = []
-        async for chunk in provider.process_request(mock_anthropic_request, mock_fastapi_request, 'test-key', mock_dumper, handles):
-            results.append(chunk)
+        handles = mock_dumper.begin.return_value
+        result = await provider.process_request(mock_anthropic_request, mock_fastapi_request, 'test-key', mock_dumper, handles)
 
-        # Verify state was preserved across chunks
-        response_transformer = provider.response_transformers[0]
-        assert len(response_transformer.chunk_calls) > 1
-
-        # All calls should have sse_state (except possibly the first)
-        state_ids = [call['state_id'] for call in response_transformer.chunk_calls if call['state_id']]
-        assert len(set(state_ids)) == 1, 'All chunks should share the same state object'
-
-        # Verify chunks were processed
-        assert len(results) > 0
-        assert any(b'[test_response]' in chunk for chunk in results)
-
-    @pytest.mark.asyncio
-    async def test_prevents_duplicate_message_starts(self, provider, mock_anthropic_request, mock_fastapi_request, mock_dumper):
-        """Test that only one message_start event is generated across multiple chunks."""
-
-        # Mock realistic OpenAI streaming chunks that would trigger multiple message_starts
-        openai_chunks = [
-            b'data: {"id":"test-1","model":"gpt-4","choices":[{"index":0,"delta":{"role":"assistant","content":""},"finish_reason":null}]}\n\n',
-            b'data: {"id":"test-1","model":"gpt-4","choices":[{"index":0,"delta":{"content":"Hello"},"finish_reason":null}]}\n\n',
-            b'data: {"id":"test-1","model":"gpt-4","choices":[{"index":0,"delta":{"content":" world"},"finish_reason":null}]}\n\n',
-            b'data: [DONE]\n\n',
-        ]
-
-        mock_response = Mock()
-        mock_response.raise_for_status = Mock()
-
-        async def aiter_bytes():
-            for chunk in openai_chunks:
-                yield chunk
-
-        mock_response.aiter_bytes = aiter_bytes
-
-        # Create a proper async context manager mock
-        stream_context_manager = AsyncMock()
-        stream_context_manager.__aenter__ = AsyncMock(return_value=mock_response)
-        stream_context_manager.__aexit__ = AsyncMock(return_value=False)
-
-        provider.http_client.stream = Mock(return_value=stream_context_manager)
-
-        # Use actual OpenAI transformer for realistic testing
-        from app.config.log import get_logger
-        from app.services.transformers.openai import OpenAIResponseTransformer
-
-        provider.response_transformers = [OpenAIResponseTransformer(get_logger(__name__))]
-
-        handles = mock_dumper.begin('test')
-        results = []
-        async for chunk in provider.process_request(mock_anthropic_request, mock_fastapi_request, 'test-key', mock_dumper, handles):
-            results.append(chunk.decode())
-
-        # Count message_start events
-        message_starts = [chunk for chunk in results if 'event: message_start' in chunk]
-        assert len(message_starts) == 1, f'Expected exactly 1 message_start, got {len(message_starts)}'
-
-        # Count content_block_start events for text
-        content_starts = [chunk for chunk in results if 'event: content_block_start' in chunk and '"type":"text"' in chunk]
-        assert len(content_starts) == 1, f'Expected exactly 1 content_block_start for text, got {len(content_starts)}'
-
-    @pytest.mark.asyncio
-    async def test_non_streaming_transformer_chaining(self, provider, mock_anthropic_request, mock_fastapi_request, mock_dumper):
-        """Test response transformer chaining for non-streaming responses."""
-
-        # Mock non-streaming request
-        mock_anthropic_request.stream = False
-
-        # Mock HTTP client response with content as a list (Anthropic format)
-        mock_response_data = {'id': 'test-response-1', 'content': [{'type': 'text', 'text': 'Hello from provider'}], 'model': 'test-model'}
-
-        mock_http_response = Mock()
-        mock_http_response.raise_for_status = Mock()
-        mock_http_response.json.return_value = mock_response_data
-
-        provider.http_client.post = AsyncMock(return_value=mock_http_response)
-
-        handles = mock_dumper.begin('test')
-        results = []
-        async for chunk in provider.process_request(mock_anthropic_request, mock_fastapi_request, 'test-key', mock_dumper, handles):
-            results.append(chunk.decode())
-
-        # Verify transformer was called
-        response_transformer = provider.response_transformers[0]
-        assert len(response_transformer.response_calls) == 1
-
-        # Verify content was modified by transformer (look in content blocks)
-        combined_output = ''.join(results)
-        assert '[test_response]' in combined_output
-
-    @pytest.mark.asyncio
-    async def test_multiple_transformer_state_preservation(self, provider_config, mock_transformer_loader):
-        """Test multiple response transformers with state preservation."""
-
-        # Create multiple transformers
-        transformer1 = MockResponseTransformer('first')
-        transformer2 = MockResponseTransformer('second')
-
-        mock_transformer_loader.load_transformers.side_effect = lambda names: [transformer1, transformer2] if names == ['test_response'] else []
-        provider = Provider(provider_config, mock_transformer_loader)
-
-        # Mock streaming chunks
-        mock_chunks = [b'data: {"test": "chunk1"}\n\n', b'data: {"test": "chunk2"}\n\n']
-
-        mock_response = Mock()
-        mock_response.raise_for_status = Mock()
-
-        async def aiter_bytes():
-            for chunk in mock_chunks:
-                yield chunk
-
-        mock_response.aiter_bytes = aiter_bytes
-
-        # Create a proper async context manager mock
-        stream_context_manager = AsyncMock()
-        stream_context_manager.__aenter__ = AsyncMock(return_value=mock_response)
-        stream_context_manager.__aexit__ = AsyncMock(return_value=False)
-
-        provider.http_client.stream = Mock(return_value=stream_context_manager)
-
-        # Process request
-        request = AnthropicRequest(model='test', messages=[], stream=True)
-        fastapi_request = Mock(spec=Request)
-        fastapi_request.headers = {}
-        dumper = Mock(spec=Dumper)
-        handles = DumpHandles(None, None, None, None, None, None, None, None, 'test')
-
-        results = []
-        async for chunk in provider.process_request(request, fastapi_request, 'test', dumper, handles):
-            results.append(chunk)
-
-        # Verify both transformers processed chunks and preserved state
-        assert len(transformer1.chunk_calls) == 2
-        assert len(transformer2.chunk_calls) == 2
-
-        # Verify state was maintained within each transformer
-        transformer1_states = [call['state_id'] for call in transformer1.chunk_calls if call['state_id']]
-        transformer2_states = [call['state_id'] for call in transformer2.chunk_calls if call['state_id']]
-
-        # Each transformer should maintain its own consistent state
-        assert len(set(transformer1_states)) == 1, 'First transformer should maintain consistent state'
-        assert len(set(transformer2_states)) == 1, 'Second transformer should maintain consistent state'
-
-    @pytest.mark.asyncio
-    async def test_error_handling_propagates_transformer_errors(self, provider, mock_anthropic_request, mock_fastapi_request, mock_dumper):
-        """Test that transformer errors are properly propagated."""
-
-        # Create a transformer that fails on the second chunk
-        class FailingTransformer(ResponseTransformer):
-            def __init__(self):
-                self.call_count = 0
-
-            async def transform_chunk(self, params):
-                self.call_count += 1
-                if self.call_count == 2:
-                    raise Exception('Simulated transformer failure')
-                yield params['chunk']
-
-            async def transform_response(self, params):
-                """Required method for ResponseTransformer."""
-                return params['response']
-
-        provider.response_transformers = [FailingTransformer()]
-
-        mock_chunks = [b'data: {"test": "chunk1"}\n\n', b'data: {"test": "chunk2"}\n\n']
-
-        # Mock the HTTP client properly
-        mock_response = Mock()
-        mock_response.raise_for_status = Mock()
-
-        async def mock_aiter_bytes():
-            for chunk in mock_chunks:
-                yield chunk
-
-        mock_response.aiter_bytes = mock_aiter_bytes
-
-        # Create a proper async context manager mock
-        stream_context_manager = AsyncMock()
-        stream_context_manager.__aenter__ = AsyncMock(return_value=mock_response)
-        stream_context_manager.__aexit__ = AsyncMock(return_value=False)
-
-        provider.http_client.stream = Mock(return_value=stream_context_manager)
-
-        # Process should propagate transformer errors
-        handles = mock_dumper.begin('test')
-
-        # The test should raise the transformer exception
-        with pytest.raises(Exception, match='Simulated transformer failure'):
-            results = []
-            async for chunk in provider.process_request(mock_anthropic_request, mock_fastapi_request, 'test-key', mock_dumper, handles):
-                results.append(chunk)
+        # Verify we got the expected JSON response
+        assert result['id'] == 'msg_test123'
+        assert result['model'] == 'claude-3-haiku'
+        assert result['content'][0]['text'] == '[test_response] Hello world'  # Transformed by mock transformer
+        assert result['usage']['input_tokens'] == 10
 
 
 class TestProviderManager:

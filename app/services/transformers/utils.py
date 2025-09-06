@@ -441,7 +441,7 @@ Use `run_in_background: true` for long-running processes:
                 if isinstance(tool, dict) and 'name' in tool and 'description' in tool:
                     tool_name = tool['name']
                     if tool_name in self.TOOL_DESCRIPTION_MAP:
-                        old_description = tool['description']
+                        tool['description']
                         new_description = self.TOOL_DESCRIPTION_MAP[tool_name]
                         tool['description'] = new_description
 
