@@ -105,7 +105,6 @@ class Provider:
             logger.error(
                 'Unable to convert response body to JSON',
                 response_length=len(response_text),
-                exc_info=True
             )
             raise
         response_params = {}  # Initialize once outside loop for consistency
