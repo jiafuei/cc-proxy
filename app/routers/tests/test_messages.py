@@ -366,3 +366,118 @@ def test_messages_endpoint_provider_http_error():
         assert 'error' in json_response
         assert json_response['error']['type'] == 'authentication_error'
         assert json_response['error']['message'] == 'Invalid API key'
+
+
+def test_messages_endpoint_thinking_max_tokens_adjustment():
+    """Test that max_tokens gets increased when thinking budget_tokens exceeds max_tokens."""
+    app = FastAPI()
+    app.include_router(router)
+    client = TestClient(app)
+
+    class MockProvider:
+        def __init__(self):
+            self.config = Mock()
+            self.config.name = 'test-provider'
+
+        async def process_request(self, payload, request, routing_key=None, dumper=None, dumper_handles=None):
+            # Capture the payload to verify max_tokens was adjusted
+            self.captured_payload = payload
+            return {
+                'id': 'msg_test123',
+                'model': 'claude-3-haiku',
+                'role': 'assistant',
+                'content': [{'type': 'text', 'text': 'Hello from test!'}],
+                'stop_reason': 'end_turn',
+                'usage': {'input_tokens': 10, 'output_tokens': 5},
+            }
+
+    class MockRouter:
+        def __init__(self):
+            self.provider = MockProvider()
+
+        def get_provider_for_request(self, request):
+            return RoutingResult(provider=self.provider, routing_key='default', model_alias='test-model', resolved_model_id='claude-3-haiku')
+
+    class MockDumper:
+        def begin(self, request, payload):
+            return DumpHandles(files=DumpFiles(), correlation_id='test-correlation-id', base_path='/tmp')
+
+        def write_response_chunk(self, handles, chunk):
+            pass
+
+        def close(self, handles):
+            pass
+
+    class MockServiceContainer:
+        def __init__(self):
+            self.router = MockRouter()
+
+    with patch('app.routers.messages.get_service_container') as mock_get_container:
+        mock_service_container = MockServiceContainer()
+        mock_get_container.return_value = mock_service_container
+
+        app.dependency_overrides[get_dumper] = lambda: MockDumper()
+
+        # Test 1: No max_tokens with thinking enabled - should remain None (no adjustment)
+        response = client.post('/v1/messages', json={
+            'model': 'test-model',
+            'messages': [{'role': 'user', 'content': 'Hello'}],
+            'thinking': {'type': 'enabled', 'budget_tokens': 1000}
+        })
+        
+        assert response.status_code == 200
+        assert mock_service_container.router.provider.captured_payload.max_tokens is None
+
+        # Test 2: max_tokens > budget_tokens - should remain unchanged
+        response = client.post('/v1/messages', json={
+            'model': 'test-model',
+            'messages': [{'role': 'user', 'content': 'Hello'}],
+            'max_tokens': 2000,
+            'thinking': {'type': 'enabled', 'budget_tokens': 1000}
+        })
+        
+        assert response.status_code == 200
+        assert mock_service_container.router.provider.captured_payload.max_tokens == 2000
+
+        # Test 3: max_tokens < budget_tokens - should get adjusted to budget_tokens+1
+        response = client.post('/v1/messages', json={
+            'model': 'test-model',
+            'messages': [{'role': 'user', 'content': 'Hello'}],
+            'max_tokens': 500,
+            'thinking': {'type': 'enabled', 'budget_tokens': 1000}
+        })
+        
+        assert response.status_code == 200
+        assert mock_service_container.router.provider.captured_payload.max_tokens == 1001  # budget_tokens + 1
+
+        # Test 4: max_tokens < budget_tokens, budget_tokens > 32000 - should get 32000 (capped)
+        response = client.post('/v1/messages', json={
+            'model': 'test-model',
+            'messages': [{'role': 'user', 'content': 'Hello'}],
+            'max_tokens': 500,
+            'thinking': {'type': 'enabled', 'budget_tokens': 40000}
+        })
+        
+        assert response.status_code == 200
+        assert mock_service_container.router.provider.captured_payload.max_tokens == 32000  # min(32000, 40000+1)
+
+        # Test 5: No thinking config - max_tokens should remain unchanged
+        response = client.post('/v1/messages', json={
+            'model': 'test-model',
+            'messages': [{'role': 'user', 'content': 'Hello'}],
+            'max_tokens': 1000
+        })
+        
+        assert response.status_code == 200
+        assert mock_service_container.router.provider.captured_payload.max_tokens == 1000
+
+        # Test 6: Thinking with zero budget_tokens - max_tokens should remain unchanged
+        response = client.post('/v1/messages', json={
+            'model': 'test-model',
+            'messages': [{'role': 'user', 'content': 'Hello'}],
+            'max_tokens': 1000,
+            'thinking': {'type': 'enabled', 'budget_tokens': 0}
+        })
+        
+        assert response.status_code == 200
+        assert mock_service_container.router.provider.captured_payload.max_tokens == 1000

@@ -24,6 +24,11 @@ async def messages(payload: AnthropicRequest, request: Request, dumper: Dumper =
     ctx = get_request_context()
     ctx.original_model = payload.model
 
+    # Ensure adequate max_tokens when thinking is enabled
+    if payload.thinking and payload.thinking.budget_tokens > 0:
+        if payload.max_tokens and payload.thinking.budget_tokens > payload.max_tokens:
+            payload.max_tokens = min(32000, payload.thinking.budget_tokens+1) 
+
     # Phase 1: Validation
     service_container = get_service_container()
     if not service_container:
