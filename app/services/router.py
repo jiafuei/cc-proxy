@@ -18,6 +18,7 @@ logger = get_logger(__name__)
 @dataclass
 class RoutingResult:
     """Complete routing information for a request."""
+
     provider: Provider
     routing_key: str
     model_alias: str
@@ -57,7 +58,7 @@ class RequestInspector:
     """Analyzes requests to determine routing key."""
 
     # Compiled regex for efficient agent routing pattern matching
-    AGENT_PATTERN = re.compile(r'^--agent:\[([^\]]+)\]--$')
+    AGENT_PATTERN = re.compile(r'^/model\s+([^\s]+)$')
 
     def __init__(self):
         """Initialize the request inspector."""
@@ -145,7 +146,7 @@ class RequestInspector:
             request: Anthropic API request
 
         Returns:
-            Model alias if --agent:[model-alias]-- found as first line, None otherwise
+            Model alias if /model <model-alias> found as first line, None otherwise
         """
         if not request.system:
             return None
@@ -199,14 +200,14 @@ class SimpleRouter:
         is_agent_routing = False
         used_fallback = False
         original_model = request.model
-        
+
         # Check for agent routing in system message first
         agent_model_alias = self.inspector._scan_for_agent_routing(request)
         if agent_model_alias:
             model_alias = agent_model_alias
             routing_key = 'agent_direct'
             is_agent_routing = True
-            logger.debug(f'Agent routing detected in system message: --agent:[{model_alias}]--')
+            logger.debug(f'Agent routing detected in system message: /model {model_alias}')
         # Check for direct routing with '!' suffix
         elif request.model.endswith('!'):
             model_alias = request.model[:-1]  # Strip '!'
@@ -241,9 +242,9 @@ class SimpleRouter:
             resolved_model_id=resolved_model_id,
             is_direct_routing=is_direct_routing,
             is_agent_routing=is_agent_routing,
-            used_fallback=used_fallback
+            used_fallback=used_fallback,
         )
-        
+
         # Update request context
         ctx = get_request_context()
         ctx.original_model = original_model
@@ -254,15 +255,15 @@ class SimpleRouter:
             routing_key=routing_key,
             is_direct_routing=is_direct_routing,
             is_agent_routing=is_agent_routing,
-            used_fallback=used_fallback
+            used_fallback=used_fallback,
         )
-        
+
         # Structured logging with context (context fields will be auto-added)
         if routing_key == 'agent_direct':
             if used_fallback:
-                logger.debug(f'Agent routing to fallback: --agent:[{model_alias}]-- -> {model_alias} -> {resolved_model_id} (unchanged) -> {provider.config.name}')
+                logger.debug(f'Agent routing to fallback: /model {model_alias} -> {model_alias} -> {resolved_model_id} (unchanged) -> {provider.config.name}')
             else:
-                logger.debug(f'Agent routing: --agent:[{model_alias}]-- -> {model_alias} -> {resolved_model_id} -> {provider.config.name}')
+                logger.debug(f'Agent routing: /model {model_alias} -> {model_alias} -> {resolved_model_id} -> {provider.config.name}')
         elif routing_key == 'direct':
             if used_fallback:
                 logger.debug(f'Direct routing to fallback: {model_alias}! -> {model_alias} -> {resolved_model_id} (unchanged) -> {provider.config.name}')
@@ -273,7 +274,7 @@ class SimpleRouter:
                 logger.debug(f'Routed request to fallback: {routing_key} -> {model_alias} -> {resolved_model_id} (unchanged) -> {provider.config.name}')
             else:
                 logger.debug(f'Routed request: {routing_key} -> {model_alias} -> {resolved_model_id} -> {provider.config.name}')
-        
+
         return result
 
     def _get_model_for_key(self, routing_key: str) -> str:

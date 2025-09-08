@@ -20,7 +20,7 @@ class RequestContext:
 
     # Routing metadata
     is_direct_routing: bool = False  # Using ! suffix
-    is_agent_routing: bool = False  # Using --agent:[model]--
+    is_agent_routing: bool = False  # Using /model <model>
     used_fallback: bool = False  # Fallback provider used
 
     # Request metadata

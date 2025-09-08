@@ -534,7 +534,7 @@ def test_request_inspector_agent_routing_string_system():
     """Test agent routing detection in string system message."""
     inspector = RequestInspector()
 
-    request = AnthropicRequest(model='test', messages=[], system='--agent:[claude-3-5-sonnet]--\nOther content follows')
+    request = AnthropicRequest(model='test', messages=[], system='/model claude-3-5-sonnet\nOther content follows')
 
     result = inspector._scan_for_agent_routing(request)
     assert result == 'claude-3-5-sonnet'
@@ -547,7 +547,7 @@ def test_request_inspector_agent_routing_list_system():
     request = AnthropicRequest(
         model='test',
         messages=[],
-        system=[AnthropicSystemMessage(type='text', text='First message'), AnthropicSystemMessage(type='text', text='  --agent:[gpt-4]--  \nSome instructions')],
+        system=[AnthropicSystemMessage(type='text', text='First message'), AnthropicSystemMessage(type='text', text='  /model gpt-4  \nSome instructions')],
     )
 
     result = inspector._scan_for_agent_routing(request)
@@ -578,16 +578,16 @@ def test_request_inspector_agent_routing_malformed_pattern():
     """Test agent routing with malformed patterns."""
     inspector = RequestInspector()
 
-    # Missing closing bracket
-    request1 = AnthropicRequest(model='test', messages=[], system='--agent:[claude-3-5-sonnet--')
+    # Incomplete pattern
+    request1 = AnthropicRequest(model='test', messages=[], system='/model')
     assert inspector._scan_for_agent_routing(request1) is None
 
     # Empty alias
-    request2 = AnthropicRequest(model='test', messages=[], system='--agent:[]--')
+    request2 = AnthropicRequest(model='test', messages=[], system='/model ')
     assert inspector._scan_for_agent_routing(request2) is None
 
     # Pattern not on first line
-    request3 = AnthropicRequest(model='test', messages=[], system='Some text\n--agent:[claude-3-5-sonnet]--')
+    request3 = AnthropicRequest(model='test', messages=[], system='Some text\n/model claude-3-5-sonnet')
     assert inspector._scan_for_agent_routing(request3) is None
 
 
@@ -603,7 +603,7 @@ def test_simple_router_agent_routing_success():
 
     router = SimpleRouter(mock_provider_manager, routing_config, mock_transformer_loader)
 
-    request = AnthropicRequest(model='original-model', messages=[], system='--agent:[claude-3-5-sonnet]--\nYou are an AI assistant.')
+    request = AnthropicRequest(model='original-model', messages=[], system='/model claude-3-5-sonnet\nYou are an AI assistant.')
 
     result = router.get_provider_for_request(request)
     provider = result.provider
@@ -625,7 +625,7 @@ def test_simple_router_agent_routing_fallback():
 
     router = SimpleRouter(mock_provider_manager, routing_config, mock_transformer_loader)
 
-    request = AnthropicRequest(model='original-model', messages=[], system='--agent:[unknown-model]--\nYou are an AI assistant.')
+    request = AnthropicRequest(model='original-model', messages=[], system='/model unknown-model\nYou are an AI assistant.')
 
     result = router.get_provider_for_request(request)
     provider = result.provider
@@ -655,7 +655,7 @@ def test_simple_router_agent_routing_priority():
         max_tokens=100,  # Would trigger background routing
         messages=[{'role': 'user', 'content': '<system-reminder>\nPlan mode is active.'}],
         thinking={'type': 'enabled', 'budget_tokens': 2000},  # Would trigger thinking
-        system='--agent:[priority-model]--\nAgent instructions',
+        system='/model priority-model\nAgent instructions',
     )
 
     result = router.get_provider_for_request(request)
