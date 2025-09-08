@@ -35,6 +35,8 @@ providers:
         - class: 'app.services.transformers.anthropic.AnthropicHeadersTransformer'
           params: 
             auth_header: 'x-api-key'  # Use 'x-api-key' or 'authorization' (with Bearer prefix)
+        - class: 'app.services.transformers.utils.ToolDescriptionOptimizerTransformer'
+          params: {}
       response:
         # Passthrough transformer for Anthropic responses (no conversion needed)
         - class: 'app.services.transformers.anthropic.AnthropicResponseTransformer'

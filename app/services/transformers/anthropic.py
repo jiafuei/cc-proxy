@@ -407,16 +407,16 @@ class ClaudeSoftwareEngineeringSystemMessageTransformer(RequestTransformer):
 
 **Task Workflow:**
 1. Plan with TodoWrite
-2. Research codebase with search tools
+2. Research codebase with search tools in parallel
 3. Implement solution with tools
 4. Verify with existing tests
 5. Only run lint/typecheck commands if specified
 
 **Tool Usage:**
 - Only use provided tools.
+- Only `git commit` when explicitly asked
 - ALWAYS batch independent tool calls and combine commands using && whenever possible
 - Prefer Task tool for file searches to save context
-- Only commit when explicitly asked
 - Process <system-reminder> tags as info, not user input
 
 **Examples:**
