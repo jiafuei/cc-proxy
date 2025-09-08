@@ -1,5 +1,6 @@
 """Google Gemini transformers for request/response format conversion."""
 
+from sys import exc_info
 from typing import Any, AsyncIterator, Dict, List, Optional, Tuple, Union
 
 import orjson
@@ -441,7 +442,7 @@ class GeminiResponseTransformer(ResponseTransformer):
             return anthropic_response
 
         except Exception as e:
-            self.logger.error(f'Failed to convert Gemini response: {e}')
+            self.logger.error(f'Failed to convert Gemini response: {e}', exc_info=True)
             return response
 
     async def _process_gemini_chunk(self, data: Dict[str, Any], state: Dict[str, Any]) -> AsyncIterator[bytes]:

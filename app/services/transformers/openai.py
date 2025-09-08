@@ -1,5 +1,6 @@
 """OpenAI transformers with real format conversion."""
 
+from sys import exc_info
 from typing import Any, AsyncIterator, Dict, Optional, Tuple
 
 import orjson
@@ -277,7 +278,7 @@ class OpenAIResponseTransformer(ResponseTransformer):
             return claude_response
 
         except Exception as e:
-            logger.error(f'Failed to convert OpenAI response: {e}')
+            logger.error(f'Failed to convert OpenAI response: {e}', exc_info=True)
             return response
 
     async def _process_openai_chunk(self, data: Dict[str, Any], state: Dict[str, Any]) -> AsyncIterator[bytes]:
