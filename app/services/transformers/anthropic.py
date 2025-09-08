@@ -132,7 +132,7 @@ class AnthropicCacheTransformer(RequestTransformer):
         if 'system' not in request:
             return
 
-        system_arr = [{k: v for k, v in block.items() if k != 'cache_control'} for block in request.get('system', [])]
+        system_arr = [{k: v for k, v in block.items() if k != 'cache_control'} for block in request.get('system') or []]
         request['system'] = system_arr
 
     def _remove_tool_cache_breakpoints(self, request: dict[str, Any]):
@@ -141,7 +141,7 @@ class AnthropicCacheTransformer(RequestTransformer):
         if 'tools' not in request:
             return
 
-        tools_arr = [{k: v for k, v in block.items() if k != 'cache_control'} for block in request.get('tools', [])]
+        tools_arr = [{k: v for k, v in block.items() if k != 'cache_control'} for block in request.get('tools') or []]
         request['tools'] = tools_arr
 
     def _remove_messages_cache_breakpoints(self, request: dict[str, Any]):
@@ -149,7 +149,7 @@ class AnthropicCacheTransformer(RequestTransformer):
             return
 
         messages = []
-        for message in request.get('messages', []):
+        for message in request.get('messages') or []:
             if 'content' not in message:
                 continue
 
@@ -176,7 +176,7 @@ class AnthropicCacheTransformer(RequestTransformer):
         Returns:
             Number of breakpoints used for tools caching
         """
-        tools = request.get('tools', [])
+        tools = request.get('tools') or []
         if not tools:
             return 0
 
@@ -222,7 +222,7 @@ class AnthropicCacheTransformer(RequestTransformer):
         Returns:
             Number of breakpoints used for system caching
         """
-        system_messages = request.get('system', [])
+        system_messages = request.get('system') or []
         if not system_messages or used_breakpoints >= 4:
             return 0
 
@@ -237,7 +237,7 @@ class AnthropicCacheTransformer(RequestTransformer):
         Args:
             used_breakpoints: Number of breakpoints already used by previous stages
         """
-        messages = request.get('messages', [])
+        messages = request.get('messages') or []
         if not messages:
             return
 
@@ -266,7 +266,7 @@ class AnthropicCacheTransformer(RequestTransformer):
                     continue
 
                 # Count content blocks in this message
-                content = messages[i].get('content', [])
+                content = messages[i].get('content') or []
                 if isinstance(content, str):
                     content_count += 1
                 elif isinstance(content, list):
@@ -284,7 +284,7 @@ class AnthropicCacheTransformer(RequestTransformer):
 
     def _add_cache_breakpoint_to_message_content(self, message: dict) -> bool:
         """Add cache control to the last content block in a message."""
-        content = message.get('content', [])
+        content = message.get('content') or []
         if isinstance(content, list) and content:
             # Don't cache thinking blocks
             non_thinking_blocks = [c for c in content if c.get('type') != 'thinking']
@@ -306,18 +306,18 @@ class AnthropicCacheTransformer(RequestTransformer):
         total_breakpoints = 0
 
         # Count system breakpoints
-        for system_msg in request.get('system', []):
+        for system_msg in request.get('system') or []:
             if 'cache_control' in system_msg:
                 total_breakpoints += 1
 
         # Count tools breakpoints
-        for tool in request.get('tools', []):
+        for tool in request.get('tools') or []:
             if 'cache_control' in tool:
                 total_breakpoints += 1
 
         # Count message content breakpoints
-        for message in request.get('messages', []):
-            content = message.get('content', [])
+        for message in request.get('messages') or []:
+            content = message.get('content') or []
             if isinstance(content, list):
                 for block in content:
                     if 'cache_control' in block:

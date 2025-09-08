@@ -1,6 +1,5 @@
 """OpenAI transformers with real format conversion."""
 
-from sys import exc_info
 from typing import Any, AsyncIterator, Dict, Optional, Tuple
 
 import orjson
@@ -75,14 +74,16 @@ class OpenAIRequestTransformer(RequestTransformer):
                 messages.append({'role': 'system', 'content': system_content})
 
         # Process regular messages
-        for message in claude_request.get('messages', []):
+        for message in claude_request.get('messages') or []:
             messages.extend(self._process_message(message))
 
         return messages
 
     def _process_message(self, message):
         """Process a single Claude message into OpenAI format messages."""
-        role, content = message.get('role'), message.get('content', [])
+        role, content = message.get('role'), message.get('content')
+        if content is None:
+            content = []
         if isinstance(content, str):
             content = [{'type': 'text', 'text': content}]
         elif not isinstance(content, list):
@@ -233,7 +234,7 @@ class OpenAIResponseTransformer(ResponseTransformer):
         response = params['response']
 
         try:
-            choices = response.get('choices', [])
+            choices = response.get('choices') or []
             if not choices:
                 logger.warning('OpenAI response has no choices')
                 return response
@@ -241,7 +242,7 @@ class OpenAIResponseTransformer(ResponseTransformer):
             choice = choices[0]
             message = choice.get('message', {})
             content = message.get('content', '')
-            tool_calls = message.get('tool_calls', [])
+            tool_calls = message.get('tool_calls') or []
 
             # Build Claude content array
             claude_content = []
@@ -286,7 +287,7 @@ class OpenAIResponseTransformer(ResponseTransformer):
         # Extract basic message info
         message_id = data.get('id', '')
         model = data.get('model', '')
-        choices = data.get('choices', [])
+        choices = data.get('choices') or []
         usage = data.get('usage')
 
         # Update state
@@ -357,10 +358,12 @@ class OpenAIResponseTransformer(ResponseTransformer):
             )
 
         # Handle tool calls
-        if 'tool_calls' in delta:
-            tool_call = delta['tool_calls'][0]
-            async for event in self._process_tool_call(tool_call, state):
-                yield event
+        if delta.get('tool_calls'):
+            tool_calls = delta['tool_calls']
+            if tool_calls and len(tool_calls) > 0:
+                tool_call = tool_calls[0]
+                async for event in self._process_tool_call(tool_call, state):
+                    yield event
 
         # Handle finish reason
         if finish_reason:

@@ -400,3 +400,55 @@ class TestOpenAIResponseTransformer:
         assert event_counts['content_block_stop'] == 2
         assert event_counts['message_delta'] == 1
         assert event_counts['message_stop'] == 1
+
+    @pytest.mark.asyncio
+    async def test_transform_response_null_tool_calls(self, transformer):
+        """Test non-streaming response transformation with explicit null tool_calls."""
+        response = {
+            'id': 'msg_123',
+            'object': 'chat.completion',
+            'choices': [{
+                'message': {
+                    'role': 'assistant',
+                    'content': 'Hello world',
+                    'tool_calls': None  # Explicit null instead of missing or empty array
+                },
+                'finish_reason': 'stop'
+            }],
+            'usage': {'prompt_tokens': 10, 'completion_tokens': 5, 'total_tokens': 15}
+        }
+
+        result = await transformer.transform_response({'response': response})
+        
+        assert result['content'] == [{'type': 'text', 'text': 'Hello world'}]
+        assert 'tool_calls' not in str(result)  # Should not crash or include tool_calls
+
+    @pytest.mark.asyncio
+    async def test_transform_response_null_choices(self, transformer):
+        """Test non-streaming response transformation with null choices."""
+        response = {
+            'id': 'msg_123',
+            'object': 'chat.completion',  
+            'choices': None,  # Explicit null
+            'usage': {'prompt_tokens': 10, 'completion_tokens': 5, 'total_tokens': 15}
+        }
+
+        result = await transformer.transform_response({'response': response})
+        
+        # Should return original response when choices is null
+        assert result == response
+
+    @pytest.mark.asyncio
+    async def test_transform_chunk_null_tool_calls_in_delta(self, transformer, mock_params_streaming):
+        """Test streaming response with null tool_calls in delta."""
+        # Simulate a delta chunk with null tool_calls
+        mock_params_streaming['chunk'] = b'data: {"choices": [{"delta": {"tool_calls": null}, "finish_reason": null}]}\n\n'
+
+        results = []
+        async for chunk in transformer.transform_chunk(mock_params_streaming):
+            results.append(chunk)
+
+        # Should not crash and should produce no tool-related events
+        for result in results:
+            assert b'tool_use' not in result
+            assert b'input_json_delta' not in result

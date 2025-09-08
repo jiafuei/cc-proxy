@@ -1,6 +1,5 @@
 """Google Gemini transformers for request/response format conversion."""
 
-from sys import exc_info
 from typing import Any, AsyncIterator, Dict, List, Optional, Tuple, Union
 
 import orjson
@@ -96,7 +95,7 @@ class GeminiRequestTransformer(RequestTransformer):
 
         for message in messages:
             role = message.get('role')
-            content = message.get('content', [])
+            content = message.get('content') or []
 
             # Map role: assistant -> model, keep user as-is
             gemini_role = 'model' if role == 'assistant' else role
@@ -399,13 +398,13 @@ class GeminiResponseTransformer(ResponseTransformer):
 
         try:
             # Extract candidates from Gemini response
-            candidates = response.get('candidates', [])
+            candidates = response.get('candidates') or []
             if not candidates:
                 self.logger.warning('Gemini response has no candidates')
                 return response
 
             candidate = candidates[0]
-            content_parts = candidate.get('content', {}).get('parts', [])
+            content_parts = candidate.get('content', {}).get('parts') or []
             finish_reason = candidate.get('finishReason')
 
             # Build Anthropic content array
@@ -447,7 +446,7 @@ class GeminiResponseTransformer(ResponseTransformer):
 
     async def _process_gemini_chunk(self, data: Dict[str, Any], state: Dict[str, Any]) -> AsyncIterator[bytes]:
         """Process a single Gemini data chunk and emit Anthropic events."""
-        candidates = data.get('candidates', [])
+        candidates = data.get('candidates') or []
         if not candidates:
             # Handle usage metadata if present
             if usage_metadata := data.get('usageMetadata'):
@@ -456,7 +455,7 @@ class GeminiResponseTransformer(ResponseTransformer):
 
         candidate = candidates[0]
         content = candidate.get('content', {})
-        parts = content.get('parts', [])
+        parts = content.get('parts') or []
 
         # Handle message start
         if not state['message_started'] and (parts or candidate.get('finishReason')):
