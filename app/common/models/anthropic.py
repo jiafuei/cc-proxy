@@ -92,7 +92,7 @@ class AnthropicMessage(BaseModel):
     content: Union[List[AnthropicContentBlockType], str]
 
 
-class AnthropicTool(BaseModel):
+class AnthropicToolDefinition(BaseModel):
     """Tool definition model."""
 
     model_config = ConfigDict(extra='allow')
@@ -100,6 +100,15 @@ class AnthropicTool(BaseModel):
     name: str
     description: str
     input_schema: dict[str, Any] = Field(description='JSON schema object defining expected parameters for the tool')
+
+
+class AnthropicBuiltInToolUsage(BaseModel):
+    """Built-in Tool usages."""
+
+    model_config = ConfigDict(extra='allow')
+
+    type: str
+    name: str
 
 
 class AnthropicThinkingConfig(BaseModel):
@@ -128,7 +137,7 @@ class AnthropicRequest(BaseModel):
     messages: List[AnthropicMessage]
     temperature: Optional[float] = None
     system: list[AnthropicSystemMessage] | str | None = None
-    tools: Optional[List[AnthropicTool]] = None
+    tools: Optional[List[AnthropicToolDefinition|AnthropicBuiltInToolUsage]] = None
     metadata: Optional[AnthropicMetadata] = None
     # max_tokens: int | None = Field(default=32000)
     max_tokens: int | None = None
