@@ -84,12 +84,13 @@ class Provider:
 
         logger.debug('Request transformers applied')
 
-        # Dump transformed headers and request after all transformers are applied
-        dumper.write_transformed_headers(dumper_handles, current_headers)
-        dumper.write_transformed_request(dumper_handles, current_request)
 
         # Force non-streaming to LLM providers for simplified architecture
         current_request['stream'] = False
+
+        # Dump transformed headers and request after all transformers are applied
+        dumper.write_transformed_headers(dumper_handles, current_headers)
+        dumper.write_transformed_request(dumper_handles, current_request)
 
         # Always get JSON response from provider
         response = await self._send_request(config, current_request, current_headers)
