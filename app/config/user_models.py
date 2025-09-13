@@ -78,6 +78,7 @@ class RoutingConfig(BaseModel):
     planning: str = Field(default='', description='Model for planning/complex reasoning requests')
     thinking: str = Field(default='', description='Model for thinking-enabled requests')
     plan_and_think: str = Field(default='', description='Model for combined planning and thinking requests')
+    builtin_tools: str = Field(default='', description='Model for built-in tool requests (WebSearch, WebFetch, etc.)')
 
 
 class UserConfig(BaseModel):

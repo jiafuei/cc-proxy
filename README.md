@@ -110,6 +110,7 @@ models:
 
 routing:
   default: 'sonnet'        # Default model for most requests
+  builtin_tools: 'sonnet'  # Built-in tools (WebSearch, WebFetch, etc.) - highest priority
   planning: 'gpt4'         # Use GPT-4 for planning tasks
   background: 'haiku'      # Use Haiku for quick tasks
 ```
@@ -152,6 +153,7 @@ providers:
 ```yaml
 routing:
   default: 'sonnet'           # Most requests
+  builtin_tools: 'sonnet'     # Built-in tools (WebSearch, WebFetch, etc.) - highest priority
   thinking: 'o1'              # Complex reasoning
   planning: 'gpt4'            # Planning mode
   background: 'haiku'         # Quick tasks
@@ -160,6 +162,28 @@ routing:
 
 ### Custom Transformers
 Place Python files in directories listed in `transformer_paths` and reference them by `module.ClassName`.
+
+#### Built-in Tools Support
+CC-Proxy automatically converts Anthropic's built-in tools (WebSearch, WebFetch) to provider-specific formats:
+
+```yaml
+# OpenAI Provider with built-in tools support
+- name: 'openai-provider'
+  transformers:
+    request:
+      - class: 'app.services.transformers.builtin_tools.SmartBuiltinToolsTransformer'
+      - class: 'app.services.transformers.openai.OpenAIRequestTransformer'
+    response:
+      - class: 'app.services.transformers.builtin_tools.OpenAIBuiltinToolsResponseTransformer'
+      - class: 'app.services.transformers.openai.OpenAIResponseTransformer'
+```
+
+**WebSearch Conversion**:
+- Anthropic `web_search` tool → OpenAI `web_search_options` parameter
+- Domain filters (`allowed_domains`, `blocked_domains`) mapped correctly
+- User location parameters converted to OpenAI format
+- Model automatically upgraded to search-preview variants
+- Response annotations converted back to Anthropic format
 
 ## Technical Details
 

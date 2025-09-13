@@ -57,6 +57,10 @@ providers:
               - key: 'authorization'
                 prefix: 'Bearer '
                 value: !env [OPENAI_API_KEY, '']
+        # Converts built-in tools (WebSearch, WebFetch) to provider-specific format
+        # Must be placed BEFORE OpenAI transformer to process tools first
+        - class: 'app.services.transformers.builtin_tools.SmartBuiltinToolsTransformer'
+          params: {}
         # Converts Claude request format to OpenAI format
         # - Handles multimodal content (images, text)
         # - Converts tools and tool_choice
@@ -65,6 +69,10 @@ providers:
         - class: 'app.services.transformers.openai.OpenAIRequestTransformer'
           params: {}  # API key and URL are taken from provider config
       response:
+        # Converts OpenAI web search annotations back to Anthropic format
+        # Must be placed BEFORE OpenAI response transformer
+        - class: 'app.services.transformers.builtin_tools.OpenAIBuiltinToolsResponseTransformer'
+          params: {}
         # Converts OpenAI response format back to Claude format
         # - Handles both streaming and non-streaming responses
         # - Converts tool calls and tool results
@@ -170,3 +178,4 @@ routing:
   planning: 'sonnet'      # Plan mode
   thinking: 'sonnet'      # Whenever you add any of the phrases to your prompt: "think" < "think hard" < "think harder" < "ultrathink." Ref: https://www.anthropic.com/engineering/claude-code-best-practices
   plan_and_think: 'sonnet'  # When thinking is activated in plan mode
+  builtin_tools: 'sonnet'   # Built-in tool requests (WebSearch, WebFetch, etc.) - highest priority

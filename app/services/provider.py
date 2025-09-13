@@ -71,6 +71,9 @@ class Provider:
         current_headers = dict(original_request.headers)  # Copy headers
         config = self.config.model_copy()
 
+        # Force non-streaming to LLM providers for simplified architecture
+        current_request['stream'] = False
+
         logger.debug('Request headers prepared')
         for transformer in self.request_transformers:
             transform_params = {
@@ -83,9 +86,6 @@ class Provider:
             current_request, current_headers = await transformer.transform(transform_params)
 
         logger.debug('Request transformers applied')
-
-        # Force non-streaming to LLM providers for simplified architecture
-        current_request['stream'] = False
 
         # Dump transformed headers and request after all transformers are applied
         dumper.write_transformed_headers(dumper_handles, current_headers)

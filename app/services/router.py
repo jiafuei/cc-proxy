@@ -70,8 +70,12 @@ class RequestInspector:
             request: Anthropic API request
 
         Returns:
-            Routing key ('default', 'planning', 'background', 'thinking', 'plan_and_think')
+            Routing key ('builtin_tools', 'default', 'planning', 'background', 'thinking', 'plan_and_think')
         """
+        # Check for built-in tools first (highest priority)
+        if self._has_builtin_tools(request):
+            return 'builtin_tools'
+
         if request.max_tokens and request.max_tokens < 768:
             return 'background'
 
@@ -138,6 +142,34 @@ class RequestInspector:
 
         return False
 
+    def _has_builtin_tools(self, request: AnthropicRequest) -> bool:
+        """Check if the request contains built-in tool definitions.
+
+        Built-in tools are identified by having a 'type' field but no 'input_schema',
+        which distinguishes them from regular tool definitions.
+
+        Args:
+            request: Anthropic API request
+
+        Returns:
+            True if the request contains built-in tools, False otherwise
+        """
+        if not request.tools:
+            return False
+
+        # Check if any tool has 'type' field but no 'input_schema' (built-in tool indicator)
+        for tool in request.tools:
+            # Handle both dict and Pydantic object cases
+            if isinstance(tool, dict):
+                if 'type' in tool and 'input_schema' not in tool:
+                    return True
+            else:
+                # Pydantic object - check if it has 'type' attribute but no 'input_schema'
+                if hasattr(tool, 'type') and not hasattr(tool, 'input_schema'):
+                    return True
+
+        return False
+
     def _scan_for_agent_routing(self, request: AnthropicRequest) -> Optional[str]:
         """Scan last system message for agent routing pattern.
 
@@ -200,9 +232,13 @@ class SimpleRouter:
         used_fallback = False
         original_model = request.model
 
-        # Check for agent routing in system message first
-        agent_model_alias = self.inspector._scan_for_agent_routing(request)
-        if agent_model_alias:
+        # Check for built-in tools first (highest priority)
+        if self.inspector._has_builtin_tools(request):
+            routing_key = 'builtin_tools'
+            model_alias = self._get_model_for_key(routing_key)
+            logger.debug(f'Built-in tools detected, routing to: {model_alias}')
+        # Check for agent routing in system message
+        elif agent_model_alias := self.inspector._scan_for_agent_routing(request):
             model_alias = agent_model_alias
             routing_key = 'agent_direct'
             is_agent_routing = True
@@ -278,7 +314,9 @@ class SimpleRouter:
 
     def _get_model_for_key(self, routing_key: str) -> str:
         """Get model alias for a routing key."""
-        if routing_key == 'planning':
+        if routing_key == 'builtin_tools':
+            return self.routing_config.builtin_tools
+        elif routing_key == 'planning':
             return self.routing_config.planning
         elif routing_key == 'background':
             return self.routing_config.background
@@ -312,6 +350,7 @@ class SimpleRouter:
             'background_model': self.routing_config.background,
             'thinking_model': self.routing_config.thinking,
             'plan_and_think_model': self.routing_config.plan_and_think,
+            'builtin_tools_model': self.routing_config.builtin_tools,
             'available_models': self.list_available_models(),
             'providers': self.provider_manager.list_providers(),
         }
