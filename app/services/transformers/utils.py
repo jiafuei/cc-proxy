@@ -364,7 +364,7 @@ class ToolDescriptionOptimizerTransformer(RequestTransformer):
 
     # Hardcoded mapping of tool names to optimized descriptions
     TOOL_DESCRIPTION_MAP = {
-        "Bash": """<purpose>
+        'Bash': """<purpose>
 Executes bash commands in a persistent shell session with timeout support and security measures. Use this tool for running system commands, file operations, development tasks, and git workflows while maintaining session state across multiple command executions.
 </purpose>
 

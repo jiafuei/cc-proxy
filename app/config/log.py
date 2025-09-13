@@ -158,14 +158,14 @@ def _create_log_handlers(log_config, log_dir: Path) -> list:
 def _request_context_processor(logger, method_name, event_dict):
     """Add request context fields to log events."""
     from app.common.vars import get_request_context
-    
+
     ctx = get_request_context()
     # Add context fields that aren't already in event_dict
     context_data = ctx.to_dict(include_none=False)
     for key, value in context_data.items():
         if key not in event_dict:
             event_dict[key] = value
-    
+
     return event_dict
 
 

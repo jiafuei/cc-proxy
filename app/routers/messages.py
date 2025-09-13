@@ -27,13 +27,17 @@ async def messages(payload: AnthropicRequest, request: Request, dumper: Dumper =
     # Ensure adequate max_tokens when thinking is enabled
     if payload.thinking and payload.thinking.budget_tokens > 0:
         if payload.max_tokens and payload.thinking.budget_tokens > payload.max_tokens:
-            payload.max_tokens = min(32000, payload.thinking.budget_tokens+1) 
+            payload.max_tokens = min(32000, payload.thinking.budget_tokens + 1)
 
     # Phase 1: Validation
-    service_container = get_service_container()
-    if not service_container:
-        logger.error('Service container not available - check configuration')
-        return ORJSONResponse({'error': {'type': 'api_error', 'message': 'Service configuration failed'}}, status_code=500)
+    try:
+        service_container = get_service_container()
+        if not service_container:
+            logger.error('Service container not available - check configuration')
+            return ORJSONResponse({'error': {'type': 'api_error', 'message': 'Service configuration failed'}}, status_code=500)
+    except Exception as e:
+        logger.error(f'Service container initialization failed: {e}')
+        return ORJSONResponse({'error': {'type': 'api_error', 'message': 'Service initialization failed'}}, status_code=500)
 
     # Get routing result - context is automatically updated
     routing_result = service_container.router.get_provider_for_request(payload)
@@ -59,7 +63,7 @@ async def messages(payload: AnthropicRequest, request: Request, dumper: Dumper =
             response_bytes = orjson.dumps(json_response)
             dumper.write_response_chunk(dumper_handles, response_bytes)
             dumper.close(dumper_handles)
-            logger.info("Finished processing request")
+            logger.info('Finished processing request')
             return ORJSONResponse(json_response)
         else:
             # Streaming: convert JSON to SSE format

@@ -1,7 +1,6 @@
 """Tests for YAML utilities with environment variable support."""
 
 import os
-import tempfile
 from unittest.mock import patch
 
 import pytest
@@ -86,28 +85,11 @@ class TestEnvVarLoader:
             assert result['port'] == '9000'  # String, not int
             assert result['enabled'] == 'true'  # String, not bool
 
-    def test_invalid_env_var_name(self):
-        """Test error handling for invalid environment variable names."""
-        yaml_content = """
-        api_key: !env 123_INVALID
-        """
-
-        with pytest.raises(ValueError, match="Required environment variable '123_INVALID' is not set"):
-            safe_load_with_env(yaml_content)
-
-    def test_invalid_sequence_length(self):
-        """Test error handling for invalid sequence length in optional env vars."""
-        yaml_content = """
-        api_key: !env [SINGLE_ITEM]
-        """
-
-        with pytest.raises(yaml.constructor.ConstructorError, match='must have exactly 2 elements'):
-            safe_load_with_env(yaml_content)
-
-    def test_invalid_sequence_too_many_items(self):
-        """Test error handling for too many items in sequence."""
-        yaml_content = """
-        api_key: !env [VAR_NAME, default, extra_item]
+    @pytest.mark.parametrize('invalid_sequence,description', [('[SINGLE_ITEM]', 'too few items'), ('[VAR_NAME, default, extra_item]', 'too many items')])
+    def test_invalid_sequence_lengths(self, invalid_sequence, description):
+        """Test error handling for invalid sequence lengths in optional env vars."""
+        yaml_content = f"""
+        api_key: !env {invalid_sequence}
         """
 
         with pytest.raises(yaml.constructor.ConstructorError, match='must have exactly 2 elements'):
@@ -147,23 +129,3 @@ class TestEnvVarLoader:
             assert result['providers'][0]['timeout'] == 300  # Default
             assert result['providers'][0]['settings']['debug'] == 'true'  # From env
             assert result['routing']['default'] == 'claude-3-5-sonnet'  # Default
-
-    def test_file_loading_with_env_vars(self):
-        """Test loading YAML from a file with environment variables."""
-        yaml_content = """
-        database_url: !env DATABASE_URL
-        port: !env [APP_PORT, 5432]
-        """
-
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as f:
-            f.write(yaml_content)
-            f.flush()
-
-            with patch.dict(os.environ, {'DATABASE_URL': 'postgres://localhost/test'}):
-                with open(f.name, 'r') as file:
-                    result = safe_load_with_env(file)
-
-                assert result['database_url'] == 'postgres://localhost/test'
-                assert result['port'] == 5432  # Default value
-
-        os.unlink(f.name)

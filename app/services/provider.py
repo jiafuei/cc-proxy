@@ -62,10 +62,10 @@ class Provider:
             JSON response dictionary
         """
         # Context is automatically available via ContextVar
-        
+
         # Log with full context
         logger.debug('Starting request transformation')
-        
+
         # 1. Convert AnthropicRequest to Dict and apply request transformers sequentially
         current_request = request.to_dict()  # Use to_dict() method
         current_headers = dict(original_request.headers)  # Copy headers
@@ -83,7 +83,6 @@ class Provider:
             current_request, current_headers = await transformer.transform(transform_params)
 
         logger.debug('Request transformers applied')
-
 
         # Force non-streaming to LLM providers for simplified architecture
         current_request['stream'] = False

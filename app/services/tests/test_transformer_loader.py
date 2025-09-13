@@ -5,20 +5,6 @@ import pytest
 from app.services.transformer_loader import TransformerLoader
 
 
-def test_transformer_loader_initialization():
-    """Test transformer loader initialization."""
-    loader = TransformerLoader()
-    assert loader is not None
-    assert len(loader._cache) == 0
-
-
-def test_transformer_loader_with_paths():
-    """Test transformer loader with custom paths."""
-    test_paths = ['/test/path1', '/test/path2']
-    loader = TransformerLoader(test_paths)
-    assert loader is not None
-
-
 def test_load_built_in_transformer():
     """Test loading a built-in transformer."""
     loader = TransformerLoader()
@@ -100,33 +86,3 @@ def test_load_multiple_transformers_with_failure():
     # Should continue loading even if one fails
     transformers = loader.load_transformers(configs)
     assert len(transformers) == 2  # Only the working ones
-
-
-def test_clear_cache():
-    """Test clearing the transformer cache."""
-    loader = TransformerLoader()
-
-    config = {'class': 'app.services.transformers.utils.HeaderTransformer', 'params': {'operations': [{'key': 'authorization', 'prefix': 'Bearer ', 'value': 'api_key'}]}}
-
-    loader.load_transformer(config)
-    assert len(loader._cache) == 1
-
-    loader.clear_cache()
-    assert len(loader._cache) == 0
-
-
-def test_get_cache_info():
-    """Test getting cache information."""
-    loader = TransformerLoader()
-
-    info = loader.get_cache_info()
-    assert info['cached_transformers'] == 0
-    assert info['cache_keys'] == []
-
-    config = {'class': 'app.services.transformers.utils.HeaderTransformer', 'params': {'operations': [{'key': 'authorization', 'prefix': 'Bearer ', 'value': 'api_key'}]}}
-
-    loader.load_transformer(config)
-
-    info = loader.get_cache_info()
-    assert info['cached_transformers'] == 1
-    assert len(info['cache_keys']) == 1

@@ -137,7 +137,7 @@ class AnthropicRequest(BaseModel):
     messages: List[AnthropicMessage]
     temperature: Optional[float] = None
     system: list[AnthropicSystemMessage] | str | None = None
-    tools: Optional[List[AnthropicToolDefinition|AnthropicBuiltInToolUsage]] = None
+    tools: Optional[List[AnthropicToolDefinition | AnthropicBuiltInToolUsage]] = None
     metadata: Optional[AnthropicMetadata] = None
     # max_tokens: int | None = Field(default=32000)
     max_tokens: int | None = None

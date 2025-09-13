@@ -16,47 +16,34 @@ class TestGeminiApiKeyTransformer:
         self.logger = MagicMock()
         self.transformer = GeminiApiKeyTransformer(self.logger)
 
+    @pytest.mark.parametrize(
+        'api_key_source,expected_key', [('provider_config', 'test-api-key-123'), ('authorization_header', 'sk-test456'), ('x_goog_api_key_header', 'direct-api-key')]
+    )
     @pytest.mark.asyncio
-    async def test_adds_api_key_from_provider_config(self):
-        """Test adding API key from provider config as query parameter."""
-        provider_config = ProviderConfig(
-            name='test_provider', url='https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent', api_key='test-api-key-123'
-        )
+    async def test_adds_api_key_from_various_sources(self, api_key_source, expected_key):
+        """Test adding API key from various sources as query parameter."""
+        base_url = 'https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent'
 
-        params = {'request': {'model': 'test'}, 'headers': {}, 'provider_config': provider_config}
+        if api_key_source == 'provider_config':
+            provider_config = ProviderConfig(name='test_provider', url=base_url, api_key=expected_key)
+            headers = {}
+        elif api_key_source == 'authorization_header':
+            provider_config = ProviderConfig(name='test_provider', url=base_url, api_key='')
+            headers = {'authorization': f'Bearer {expected_key}'}
+        elif api_key_source == 'x_goog_api_key_header':
+            provider_config = ProviderConfig(name='test_provider', url=base_url, api_key='')
+            headers = {'x-goog-api-key': expected_key}
 
-        request, headers = await self.transformer.transform(params)
+        params = {'request': {'model': 'test'}, 'headers': headers, 'provider_config': provider_config}
+
+        request, headers_result = await self.transformer.transform(params)
 
         # Request and headers should be unchanged
         assert request == {'model': 'test'}
-        assert headers == {}
+        assert headers_result == headers
 
         # URL should now include API key as query parameter
-        expected_url = 'https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=test-api-key-123'
-        assert provider_config.url == expected_url
-
-    @pytest.mark.asyncio
-    async def test_adds_api_key_from_authorization_header(self):
-        """Test adding API key from authorization header."""
-        provider_config = ProviderConfig(name='test_provider', url='https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent', api_key='')
-
-        params = {'request': {'model': 'test'}, 'headers': {'authorization': 'Bearer sk-test456'}, 'provider_config': provider_config}
-
-        request, headers = await self.transformer.transform(params)
-
-        expected_url = 'https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=sk-test456'
-        assert provider_config.url == expected_url
-
-    @pytest.mark.asyncio
-    async def test_adds_api_key_from_x_goog_api_key_header(self):
-        """Test adding API key from x-goog-api-key header."""
-        provider_config = ProviderConfig(name='test_provider', url='https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent', api_key='')
-
-        params = {'request': {'model': 'test'}, 'headers': {'x-goog-api-key': 'direct-api-key'}, 'provider_config': provider_config}
-
-        request, headers = await self.transformer.transform(params)
-
-        expected_url = 'https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=direct-api-key'
+        expected_url = f'{base_url}?key={expected_key}'
         assert provider_config.url == expected_url
 
     @pytest.mark.asyncio
@@ -113,28 +100,16 @@ class TestGeminiApiKeyTransformer:
         # Should log warning
         self.logger.warning.assert_called_with('No API key found for Gemini authentication')
 
+    @pytest.mark.parametrize('auth_value,expected_key', [('Bearer   sk-test-with-spaces   ', 'sk-test-with-spaces'), ('raw-api-key', 'raw-api-key')])
     @pytest.mark.asyncio
-    async def test_strips_bearer_prefix(self):
-        """Test that Bearer prefix is properly stripped from authorization header."""
+    async def test_handles_authorization_header_formats(self, auth_value, expected_key):
+        """Test handling authorization header with and without Bearer prefix."""
         provider_config = ProviderConfig(name='test_provider', url='https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent', api_key='')
 
-        params = {'request': {'model': 'test'}, 'headers': {'authorization': 'Bearer   sk-test-with-spaces   '}, 'provider_config': provider_config}
+        params = {'request': {'model': 'test'}, 'headers': {'authorization': auth_value}, 'provider_config': provider_config}
 
         request, headers = await self.transformer.transform(params)
 
-        # Should strip Bearer prefix and whitespace
-        expected_url = 'https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=sk-test-with-spaces'
-        assert provider_config.url == expected_url
-
-    @pytest.mark.asyncio
-    async def test_handles_authorization_without_bearer(self):
-        """Test handling authorization header without Bearer prefix."""
-        provider_config = ProviderConfig(name='test_provider', url='https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent', api_key='')
-
-        params = {'request': {'model': 'test'}, 'headers': {'authorization': 'raw-api-key'}, 'provider_config': provider_config}
-
-        request, headers = await self.transformer.transform(params)
-
-        # Should use raw value when no Bearer prefix
-        expected_url = 'https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=raw-api-key'
+        # Should extract key correctly regardless of Bearer prefix
+        expected_url = f'https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key={expected_key}'
         assert provider_config.url == expected_url

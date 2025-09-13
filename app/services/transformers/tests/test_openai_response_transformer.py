@@ -407,19 +407,21 @@ class TestOpenAIResponseTransformer:
         response = {
             'id': 'msg_123',
             'object': 'chat.completion',
-            'choices': [{
-                'message': {
-                    'role': 'assistant',
-                    'content': 'Hello world',
-                    'tool_calls': None  # Explicit null instead of missing or empty array
-                },
-                'finish_reason': 'stop'
-            }],
-            'usage': {'prompt_tokens': 10, 'completion_tokens': 5, 'total_tokens': 15}
+            'choices': [
+                {
+                    'message': {
+                        'role': 'assistant',
+                        'content': 'Hello world',
+                        'tool_calls': None,  # Explicit null instead of missing or empty array
+                    },
+                    'finish_reason': 'stop',
+                }
+            ],
+            'usage': {'prompt_tokens': 10, 'completion_tokens': 5, 'total_tokens': 15},
         }
 
         result = await transformer.transform_response({'response': response})
-        
+
         assert result['content'] == [{'type': 'text', 'text': 'Hello world'}]
         assert 'tool_calls' not in str(result)  # Should not crash or include tool_calls
 
@@ -428,13 +430,13 @@ class TestOpenAIResponseTransformer:
         """Test non-streaming response transformation with null choices."""
         response = {
             'id': 'msg_123',
-            'object': 'chat.completion',  
+            'object': 'chat.completion',
             'choices': None,  # Explicit null
-            'usage': {'prompt_tokens': 10, 'completion_tokens': 5, 'total_tokens': 15}
+            'usage': {'prompt_tokens': 10, 'completion_tokens': 5, 'total_tokens': 15},
         }
 
         result = await transformer.transform_response({'response': response})
-        
+
         # Should return original response when choices is null
         assert result == response
 

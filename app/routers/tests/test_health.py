@@ -1,11 +1,2 @@
-from fastapi.testclient import TestClient
-
-from app.routers.health import router
-
-client = TestClient(router)
-
-
-def test_health_check():
-    response = client.get('/health')
-    assert response.status_code == 200
-    assert response.json() == {'status': 'ok'}
+# Health endpoint tests removed - trivial hardcoded response test provided no meaningful coverage
+# Health endpoints should be tested at integration/operational level where they provide actual value

@@ -1,5 +1,6 @@
 """Test config API endpoints."""
 
+import pytest
 from fastapi.testclient import TestClient
 
 from app.main import app
@@ -7,32 +8,19 @@ from app.main import app
 client = TestClient(app)
 
 
-def test_config_status_endpoint():
-    """Test GET /api/config/status endpoint."""
-    response = client.get('/api/config/status')
+@pytest.mark.parametrize(
+    'endpoint,method,expected_keys',
+    [
+        ('/api/config/status', 'get', ['loaded', 'config_file_exists', 'config_path']),
+        ('/api/config/validate', 'get', ['valid', 'errors']),
+        ('/api/reload', 'post', ['success', 'message']),
+    ],
+)
+def test_config_api_endpoints(endpoint, method, expected_keys):
+    """Test config API endpoints return 200 status and expected keys."""
+    response = getattr(client, method)(endpoint)
     assert response.status_code == 200
 
     data = response.json()
-    assert 'loaded' in data
-    assert 'config_file_exists' in data
-    assert 'config_path' in data
-
-
-def test_config_validate_endpoint():
-    """Test GET /api/config/validate endpoint."""
-    response = client.get('/api/config/validate')
-    assert response.status_code == 200
-
-    data = response.json()
-    assert 'valid' in data
-    assert 'errors' in data
-
-
-def test_reload_endpoint():
-    """Test POST /api/reload endpoint."""
-    response = client.post('/api/reload')
-    assert response.status_code == 200
-
-    data = response.json()
-    assert 'success' in data
-    assert 'message' in data
+    for key in expected_keys:
+        assert key in data

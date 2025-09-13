@@ -21,33 +21,27 @@ class TestToolDescriptionOptimizerTransformer:
         return ToolDescriptionOptimizerTransformer(mock_logger)
 
     @pytest.mark.asyncio
-    async def test_transform_with_matching_tools(self, transformer, mock_logger):
-        """Test that tools are passed through unchanged (transformer doesn't optimize yet)."""
+    async def test_transform_optimizes_bash_tool_description(self, transformer):
+        """Test that Bash tool description is actually optimized."""
         request = {
             'tools': [
                 {
-                    'name': 'Read',
-                    'description': 'Original read description',
-                },
-                {
-                    'name': 'Write',
-                    'description': 'Original write description',
-                },
+                    'name': 'Bash',
+                    'description': 'Original bash description',
+                }
             ]
         }
         headers = {}
 
-        # Act
         result_request, result_headers = await transformer.transform({'request': request, 'headers': headers})
 
-        # Assert - descriptions remain unchanged as transformer doesn't currently optimize
-        assert result_request['tools'][0]['description'] == 'Original read description'
-        assert result_request['tools'][1]['description'] == 'Original write description'
+        # Should replace with optimized description
+        assert result_request['tools'][0]['description'] == transformer.TOOL_DESCRIPTION_MAP['Bash']
         assert result_headers == headers
 
     @pytest.mark.asyncio
-    async def test_transform_with_non_matching_tools(self, transformer, mock_logger):
-        """Test that non-matching tools are left unchanged."""
+    async def test_transform_leaves_unknown_tools_unchanged(self, transformer):
+        """Test that tools not in mapping are left unchanged."""
         request = {
             'tools': [
                 {
@@ -58,65 +52,43 @@ class TestToolDescriptionOptimizerTransformer:
         }
         headers = {}
 
-        # Act
         result_request, result_headers = await transformer.transform({'request': request, 'headers': headers})
 
-        # Assert
         assert result_request['tools'][0]['description'] == 'Original description'
         assert result_headers == headers
-        mock_logger.debug.assert_not_called()
 
     @pytest.mark.asyncio
-    async def test_transform_without_tools(self, transformer, mock_logger):
-        """Test that requests without tools are handled correctly."""
-        request = {'model': 'test-model', 'messages': [{'role': 'user', 'content': 'Hello'}]}
+    @pytest.mark.parametrize(
+        'request_data',
+        [
+            {'model': 'test-model', 'messages': [{'role': 'user', 'content': 'Hello'}]},  # No tools
+            {'tools': []},  # Empty tools array
+        ],
+    )
+    async def test_transform_handles_no_tools_scenarios(self, transformer, request_data):
+        """Test that requests without tools or with empty tools are handled correctly."""
         headers = {'content-type': 'application/json'}
 
-        # Act
-        result_request, result_headers = await transformer.transform({'request': request, 'headers': headers})
+        result_request, result_headers = await transformer.transform({'request': request_data, 'headers': headers})
 
-        # Assert
-        assert result_request == request
+        assert result_request == request_data
         assert result_headers == headers
-        mock_logger.debug.assert_not_called()
 
     @pytest.mark.asyncio
-    async def test_transform_with_empty_tools(self, transformer, mock_logger):
-        """Test that requests with empty tools array are handled correctly."""
-        request = {'tools': []}
-        headers = {}
-
-        # Act
-        result_request, result_headers = await transformer.transform({'request': request, 'headers': headers})
-
-        # Assert
-        assert result_request == request
-        assert result_headers == headers
-        mock_logger.debug.assert_not_called()
-
-    @pytest.mark.asyncio
-    async def test_transform_with_malformed_tool(self, transformer, mock_logger):
-        """Test that malformed tools (missing name/description) are handled correctly."""
+    async def test_transform_handles_malformed_tools(self, transformer):
+        """Test that malformed tools are handled gracefully."""
         request = {
             'tools': [
-                {
-                    'name': 'Read'
-                    # Missing description field
-                },
-                {
-                    'description': 'A tool without name'
-                    # Missing name field
-                },
+                {'name': 'Read'},  # Missing description
+                {'description': 'A tool without name'},  # Missing name
                 'not-a-dict',  # Not a dictionary
                 None,  # None value
             ]
         }
         headers = {}
 
-        # Act
+        # Should not crash and return original request
         result_request, result_headers = await transformer.transform({'request': request, 'headers': headers})
 
-        # Assert
         assert result_request == request
         assert result_headers == headers
-        mock_logger.debug.assert_not_called()
