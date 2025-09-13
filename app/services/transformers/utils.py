@@ -416,7 +416,7 @@ Use `run_in_background: true` for long-running processes:
 <git_commit_workflow>
 - Run the following commands in parallel with the Bash tool
     - git status: see untracked files
-    - git diff: see staged and unstaged changes to be committed
+    - git diff --stat && git diff -U1 -w : see staged and unstaged changes to be committed
     - git log -n 5 --oneline: see recent commits
 - Analyze changes and draft a commit message
     - Summarize the nature of changes (eg. new feature, enhancement, bug fix, refactors, tests, docs etc.)
