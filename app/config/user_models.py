@@ -27,7 +27,7 @@ class ProviderConfig(BaseModel):
     url: str = Field(description='Base URL for the provider API')
     api_key: str = Field(default='', description='API key for the provider')
     transformers: dict = Field(default_factory=dict, description='Transformer configurations')
-    timeout: int = Field(default=300, description='Request timeout in seconds')
+    timeout: int = Field(default=180, description='Request timeout in seconds')
 
     def __init__(self, **data):
         # Handle transformers structure

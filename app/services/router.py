@@ -50,7 +50,6 @@ def _create_default_anthropic_config() -> ProviderConfig:
             ],
             'response': [{'class': 'app.services.transformers.anthropic.AnthropicResponseTransformer', 'params': {}}],
         },
-        timeout=300,
     )
 
 
