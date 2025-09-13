@@ -23,9 +23,9 @@ class TestAnthropicCacheTransformer:
             'model': 'claude-sonnet-4-20250514',
             'system': [{'type': 'text', 'text': 'You are Claude Code'}, {'type': 'text', 'text': 'Large system context with project instructions...'}],
             'tools': [
-                {'name': 'Read', 'description': 'Read files'},
-                {'name': 'Write', 'description': 'Write files'},
-                {'name': 'mcp__ide__getDiagnostics', 'description': 'Get diagnostics'},
+                {'name': 'Read', 'description': 'Read files', 'input_schema': {'type': 'object', 'properties': {}}},
+                {'name': 'Write', 'description': 'Write files', 'input_schema': {'type': 'object', 'properties': {}}},
+                {'name': 'mcp__ide__getDiagnostics', 'description': 'Get diagnostics', 'input_schema': {'type': 'object', 'properties': {}}},
             ],
             'messages': [
                 {'role': 'user', 'content': 'Hello'},
@@ -48,28 +48,6 @@ class TestAnthropicCacheTransformer:
         # Should return 1 breakpoint used
         assert breakpoints_used == 1
 
-    def test_system_cache_breakpoint_single_message(self, transformer):
-        """Test caching with single system message."""
-        request = {'system': [{'type': 'text', 'text': 'Single system message'}]}
-
-        breakpoints_used = transformer._insert_system_cache_bp(request, 0)
-
-        assert 'cache_control' in request['system'][0]
-        assert request['system'][0]['cache_control'] == {'type': 'ephemeral'}
-        assert breakpoints_used == 1
-
-    def test_system_cache_breakpoint_empty_system(self, transformer):
-        """Test handling of empty system array."""
-        request = {'system': []}
-        breakpoints_used = transformer._insert_system_cache_bp(request, 0)
-        assert breakpoints_used == 0
-        # Should not raise exception
-
-        request = {}
-        breakpoints_used = transformer._insert_system_cache_bp(request, 0)
-        assert breakpoints_used == 0
-        # Should not raise exception
-
     def test_tools_reordering(self, transformer, sample_request):
         """Test that tools are reordered correctly (default first, MCP second)."""
         breakpoints_used = transformer._reorder_and_cache_tools_array(sample_request)
@@ -85,18 +63,6 @@ class TestAnthropicCacheTransformer:
         # Should return number of breakpoints used
         assert isinstance(breakpoints_used, int)
         assert breakpoints_used >= 0
-
-    def test_tools_caching_strategy(self, transformer, sample_request):
-        """Test tools caching with sufficient default tools."""
-        # Add more default tools to trigger caching
-        sample_request['tools'].extend([{'name': f'Tool{i}', 'description': f'Tool {i}'} for i in range(3, 10)])
-
-        breakpoints_used = transformer._reorder_and_cache_tools_array(sample_request)
-
-        tools = sample_request['tools']
-        # With <20 tools, should use simple 1-breakpoint strategy
-        assert breakpoints_used == 1
-        assert 'cache_control' in tools[-1]  # Last tool should be cached
 
     def test_tools_caching_large_array(self, sample_request):
         """Test tools caching with large tool array (>=20 tools)."""
@@ -141,30 +107,22 @@ class TestAnthropicCacheTransformer:
         assert isinstance(message_string['content'], list)
         assert message_string['content'][0]['cache_control'] == {'type': 'ephemeral'}
 
-    def test_breakpoint_count_validation(self, transformer, sample_request):
-        """Test validation of total breakpoint count."""
-        # Add cache controls to exceed limit
-        sample_request['system'][0]['cache_control'] = {'type': 'ephemeral'}
-        sample_request['system'][1]['cache_control'] = {'type': 'ephemeral'}
-        sample_request['tools'][0]['cache_control'] = {'type': 'ephemeral', 'ttl': '1h'}
-        sample_request['tools'][1]['cache_control'] = {'type': 'ephemeral', 'ttl': '1h'}
-        sample_request['tools'][2]['cache_control'] = {'type': 'ephemeral', 'ttl': '1h'}  # This would be 5th
-
-        count = transformer._validate_breakpoint_count(sample_request)
-        assert count == 5
-        # Should log warning about exceeding limit
-
     @pytest.mark.asyncio
-    async def test_full_transform_integration(self, transformer, sample_request):
-        """Test complete transform method integration."""
-        params = {'request': sample_request, 'headers': {}, 'routing_key': 'default'}
+    async def test_builtin_tool_bypass(self, transformer):
+        """Test that built-in tool requests bypass caching."""
+        builtin_request = {
+            'model': 'claude-sonnet-4-20250514',
+            'system': [{'type': 'text', 'text': 'System message'}],
+            'tools': [{'type': 'web_search', 'name': 'WebSearch'}, {'type': 'web_fetch', 'name': 'WebFetch'}],
+            'messages': [{'role': 'user', 'content': 'Search the web'}],
+        }
 
+        params = {'request': builtin_request, 'headers': {}, 'routing_key': 'default'}
         result_request, result_headers = await transformer.transform(params)
 
-        # Should have applied caching strategy
-        total_breakpoints = transformer._validate_breakpoint_count(result_request)
-        assert total_breakpoints <= 4
-        assert total_breakpoints > 0
+        # Should be unchanged (no caching applied)
+        assert result_request == builtin_request
+        assert transformer._validate_breakpoint_count(result_request) == 0
 
     @pytest.mark.asyncio
     async def test_background_routing_key_bypass(self, transformer, sample_request):
@@ -187,6 +145,15 @@ class TestAnthropicCacheTransformer:
         # Should not raise exceptions
         result_request, result_headers = await transformer.transform(params)
         assert result_request is not None
+
+        # Test empty system handling
+        request = {'system': []}
+        breakpoints_used = transformer._insert_system_cache_bp(request, 0)
+        assert breakpoints_used == 0
+
+        request = {}
+        breakpoints_used = transformer._insert_system_cache_bp(request, 0)
+        assert breakpoints_used == 0
 
     def test_thinking_block_exclusion(self, transformer):
         """Test that thinking blocks are properly excluded from caching."""

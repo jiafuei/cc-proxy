@@ -112,6 +112,10 @@ class AnthropicCacheTransformer(RequestTransformer):
         if routing_key == 'background':
             return request, headers
 
+        # Skip processing for built-in tool usage requests
+        if self._is_builtin_tool_usage_request(request):
+            return request, headers
+
         # Remove existing cache breakpoints
         self._remove_system_cache_breakpoints(request)
         self._remove_tool_cache_breakpoints(request)
@@ -328,6 +332,33 @@ class AnthropicCacheTransformer(RequestTransformer):
 
         return total_breakpoints
 
+    def _is_builtin_tool_usage_request(self, request: Dict[str, Any]) -> bool:
+        """Check if the current request is a built-in tool usage request.
+
+        Built-in tool usage requests are identified by tools that have a 'type'
+        field but lack 'input_schema', which distinguishes them from regular tool
+        definitions. This approach works for any built-in tool (WebSearch, WebFetch,
+        etc.) without relying on specific system message content.
+
+        Args:
+            request: The request dictionary to check
+
+        Returns:
+            bool: True if this is a built-in tool usage request, False otherwise
+        """
+        tools = request.get('tools')
+        if not tools:  # Empty or None - not a built-in tool request
+            return False
+
+        # Check if any tool has 'type' field but no 'input_schema' (built-in tool indicator)
+        for tool in tools:
+            if not isinstance(tool, dict):
+                continue
+            if 'type' in tool and 'input_schema' not in tool:
+                return True  # Found built-in tool
+
+        return False  # All tools are regular tool definitions
+
 
 class ClaudeSystemMessageCleanerTransformer(RequestTransformer):
     """Transformer that cleans system messages by removing dynamic content.
@@ -382,6 +413,7 @@ class ClaudeSystemMessageCleanerTransformer(RequestTransformer):
         remove_lines = ['IMPORTANT: Assist with defensive', 'You are powered', 'Assistant knowledge cutoff']
         return '\n'.join((line for line in text.splitlines() if not any(line.startswith(remove_line) for remove_line in remove_lines)))
 
+
 class ClaudeSoftwareEngineeringSystemMessageTransformer(RequestTransformer):
     """Transformer that replaces the default system prompt for software engineering.
 
@@ -429,10 +461,10 @@ class ClaudeSoftwareEngineeringSystemMessageTransformer(RequestTransformer):
 **Remember:** always use **TodoWrite** to track progress, keep responses short, and only act when prompted.
 
     """
-    def __init__(self, logger, prompt = ''):
+
+    def __init__(self, logger, prompt=''):
         super().__init__(logger)
         self.prompt = prompt
-
 
     async def transform(self, params: Dict[str, Any]) -> Tuple[Dict[str, Any], Dict[str, str]]:
         request, headers = params['request'], params['headers']
@@ -455,9 +487,9 @@ class ClaudeSoftwareEngineeringSystemMessageTransformer(RequestTransformer):
 
         env_text = self.extract_environment_text(text)
         if not self.prompt:
-            request['system'][-1]['text'] = self.get_default_prompt(env_text) 
+            request['system'][-1]['text'] = self.get_default_prompt(env_text)
         else:
-            request['system'][-1]['text'] = f"{self.prompt}\n{env_text}\n"
+            request['system'][-1]['text'] = f'{self.prompt}\n{env_text}\n'
 
         return request, headers
 
