@@ -1,292 +1,97 @@
-# User configuration for cc-proxy
 # Copy this file to ~/.cc-proxy/user.yaml and modify as needed
 
-# ============================================================================
-# CONFIGURATION-DRIVEN CAPABILITIES
-# ============================================================================
-# cc-proxy uses explicit capability configuration where each provider must
-# define exactly which operations it supports and which capability classes to use:
-#
-# EXPLICIT CONFIGURATION:
-# • All providers MUST define capabilities in their configuration
-# • Each capability specifies: operation name + capability class name + optional params
-# • No automatic capability assignment based on provider names
-# • Complete flexibility: any provider can use any capability combination
-#
-# BUILT-IN CAPABILITIES:
-# • MessagesCapability: Handles /v1/messages (passthrough)
-# • TokenCountCapability: Handles /v1/messages/count_tokens (appends /count_tokens to URL)
-# • OpenAITokenCountCapability: OpenAI-specific token counting (different URL pattern)
-#
-# CUSTOM CAPABILITIES:
-# • Implement ProviderCapability interface for new operations
-# • Can be loaded from transformer_paths or app.services.capabilities
-# • Support parameters for customization
-#
-# CAPABILITY ROUTING:
-# • Each operation routes to providers that explicitly support it
-# • Providers validate operation support before processing
-# • Unsupported operations return proper error responses
-# ============================================================================
-
-# Directory paths to search for external transformer modules
-# These paths will be searched for custom transformer classes
-transformer_paths: []
-  # - '/path/to/custom/transformers'
-  # - '/another/transformer/directory'
-
 providers:
-  # Anthropic/Claude provider example
-  # EXPLICIT CAPABILITIES: Must define all supported operations
-  # Supports: /v1/messages, /v1/messages/count_tokens
-  # Token counting appends '/count_tokens' to the base URL
+  # Anthropic/Claude provider
   - name: 'anthropic-provider'
-    api_key: !env [ANTHROPIC_API_KEY, '']  # Required: Your Anthropic API key from environment
-    url: !env [ANTHROPIC_URL, 'https://api.anthropic.com/v1/messages']  # Optional: Custom URL with fallback
-    timeout: !env [ANTHROPIC_TIMEOUT, 300]  # Request timeout in seconds
-    capabilities:
-      - operation: 'messages'
-        class_name: 'MessagesCapability'
-      - operation: 'count_tokens'
-        class_name: 'TokenCountCapability'
-    transformers:
-      request:
-        # Cleans system messages by removing dynamic content (git status, etc.)
-        # to make them more cache-friendly and reusable across sessions
-        - class: 'app.services.transformers.anthropic.ClaudeSystemMessageCleanerTransformer'
-          params: {}
-        # Specialized system message for software engineering tasks
-        - class: 'app.services.transformers.anthropic.ClaudeSoftwareEngineeringSystemMessageTransformer'
-          params: {}
-        # Optimizes cache breakpoints for Anthropic API (uses 4 max breakpoints)
-        # - Removes cache from 'You are Claude' system message
-        # - Adds cache to last system message and tools
-        # - Adds cache breakpoints every 20 content blocks
-        - class: 'app.services.transformers.anthropic.AnthropicCacheTransformer'
-          params:
-            max_tools_breakpoints: 1  # Maximum cache breakpoints for tools (default: 1)
-        # Filters headers to include only Anthropic-compatible prefixes
-        # Also injects API key using configurable auth header
-        - class: 'app.services.transformers.anthropic.AnthropicHeadersTransformer'
-          params: 
-            auth_header: 'x-api-key'  # Use 'x-api-key' or 'authorization' (with Bearer prefix)
-        - class: 'app.services.transformers.utils.ToolDescriptionOptimizerTransformer'
-          params: {}
-      response:
-        # Passthrough transformer for Anthropic responses (no conversion needed)
-        - class: 'app.services.transformers.anthropic.AnthropicResponseTransformer'
-          params: {}
+    api_key: !env ANTHROPIC_API_KEY
+    url: 'https://api.anthropic.com'
+    type: 'anthropic'
+    timeout: 300
 
-  # OpenAI provider example 
-  # EXPLICIT CAPABILITIES: Must define all supported operations
-  # Supports: /v1/messages, /v1/messages/count_tokens
-  # Converts Claude API format to/from OpenAI API format
-  # Token counting uses OpenAI-specific URL patterns
-  - name: 'openai-provider'
-    api_key: !env [OPENAI_API_KEY, '']  # Required: Your OpenAI API key from environment
-    url: !env [OPENAI_URL, 'https://api.openai.com/v1/chat/completions']  # Optional: Custom URL with fallback
-    timeout: !env [OPENAI_TIMEOUT, 300]
-    capabilities:
-      - operation: 'messages'
-        class_name: 'MessagesCapability'
-      - operation: 'count_tokens'
-        class_name: 'OpenAITokenCountCapability'
+  # OpenAI provider
+  - name: 'openai-provider' 
+    api_key: !env OPENAI_API_KEY
+    url: 'https://api.openai.com'
+    type: 'openai'
+    timeout: 300
     transformers:
       request:
-        # Generic auth header transformer (reusable across providers)
-        - class: 'app.services.transformers.utils.HeaderTransformer'
-          params:
-            operations:
-              - key: 'authorization'
-                prefix: 'Bearer '
-                value: !env [OPENAI_API_KEY, '']
-        # Converts built-in tools (WebSearch, WebFetch) to provider-specific format
-        # Must be placed BEFORE OpenAI transformer to process tools first
-        - class: 'app.services.transformers.builtin_tools.SmartBuiltinToolsTransformer'
-          params: {}
-        # Converts Claude request format to OpenAI format
-        # - Handles multimodal content (images, text)
-        # - Converts tools and tool_choice
-        # - Converts thinking budget to reasoning effort
-        # - Handles system message conversion
         - class: 'app.services.transformers.openai.OpenAIRequestTransformer'
-          params: {}  # API key and URL are taken from provider config
-      response:
-        # Converts OpenAI web search annotations back to Anthropic format
-        # Must be placed BEFORE OpenAI response transformer
-        - class: 'app.services.transformers.builtin_tools.OpenAIBuiltinToolsResponseTransformer'
           params: {}
-        # Converts OpenAI response format back to Claude format
-        # - Handles both streaming and non-streaming responses
-        # - Converts tool calls and tool results
-        # - Maps OpenAI finish reasons to Claude stop reasons
+      response:
         - class: 'app.services.transformers.openai.OpenAIResponseTransformer'
           params: {}
 
-  # Embeddings-specialized provider example
-  # EXPLICIT CAPABILITIES: Shows how to define custom capability combinations
-  # This provider uses OpenAI token counting even though it's not named 'openai-*'
-  # Demonstrates the flexibility of explicit capability configuration
-  - name: 'embeddings-provider'
-    api_key: !env [OPENAI_API_KEY, '']  # Reuse OpenAI key for embeddings
-    url: !env [OPENAI_EMBEDDINGS_URL, 'https://api.openai.com/v1/embeddings']  # Embeddings endpoint
-    timeout: !env [EMBEDDINGS_TIMEOUT, 60]  # Shorter timeout for embeddings
-    capabilities:
-      - operation: 'messages'
-        class_name: 'MessagesCapability'
-      - operation: 'count_tokens'
-        class_name: 'OpenAITokenCountCapability'  # Use OpenAI capability for compatibility
+  # Gemini provider
+  - name: 'gemini-provider'
+    api_key: !env GEMINI_API_KEY
+    url: 'https://generativelanguage.googleapis.com'
+    type: 'gemini'
+    timeout: 300
     transformers:
       request:
-        # Simple auth for embeddings
+        - class: 'app.services.transformers.utils.GeminiApiKeyTransformer'
+          params: {}
+        - class: 'app.services.transformers.gemini.GeminiRequestTransformer'
+          params: {}
+      response:
+        - class: 'app.services.transformers.gemini.GeminiResponseTransformer'
+          params: {}
+
+  # Custom Anthropic provider with comprehensive transformers
+  - name: 'custom-anthropic'
+    api_key: !env CUSTOM_ANTHROPIC_KEY
+    url: 'https://api.anthropic.com'
+    type: 'anthropic'
+    timeout: 300
+    transformers:
+      request:
+        - class: 'app.services.transformers.anthropic.ClaudeSystemMessageCleanerTransformer'
+          params: {}
+        - class: 'app.services.transformers.anthropic.ClaudeSoftwareEngineeringSystemMessageTransformer'
+          params: {}
+        - class: 'app.services.transformers.anthropic.AnthropicCacheTransformer'
+          params:
+            max_tools_breakpoints: 2
         - class: 'app.services.transformers.utils.HeaderTransformer'
           params:
             operations:
-              - key: 'authorization'
-                prefix: 'Bearer '
-                value: !env [OPENAI_API_KEY, '']
-        # Future: EmbeddingsRequestTransformer would go here
+              - key: 'x-api-key'
+                value: !env CUSTOM_ANTHROPIC_KEY
+              - key: 'anthropic-version'
+                value: '2023-06-01'
+        - class: 'app.services.transformers.utils.ToolDescriptionOptimizerTransformer'
+          params: {}
       response:
-        # Future: EmbeddingsResponseTransformer would go here
         - class: 'app.services.transformers.anthropic.AnthropicResponseTransformer'
           params: {}
 
-  # Custom provider with external transformers and flexible capabilities
-  # EXPLICIT CAPABILITIES: Shows advanced capability configuration options
-  # This example demonstrates how any provider can use any capability combination
-  # Also shows custom capability with parameters
-  - name: 'custom-provider'
-    api_key: !env [CUSTOM_API_KEY, '']  # Required: Custom provider API key
-    url: !env [CUSTOM_API_URL, 'https://custom-api.example.com/v1']  # Required: Custom API URL
-    timeout: !env [CUSTOM_TIMEOUT, 300]
-    capabilities:
-      - operation: 'messages'
-        class_name: 'MessagesCapability'
-      - operation: 'count_tokens'
-        class_name: 'OpenAITokenCountCapability'  # Use OpenAI-style even for custom provider
-      # Example of custom capability with parameters
-      # - operation: 'embeddings'
-      #   class_name: 'my_capabilities.CustomEmbeddingsCapability'
-      #   params:
-      #     model: 'custom-embedding-model'
-      #     endpoint_suffix: '/embed'
-    transformers:
-      request:
-        # - class: 'my_transformers.CustomAuthTransformer'
-        #   params:
-        #     api_key: !env [CUSTOM_SPECIAL_KEY, '']  # Alternative API key for special auth
-        #     special_header: !env [CUSTOM_HEADER, 'value-1']  # Custom header value
-        # Example of using HeaderTransformer for multiple header operations
-        # This demonstrates the power of operations arrays
-        - class: 'app.services.transformers.utils.HeaderTransformer'
-          params:
-            operations:
-              # Set multiple headers with different configurations
-              - {key: 'x-api-version', value: 'v1.0', op: 'set'}
-              - {key: 'cache-control', value: 'no-store', prefix: 'no-cache, ', op: 'set'}
-              # Remove unwanted headers
-              - {key: 'user-agent', op: 'delete'}
-              - {key: 'x-forwarded-for', op: 'delete'}
-              # Add custom header with suffix
-              - {key: 'x-custom-api', value: !env [CUSTOM_HEADER, 'value-1'], suffix: '-enhanced', op: 'set'}
-        # Example of using RequestBodyTransformer for multiple request body operations
-        # This demonstrates JSONPath-based request modification with operations arrays
-        - class: 'app.services.transformers.utils.RequestBodyTransformer'
-          params:
-            operations:
-              # Set model to a specific version
-              - {key: '$.model', value: 'claude-3-5-sonnet-20241022', op: 'set'}
-              # Set temperature for consistency
-              - {key: '$.temperature', value: 0.7, op: 'set'}
-              # Prepend a system message to guide behavior
-              - {key: '$.messages', value: {role: 'system', content: 'You are a helpful assistant optimized for this custom provider.'}, op: 'prepend'}
-              # Remove any unwanted metadata
-              - {key: '$.metadata.debug_info', op: 'delete'}
-              # Add custom metadata for tracking
-              - {key: '$.metadata', value: {provider: 'custom-enhanced', version: '2.0'}, op: 'merge'}
-              # Modify nested message properties using array wildcards
-              - {key: '$.messages[*].metadata.processed', value: true, op: 'set'}
-      response: {}
-        # - class: 'my_transformers.CustomResponseTransformer'
-        #   params:
-        #     format_style: 'enhanced'
-
-# Model definitions - link model IDs to providers
-# Each model must reference a valid provider name
-# Aliases provide short, memorable names and are REQUIRED for use in routing
-# The 'id' field is optional - if not provided or empty, it defaults to the alias value
-#
-# CAPABILITY CONSIDERATIONS:
-# • Provider capabilities determine which operations are supported
-# • Models inherit capabilities from their assigned provider
-# • Same model ID can be used by different providers with different capabilities
-# • Capability configuration is at the provider level, not model level
+# Model definitions
 models:
-  # Anthropic/Claude models
   - alias: 'sonnet'
     id: 'claude-3-5-sonnet-20241022'
     provider: 'anthropic-provider'
   - alias: 'haiku'
     id: 'claude-3-5-haiku-20241022'
     provider: 'anthropic-provider'
-  - alias: 'opus'
-    id: 'claude-3-opus-20240229'
-    provider: 'anthropic-provider'
-  
-  # OpenAI models
   - alias: 'gpt4'
     id: 'gpt-4o'
     provider: 'openai-provider'
   - alias: 'gpt4-mini'
     id: 'gpt-4o-mini'
     provider: 'openai-provider'
-  - alias: 'o1'
-    id: 'o1-preview'
-    provider: 'openai-provider'
-  - alias: 'o1-mini'
-    id: 'o1-mini'
-    provider: 'openai-provider'
-  
-  # Embedding models - optimized for specific operations
-  # These use the embeddings-provider for specialized handling
-  - alias: 'embed-large'
-    id: 'text-embedding-3-large'
-    provider: 'embeddings-provider'
-  - alias: 'embed-small'
-    id: 'text-embedding-3-small' 
-    provider: 'embeddings-provider'
-  
-  # Custom models - can have same model ID as another provider
-  - alias: 'custom-sonnet'
-    id: 'claude-3-5-sonnet-20241022'  # Same model ID but different provider
-    provider: 'custom-provider'
-  - alias: 'custom2'
-    id: 'custom-model-2'
-    provider: 'custom-provider'
-  
-  # Example with no explicit id - will use alias as id
-  - alias: 'my-model'
-    provider: 'custom-provider'  # id will be set to 'my-model'
+  - alias: 'gemini'
+    id: 'gemini-pro'
+    provider: 'gemini-provider'
+  - alias: 'custom-claude'
+    id: 'claude-3-5-sonnet-20241022'
+    provider: 'custom-anthropic'
 
 # Request routing configuration
-# Routes different types of requests to appropriate models
-# You must use aliases defined above (no longer supports model IDs directly)
-#
-# EXPLICIT CAPABILITY ROUTING:
-# • All routing works through explicitly configured provider capabilities
-# • Token counting routes to providers that have 'count_tokens' capability
-# • Models inherit routing availability from their provider's capabilities
-# • Providers validate operation support before processing
 routing:
-  default: 'sonnet'        # Default model for requests
-  background: 'haiku'      # Flavor text, light summarization, topic detection etc
-  planning: 'sonnet'       # Plan mode
-  thinking: 'sonnet'       # Whenever you add any of the phrases to your prompt: "think" < "think hard" < "think harder" < "ultrathink." Ref: https://www.anthropic.com/engineering/claude-code-best-practices
-  plan_and_think: 'sonnet' # When thinking is activated in plan mode
-  builtin_tools: 'sonnet'  # Built-in tool requests (WebSearch, WebFetch, etc.) - highest priority
-  
-  # OPERATION-SPECIFIC ROUTING EXAMPLES (Future Enhancement):
-  # These would route different operations to optimized providers/models
-  # count_tokens: 'haiku'     # Use faster model for token counting
-  # embeddings: 'embed-large' # Route embedding operations to specialized provider
-  # batch: 'gpt4-mini'        # Use cost-effective model for batch processing
+  default: 'sonnet'
+  background: 'haiku'
+  planning: 'sonnet'
+  thinking: 'sonnet'
+  plan_and_think: 'sonnet'
+  builtin_tools: 'sonnet'
