@@ -1,5 +1,6 @@
 """OpenAI transformers with real format conversion."""
 
+import hashlib
 from typing import Any, AsyncIterator, Dict, Optional, Tuple
 
 import orjson
@@ -25,6 +26,71 @@ class OpenAIRequestTransformer(RequestTransformer):
 
     async def transform(self, params: Dict[str, Any]) -> Tuple[Dict[str, Any], Dict[str, str]]:
         """Convert Claude request format to OpenAI format."""
+        request = params['request']
+
+        # Check for built-in tools first
+        tools = request.get('tools', [])
+        if tools and self._has_builtin_tools(tools):
+            return await self._transform_builtin_tools(params)
+
+        # Handle regular tools transformation
+        return await self._transform_regular_tools(params)
+
+    async def _transform_builtin_tools(self, params: Dict[str, Any]) -> Tuple[Dict[str, Any], Dict[str, str]]:
+        """Transform built-in tools to OpenAI format."""
+        request = params['request']
+        headers = params['headers']
+
+        tools = request.get('tools', [])
+        if not tools:
+            return request, headers
+
+        # Defensive check: built-in tools should have exactly one tool
+        if len(tools) > 1:
+            self.logger.warning(f'Expected single built-in tool but found {len(tools)} tools, using first tool only')
+
+        # Check if the first (and expected only) tool is built-in
+        tool = tools[0]
+        if not self._is_builtin_tool(tool):
+            return request, headers
+
+        # Process WebSearch tool if applicable
+        web_search_config = None
+        if self._is_websearch_tool(tool):
+            web_search_config = self._extract_websearch_config(tool)
+            self.logger.debug(f'Extracted WebSearch config: {web_search_config}')
+
+        # Build base request
+        openai_request = {
+            k: v
+            for k, v in {
+                'model': request.get('model'),
+                'temperature': request.get('temperature'),
+                'stream': request.get('stream'),
+                'messages': self._convert_messages(request),
+                'max_completion_tokens': request.get('max_tokens'),
+                'reasoning_effort': self._get_reasoning_effort(request),
+                'stream_options': {'include_usage': True} if request.get('stream') else None,
+            }.items()
+            if v is not None
+        }
+
+        # Apply transformations for web search
+        if web_search_config:
+            openai_request['web_search_options'] = web_search_config
+            # Use reliable model for web search
+            original_model = openai_request.get('model', '')
+            openai_request['model'] = 'gpt-4o-search-preview'
+            self.logger.debug(f'Set model to gpt-4o-search-preview for web search (was: {original_model})')
+
+        # Tools array is removed for built-in tools since they're handled via request parameters
+        filtered_headers = {k: v for k, v in headers.items() if any(k.startswith(prefix) for prefix in {'user-', 'accept'})}
+
+        self.logger.info('Transformed built-in tool for OpenAI')
+        return openai_request, filtered_headers
+
+    async def _transform_regular_tools(self, params: Dict[str, Any]) -> Tuple[Dict[str, Any], Dict[str, str]]:
+        """Transform regular tools to OpenAI format."""
         request = params['request']
         headers = params['headers']
 
@@ -163,6 +229,89 @@ class OpenAIRequestTransformer(RequestTransformer):
         """Convert Claude tool_use to OpenAI tool_call."""
         return {'id': block.get('id'), 'type': 'function', 'function': {'name': block.get('name'), 'arguments': orjson.dumps(block.get('input', {})).decode('utf-8')}}
 
+    def _extract_websearch_config(self, tool: dict) -> dict:
+        """Convert Anthropic WebSearch tool to OpenAI web_search_options format.
+
+        Args:
+            tool: Anthropic WebSearch tool dictionary
+
+        Returns:
+            OpenAI web_search_options configuration
+        """
+        config = {}
+
+        # Validate domain filter constraints
+        self._validate_domain_filters(tool)
+
+        # Domain filtering
+        allowed_domains = tool.get('allowed_domains')
+        blocked_domains = tool.get('blocked_domains')
+
+        if allowed_domains or blocked_domains:
+            filters = {}
+            if allowed_domains:
+                filters['allowed_domains'] = allowed_domains
+            if blocked_domains:
+                filters['blocked_domains'] = blocked_domains
+            config['filters'] = filters
+
+        # User location
+        if user_location := tool.get('user_location'):
+            config['user_location'] = self._convert_user_location(user_location)
+
+        # Search context size (default to medium)
+        config['search_context_size'] = 'medium'
+
+        return self._handle_missing_parameters(config)
+
+    def _convert_user_location(self, user_location: dict) -> dict:
+        """Convert Anthropic user location to OpenAI format.
+
+        Args:
+            user_location: Anthropic user location dictionary
+
+        Returns:
+            OpenAI user location format
+        """
+        openai_location = {'type': 'approximate', 'approximate': {}}
+
+        # Map fields that exist
+        approximate = openai_location['approximate']
+        for field in ['country', 'city', 'region', 'timezone']:
+            if value := user_location.get(field):
+                approximate[field] = value
+
+        return openai_location
+
+    def _validate_domain_filters(self, tool: dict):
+        """Validate domain filter constraints.
+
+        Args:
+            tool: WebSearch tool to validate
+
+        Raises:
+            ValueError: If both allowed_domains and blocked_domains are specified
+        """
+        if tool.get('allowed_domains') and tool.get('blocked_domains'):
+            raise ValueError('Cannot use both allowed_domains and blocked_domains in WebSearch')
+
+    def _handle_missing_parameters(self, config: dict) -> dict:
+        """Apply defaults for missing parameters.
+
+        Args:
+            config: Configuration dictionary
+
+        Returns:
+            Configuration with defaults applied
+        """
+        # Ensure search_context_size is set
+        config.setdefault('search_context_size', 'medium')
+
+        # Ensure filters exists if not set
+        config.setdefault('filters', {})
+
+        return config
+
 
 class OpenAIResponseTransformer(ResponseTransformer):
     """Transformer to convert OpenAI responses to Claude format."""
@@ -232,6 +381,11 @@ class OpenAIResponseTransformer(ResponseTransformer):
     async def transform_response(self, params: dict[str, Any]) -> dict[str, Any]:
         """Convert OpenAI non-streaming response to Claude format."""
         response = params['response']
+
+        # Check for annotations to convert (built-in tools)
+        if annotations := response.get('annotations'):
+            response = self._convert_annotations_to_anthropic(response, annotations)
+            self.logger.debug(f'Converted {len(annotations)} OpenAI annotations to Anthropic format')
 
         try:
             choices = response.get('choices') or []
@@ -448,3 +602,88 @@ class OpenAIResponseTransformer(ResponseTransformer):
         anthropic_usage.setdefault('cache_read_input_tokens', 0)
 
         return anthropic_usage
+
+    def _convert_annotations_to_anthropic(self, response: dict, annotations: list) -> dict:
+        """Convert OpenAI url_citation annotations to Anthropic web_search_tool_result format.
+
+        Args:
+            response: OpenAI response dictionary
+            annotations: List of annotation objects
+
+        Returns:
+            Response with converted annotations
+        """
+        # Extract message content for snippet extraction
+        choices = response.get('choices', [])
+        if not choices:
+            return response
+
+        message = choices[0].get('message', {})
+        content = message.get('content', '')
+
+        # Convert each url_citation annotation
+        tool_results = []
+        for annotation in annotations:
+            if annotation.get('type') == 'url_citation':
+                citation = annotation.get('url_citation', {})
+                tool_result = self._create_web_search_result(citation, content)
+                if tool_result:
+                    tool_results.append(tool_result)
+
+        # Add tool results to response if any were created
+        if tool_results:
+            # Add to message content as tool_use blocks
+            message_content = message.get('content', [])
+            if isinstance(message_content, str):
+                message_content = [{'type': 'text', 'text': message_content}]
+            elif not isinstance(message_content, list):
+                message_content = []
+
+            # Add tool results
+            message_content.extend(tool_results)
+            message['content'] = message_content
+
+        return response
+
+    def _create_web_search_result(self, citation: dict, content: str) -> Optional[dict]:
+        """Create Anthropic web_search_tool_result from OpenAI citation.
+
+        Args:
+            citation: OpenAI url_citation object
+            content: Full response content for snippet extraction
+
+        Returns:
+            Anthropic web_search_tool_result block or None if invalid
+        """
+        url = citation.get('url')
+        title = citation.get('title')
+
+        if not url:
+            return None
+
+        # Generate deterministic ID from URL
+        result_id = f'search_{hashlib.md5(url.encode()).hexdigest()[:8]}'
+
+        # Extract snippet from content using indices if available
+        snippet = self._extract_snippet(content, citation.get('start_index'), citation.get('end_index'))
+
+        return {'type': 'web_search_tool_result', 'id': result_id, 'content': {'type': 'web_search_result', 'url': url, 'title': title or 'Untitled', 'snippet': snippet or ''}}
+
+    def _extract_snippet(self, content: str, start_index: Optional[int], end_index: Optional[int]) -> str:
+        """Extract snippet from content using citation indices.
+
+        Args:
+            content: Full content string
+            start_index: Start index of citation
+            end_index: End index of citation
+
+        Returns:
+            Extracted snippet or empty string
+        """
+        if start_index is not None and end_index is not None:
+            try:
+                return content[start_index:end_index]
+            except (IndexError, TypeError):
+                self.logger.warning(f'Invalid citation indices: {start_index}-{end_index}')
+
+        return ''

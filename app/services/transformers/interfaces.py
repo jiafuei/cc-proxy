@@ -20,6 +20,39 @@ class RequestTransformer(ABC):
         super().__init__()
         self.logger = logger
 
+    def _is_builtin_tool(self, tool: dict) -> bool:
+        """Detect built-in tool by presence of 'type' without 'input_schema'.
+
+        Args:
+            tool: Tool dictionary to check
+
+        Returns:
+            True if this is a built-in tool, False otherwise
+        """
+        return isinstance(tool, dict) and 'type' in tool and 'input_schema' not in tool
+
+    def _is_websearch_tool(self, tool: dict) -> bool:
+        """Check if tool is a WebSearch built-in tool.
+
+        Args:
+            tool: Tool dictionary to check
+
+        Returns:
+            True if this is a WebSearch tool, False otherwise
+        """
+        return self._is_builtin_tool(tool) and tool.get('name') == 'web_search' and tool.get('type', '').startswith('web_search')
+
+    def _has_builtin_tools(self, tools: list) -> bool:
+        """Check if tools list contains any built-in tools.
+
+        Args:
+            tools: List of tool dictionaries to check
+
+        Returns:
+            True if any built-in tools are found, False otherwise
+        """
+        return any(self._is_builtin_tool(tool) for tool in tools if isinstance(tool, dict))
+
     @abstractmethod
     async def transform(self, params: Dict[str, Any]) -> Tuple[Dict[str, Any], Dict[str, str]]:
         """Transform the outgoing request and headers.
