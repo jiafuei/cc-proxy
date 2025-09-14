@@ -171,10 +171,8 @@ CC-Proxy automatically converts Anthropic's built-in tools (WebSearch, WebFetch)
 - name: 'openai-provider'
   transformers:
     request:
-      - class: 'app.services.transformers.builtin_tools.SmartBuiltinToolsTransformer'
       - class: 'app.services.transformers.openai.OpenAIRequestTransformer'
     response:
-      - class: 'app.services.transformers.builtin_tools.OpenAIBuiltinToolsResponseTransformer'
       - class: 'app.services.transformers.openai.OpenAIResponseTransformer'
 ```
 
