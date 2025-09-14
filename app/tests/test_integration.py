@@ -20,7 +20,7 @@ class TestEndToEndRequestFlow:
         provider.config = Mock()
         provider.config.name = 'test-provider'
 
-        async def process_request(payload, request, routing_key, dumper, correlation_id):
+        async def process_operation(operation, payload, request, routing_key, dumper, correlation_id):
             # Return JSON response like current architecture
             return {
                 'id': 'msg_integration_test123',
@@ -31,7 +31,7 @@ class TestEndToEndRequestFlow:
                 'usage': {'input_tokens': 10, 'output_tokens': 8},
             }
 
-        provider.process_request = process_request
+        provider.process_operation = process_operation
         return provider
 
     @pytest.fixture
@@ -199,7 +199,7 @@ class TestErrorHandling:
         mock_container = Mock()
         mock_provider = Mock()
 
-        async def mock_process(payload, request, routing_key, dumper, correlation_id):
+        async def mock_process(operation, payload, request, routing_key, dumper, correlation_id):
             return {
                 'id': 'test',
                 'model': 'test-model',
@@ -209,7 +209,7 @@ class TestErrorHandling:
                 'usage': {'input_tokens': 5, 'output_tokens': 5},
             }
 
-        mock_provider.process_request = mock_process
+        mock_provider.process_operation = mock_process
         mock_container.router.get_provider_for_request.return_value = RoutingResult(
             provider=mock_provider, routing_key='default', model_alias='test', resolved_model_id='test-model'
         )
@@ -242,10 +242,10 @@ class TestErrorHandling:
         mock_container = Mock()
         mock_provider = Mock()
 
-        async def failing_process(payload, request, routing_key, dumper, correlation_id):
+        async def failing_process(operation, payload, request, routing_key, dumper, correlation_id):
             raise Exception('Provider connection failed')
 
-        mock_provider.process_request = failing_process
+        mock_provider.process_operation = failing_process
         mock_container.router.get_provider_for_request.return_value = RoutingResult(
             provider=mock_provider, routing_key='default', model_alias='test', resolved_model_id='test-model'
         )

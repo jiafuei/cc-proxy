@@ -10,6 +10,7 @@ from app.common.dumper import Dumper, DumpHandles
 from app.common.models import AnthropicRequest
 from app.config.log import get_logger
 from app.config.user_models import ModelConfig, ProviderConfig
+from app.services.capabilities import MessagesCapability, OpenAITokenCountCapability, ProviderCapability, TokenCountCapability, UnsupportedOperationError
 from app.services.transformer_loader import TransformerLoader
 from app.services.transformers import RequestTransformer, ResponseTransformer
 
@@ -25,7 +26,7 @@ class ModelMapping:
 
 
 class Provider:
-    """Handles requests to a specific API provider with transformer support."""
+    """Handles requests to a specific API provider with transformer and capability support."""
 
     def __init__(self, config: ProviderConfig, transformer_loader: TransformerLoader):
         self.config = config
@@ -37,6 +38,10 @@ class Provider:
         self.request_transformers: List[RequestTransformer] = []
         self.response_transformers: List[ResponseTransformer] = []
         self._load_transformers()
+
+        # Load capabilities
+        self.capabilities: Dict[str, ProviderCapability] = {}
+        self._load_capabilities()
 
     def _load_transformers(self):
         """Load request and response transformers from configuration."""
@@ -52,34 +57,115 @@ class Provider:
             logger.error(f"Failed to load transformers for provider '{self.config.name}': {e}")
             # Continue with empty transformer lists
 
-    async def process_request(self, request: AnthropicRequest, original_request: Request, routing_key: str, dumper: Dumper, dumper_handles: DumpHandles) -> Dict[str, Any]:
-        """Process a request through the provider with transformer support.
+    def _load_capabilities(self):
+        """Load capabilities from explicit configuration."""
+        try:
+            if not self.config.capabilities:
+                raise ValueError(f"Provider '{self.config.name}' has no capabilities configured. All providers must explicitly define their supported operations.")
+
+            for cap_config in self.config.capabilities:
+                capability_class = self._resolve_capability_class(cap_config.class_name)
+                capability = capability_class(**cap_config.params)
+                self.capabilities[cap_config.operation] = capability
+
+            logger.info(f"Provider '{self.config.name}' loaded {len(self.capabilities)} capabilities: {list(self.capabilities.keys())}")
+        except Exception as e:
+            logger.error(f"Failed to load capabilities for provider '{self.config.name}': {e}")
+            raise  # Fail fast - don't continue with empty capabilities
+
+    def _resolve_capability_class(self, class_name: str):
+        """Resolve capability class from name."""
+        # Built-in capability classes
+        capability_map = {
+            'MessagesCapability': MessagesCapability,
+            'TokenCountCapability': TokenCountCapability,
+            'OpenAITokenCountCapability': OpenAITokenCountCapability,
+        }
+
+        if class_name in capability_map:
+            return capability_map[class_name]
+        else:
+            # Support custom capability classes via dynamic import
+            return self._import_capability_class(class_name)
+
+    def _import_capability_class(self, class_name: str):
+        """Import capability class from module path."""
+        try:
+            # Handle both simple names and full module paths
+            if '.' in class_name:
+                # Full module path like 'my_module.CustomCapability'
+                module_path, class_name_only = class_name.rsplit('.', 1)
+                module = __import__(module_path, fromlist=[class_name_only])
+                return getattr(module, class_name_only)
+            else:
+                # Simple name - try to find in capabilities package
+                from app.services import capabilities
+
+                if hasattr(capabilities, class_name):
+                    return getattr(capabilities, class_name)
+                else:
+                    raise ImportError(f"Capability class '{class_name}' not found in built-in capabilities or as module path")
+        except (ImportError, AttributeError) as e:
+            raise ValueError(f"Could not import capability class '{class_name}': {e}")
+
+    async def process_operation(
+        self, operation: str, request: AnthropicRequest, original_request: Request, routing_key: str, dumper: Dumper, dumper_handles: DumpHandles
+    ) -> Dict[str, Any]:
+        """Process a request through the provider using the specified operation capability.
+
+        This method provides the new capability-based processing pipeline:
+        1. Get capability for the operation
+        2. Capability prepares request (modifies config/URL if needed)
+        3. Apply transformers (unchanged)
+        4. Send request to provider
+        5. Capability processes response
 
         Args:
+            operation: Operation name ('messages', 'count_tokens', etc.)
             request: Claude API request
+            original_request: Original FastAPI request
+            routing_key: Routing key from router
+            dumper: Dumper for logging
+            dumper_handles: Dump handles
 
         Returns:
             JSON response dictionary
+
+        Raises:
+            UnsupportedOperationError: If operation is not supported by this provider
         """
-        # Context is automatically available via ContextVar
+        # Check if provider supports this operation
+        if operation not in self.capabilities:
+            raise UnsupportedOperationError(operation, self.config.name)
 
-        # Log with full context
-        logger.debug('Starting request transformation')
+        capability = self.capabilities[operation]
+        logger.debug(f'Processing {operation} operation for provider {self.config.name}')
 
-        # 1. Convert AnthropicRequest to Dict and apply request transformers sequentially
-        current_request = request.to_dict()  # Use to_dict() method
-        current_headers = dict(original_request.headers)  # Copy headers
-        config = self.config.model_copy()
+        # Convert AnthropicRequest to Dict
+        current_request = request.to_dict()
+        current_headers = dict(original_request.headers)
+
+        # Create context for capability and transformers
+        context = {
+            'original_request': original_request,
+            'routing_key': routing_key,
+            'headers': current_headers,
+            'operation': operation,
+        }
+
+        # Phase 1: Capability prepares request (modifies config if needed)
+        modified_config = await capability.prepare_request(current_request, self.config, context)
 
         # Force non-streaming to LLM providers for simplified architecture
         current_request['stream'] = False
 
+        # Phase 2: Apply request transformers (unchanged from existing logic)
         logger.debug('Request headers prepared')
         for transformer in self.request_transformers:
             transform_params = {
                 'request': current_request,
                 'headers': current_headers,
-                'provider_config': config,
+                'provider_config': modified_config,
                 'original_request': original_request,
                 'routing_key': routing_key,
             }
@@ -91,14 +177,14 @@ class Provider:
         dumper.write_transformed_headers(dumper_handles, current_headers)
         dumper.write_transformed_request(dumper_handles, current_request)
 
-        # Always get JSON response from provider
-        response = await self._send_request(config, current_request, current_headers)
+        # Phase 3: Send request using modified config
+        response = await self._send_request(modified_config, current_request, current_headers)
 
         # Dump pre-transformed response
         response_text = response.text
         dumper.write_pretransformed_response(dumper_handles, response_text)
 
-        # Apply response transformers to full response
+        # Phase 4: Apply response transformers (unchanged from existing logic)
         try:
             transformed_response = response.json()
         except Exception:
@@ -107,6 +193,7 @@ class Provider:
                 response_length=len(response_text),
             )
             raise
+
         response_params = {}  # Initialize once outside loop for consistency
         for transformer in self.response_transformers:
             response_params.update(
@@ -114,14 +201,35 @@ class Provider:
                     'response': transformed_response,
                     'request': current_request,
                     'final_headers': current_headers,
-                    'provider_config': config,
+                    'provider_config': modified_config,
                     'original_request': original_request,
                 }
             )
             transformed_response = await transformer.transform_response(response_params)
 
-        # Return JSON response directly
-        return transformed_response
+        # Phase 5: Capability processes final response
+        final_response = await capability.process_response(transformed_response, current_request, context)
+
+        return final_response
+
+    def supports_operation(self, operation: str) -> bool:
+        """Check if provider supports a specific operation.
+
+        Args:
+            operation: Operation name to check
+
+        Returns:
+            True if operation is supported
+        """
+        return operation in self.capabilities
+
+    def list_operations(self) -> List[str]:
+        """List all operations supported by this provider.
+
+        Returns:
+            List of operation names
+        """
+        return list(self.capabilities.keys())
 
     async def _send_request(self, config: ProviderConfig, request_data: Dict[str, Any], headers: Dict[str, Any]) -> httpx.Response:
         """Make a non-streaming HTTP request to the provider."""

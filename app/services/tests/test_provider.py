@@ -96,7 +96,16 @@ class TestProvider:
     @pytest.fixture
     def provider_config(self):
         """Create test provider configuration."""
-        return ProviderConfig(name='test-provider', url='https://api.test.com/v1/chat', timeout=30.0, transformers={'request': ['test_request'], 'response': ['test_response']})
+        return ProviderConfig(
+            name='test-provider', 
+            url='https://api.test.com/v1/chat', 
+            timeout=30.0, 
+            transformers={'request': ['test_request'], 'response': ['test_response']},
+            capabilities=[
+                {'operation': 'messages', 'class_name': 'MessagesCapability'},
+                {'operation': 'count_tokens', 'class_name': 'TokenCountCapability'}
+            ]
+        )
 
     @pytest.fixture
     def provider(self, provider_config, mock_transformer_loader, mock_request_transformer, mock_response_transformer):
@@ -139,8 +148,8 @@ class TestProvider:
         return dumper
 
     @pytest.mark.asyncio
-    async def test_process_request_returns_json_response(self, provider, mock_anthropic_request, mock_fastapi_request, mock_dumper):
-        """Test that process_request returns proper JSON response."""
+    async def test_process_operation_returns_json_response(self, provider, mock_anthropic_request, mock_fastapi_request, mock_dumper):
+        """Test that process_operation returns proper JSON response."""
 
         # Mock HTTP response
         mock_response = Mock()
@@ -157,9 +166,9 @@ class TestProvider:
         # Mock the HTTP client
         provider.http_client.post = AsyncMock(return_value=mock_response)
 
-        # Process the request
+        # Process the request using the new method
         handles = mock_dumper.begin.return_value
-        result = await provider.process_request(mock_anthropic_request, mock_fastapi_request, 'test-key', mock_dumper, handles)
+        result = await provider.process_operation('messages', mock_anthropic_request, mock_fastapi_request, 'test-key', mock_dumper, handles)
 
         # Verify we got the expected JSON response
         assert result['id'] == 'msg_test123'
@@ -174,7 +183,26 @@ class TestProviderManager:
     @pytest.fixture
     def providers_config(self):
         """Create test providers configuration."""
-        return [ProviderConfig(name='provider1', url='https://api1.test.com', transformers={}), ProviderConfig(name='provider2', url='https://api2.test.com', transformers={})]
+        return [
+            ProviderConfig(
+                name='provider1', 
+                url='https://api1.test.com', 
+                transformers={},
+                capabilities=[
+                    {'operation': 'messages', 'class_name': 'MessagesCapability'},
+                    {'operation': 'count_tokens', 'class_name': 'TokenCountCapability'}
+                ]
+            ), 
+            ProviderConfig(
+                name='provider2', 
+                url='https://api2.test.com', 
+                transformers={},
+                capabilities=[
+                    {'operation': 'messages', 'class_name': 'MessagesCapability'},
+                    {'operation': 'count_tokens', 'class_name': 'OpenAITokenCountCapability'}
+                ]
+            )
+        ]
 
     @pytest.fixture
     def models_config(self):
@@ -229,3 +257,290 @@ class TestProviderManager:
 
         provider = manager.get_provider_by_name('nonexistent')
         assert provider is None
+
+
+class TestProviderCapabilities:
+    """Test capability functionality in Provider class."""
+
+    @pytest.fixture
+    def mock_transformer_loader(self):
+        """Create mock transformer loader."""
+        loader = Mock(spec=TransformerLoader)
+        loader.load_transformers.return_value = []
+        return loader
+
+    @pytest.fixture
+    def anthropic_provider_config(self):
+        """Create Anthropic provider configuration."""
+        return ProviderConfig(
+            name='anthropic-provider', 
+            url='https://api.anthropic.com/v1/messages', 
+            api_key='test-key', 
+            transformers={'request': [], 'response': []}, 
+            timeout=30,
+            capabilities=[
+                {'operation': 'messages', 'class_name': 'MessagesCapability'},
+                {'operation': 'count_tokens', 'class_name': 'TokenCountCapability'}
+            ]
+        )
+
+    @pytest.fixture
+    def openai_provider_config(self):
+        """Create OpenAI provider configuration."""
+        return ProviderConfig(
+            name='openai-provider', 
+            url='https://api.openai.com/v1/chat/completions', 
+            api_key='test-key', 
+            transformers={'request': [], 'response': []}, 
+            timeout=30,
+            capabilities=[
+                {'operation': 'messages', 'class_name': 'MessagesCapability'},
+                {'operation': 'count_tokens', 'class_name': 'OpenAITokenCountCapability'}
+            ]
+        )
+
+    def test_provider_loads_capabilities(self, anthropic_provider_config, mock_transformer_loader):
+        """Test that Provider loads capabilities on initialization."""
+        provider = Provider(anthropic_provider_config, mock_transformer_loader)
+
+        # Should have loaded messages and count_tokens capabilities
+        assert 'messages' in provider.capabilities
+        assert 'count_tokens' in provider.capabilities
+        assert len(provider.capabilities) == 2
+
+    def test_anthropic_provider_gets_standard_capabilities(self, anthropic_provider_config, mock_transformer_loader):
+        """Test that Anthropic provider gets standard capabilities."""
+        provider = Provider(anthropic_provider_config, mock_transformer_loader)
+
+        # Should get standard TokenCountCapability
+        from app.services.capabilities import TokenCountCapability
+
+        assert isinstance(provider.capabilities['count_tokens'], TokenCountCapability)
+
+    def test_openai_provider_gets_openai_capabilities(self, openai_provider_config, mock_transformer_loader):
+        """Test that OpenAI provider gets OpenAI-specific capabilities."""
+        provider = Provider(openai_provider_config, mock_transformer_loader)
+
+        # Should get OpenAITokenCountCapability
+        from app.services.capabilities import OpenAITokenCountCapability
+
+        assert isinstance(provider.capabilities['count_tokens'], OpenAITokenCountCapability)
+
+    def test_supports_operation(self, anthropic_provider_config, mock_transformer_loader):
+        """Test supports_operation method."""
+        provider = Provider(anthropic_provider_config, mock_transformer_loader)
+
+        assert provider.supports_operation('messages')
+        assert provider.supports_operation('count_tokens')
+        assert not provider.supports_operation('embeddings')
+        assert not provider.supports_operation('nonexistent')
+
+    def test_list_operations(self, anthropic_provider_config, mock_transformer_loader):
+        """Test list_operations method."""
+        provider = Provider(anthropic_provider_config, mock_transformer_loader)
+
+        operations = provider.list_operations()
+        assert set(operations) == {'messages', 'count_tokens'}
+
+    @pytest.mark.asyncio
+    async def test_process_operation_messages(self, anthropic_provider_config, mock_transformer_loader):
+        """Test process_operation with messages operation."""
+        provider = Provider(anthropic_provider_config, mock_transformer_loader)
+
+        # Mock the _send_request method
+        mock_response = Mock()
+        mock_response.text = '{"id": "msg_123", "content": "test response"}'
+        mock_response.json.return_value = {'id': 'msg_123', 'content': 'test response'}
+        provider._send_request = AsyncMock(return_value=mock_response)
+
+        # Create test data
+        from app.common.models import AnthropicRequest
+
+        request = AnthropicRequest(model='claude-3-haiku', messages=[{'role': 'user', 'content': 'Hello'}])
+
+        mock_fastapi_request = Mock()
+        mock_fastapi_request.headers = {}
+
+        mock_dumper = Mock()
+        from app.common.dumper import DumpFiles, DumpHandles
+
+        handles = DumpHandles(files=DumpFiles(), correlation_id='test', base_path='/tmp')
+
+        # Call process_operation
+        result = await provider.process_operation('messages', request, mock_fastapi_request, 'default', mock_dumper, handles)
+
+        # Should return the response
+        assert result == {'id': 'msg_123', 'content': 'test response'}
+
+        # Should have called _send_request with original URL (messages doesn't modify it)
+        provider._send_request.assert_called_once()
+        call_args = provider._send_request.call_args
+        config_used = call_args[0][0]  # First argument is config
+        assert config_used.url == 'https://api.anthropic.com/v1/messages'
+
+    @pytest.mark.asyncio
+    async def test_process_operation_count_tokens(self, anthropic_provider_config, mock_transformer_loader):
+        """Test process_operation with count_tokens operation."""
+        provider = Provider(anthropic_provider_config, mock_transformer_loader)
+
+        # Mock the _send_request method
+        mock_response = Mock()
+        mock_response.text = '{"input_tokens": 10, "output_tokens": 0}'
+        mock_response.json.return_value = {'input_tokens': 10, 'output_tokens': 0}
+        provider._send_request = AsyncMock(return_value=mock_response)
+
+        # Create test data
+        from app.common.models import AnthropicRequest
+
+        request = AnthropicRequest(model='claude-3-haiku', messages=[{'role': 'user', 'content': 'Hello'}])
+
+        mock_fastapi_request = Mock()
+        mock_fastapi_request.headers = {}
+
+        mock_dumper = Mock()
+        from app.common.dumper import DumpFiles, DumpHandles
+
+        handles = DumpHandles(files=DumpFiles(), correlation_id='test', base_path='/tmp')
+
+        # Call process_operation
+        result = await provider.process_operation('count_tokens', request, mock_fastapi_request, 'default', mock_dumper, handles)
+
+        # Should return the response
+        assert result == {'input_tokens': 10, 'output_tokens': 0}
+
+        # Should have called _send_request with modified URL (count_tokens adds suffix)
+        provider._send_request.assert_called_once()
+        call_args = provider._send_request.call_args
+        config_used = call_args[0][0]  # First argument is config
+        assert config_used.url == 'https://api.anthropic.com/v1/messages/count_tokens'
+
+    @pytest.mark.asyncio
+    async def test_process_operation_unsupported(self, anthropic_provider_config, mock_transformer_loader):
+        """Test process_operation with unsupported operation."""
+        provider = Provider(anthropic_provider_config, mock_transformer_loader)
+
+        # Create test data
+        from app.common.models import AnthropicRequest
+        from app.services.capabilities import UnsupportedOperationError
+
+        request = AnthropicRequest(model='claude-3-haiku', messages=[{'role': 'user', 'content': 'Hello'}])
+        mock_fastapi_request = Mock()
+        mock_dumper = Mock()
+        from app.common.dumper import DumpFiles, DumpHandles
+
+        handles = DumpHandles(files=DumpFiles(), correlation_id='test', base_path='/tmp')
+
+        # Should raise UnsupportedOperationError
+        with pytest.raises(UnsupportedOperationError) as exc_info:
+            await provider.process_operation('embeddings', request, mock_fastapi_request, 'default', mock_dumper, handles)
+
+        assert exc_info.value.operation == 'embeddings'
+        assert exc_info.value.provider_name == 'anthropic-provider'
+
+
+class TestProviderCapabilityValidation:
+    """Test capability configuration validation and error handling."""
+
+    @pytest.fixture
+    def mock_transformer_loader(self):
+        """Create mock transformer loader."""
+        loader = Mock(spec=TransformerLoader)
+        loader.load_transformers.return_value = []
+        return loader
+
+    def test_provider_without_capabilities_fails(self, mock_transformer_loader):
+        """Test that provider without capabilities configuration fails."""
+        from app.config.user_models import ProviderConfig
+        
+        # Create config without capabilities (empty list)
+        config = ProviderConfig(
+            name='no-capabilities-provider',
+            url='https://api.test.com/v1',
+            capabilities=[]
+        )
+
+        with pytest.raises(ValueError, match="has no capabilities configured"):
+            Provider(config, mock_transformer_loader)
+
+    def test_provider_with_invalid_capability_class_fails(self, mock_transformer_loader):
+        """Test that invalid capability class names fail."""
+        from app.config.user_models import ProviderConfig
+        
+        config = ProviderConfig(
+            name='invalid-capability-provider',
+            url='https://api.test.com/v1',
+            capabilities=[
+                {'operation': 'messages', 'class_name': 'NonExistentCapability'}
+            ]
+        )
+
+        with pytest.raises(ValueError, match="Could not import capability class"):
+            Provider(config, mock_transformer_loader)
+
+    def test_provider_with_valid_custom_capability_succeeds(self, mock_transformer_loader):
+        """Test that valid custom capability class works."""
+        from app.config.user_models import ProviderConfig
+        
+        config = ProviderConfig(
+            name='custom-capability-provider',
+            url='https://api.test.com/v1',
+            capabilities=[
+                {'operation': 'messages', 'class_name': 'MessagesCapability'},
+                {'operation': 'count_tokens', 'class_name': 'TokenCountCapability'}
+            ]
+        )
+
+        # Should not raise any exception
+        provider = Provider(config, mock_transformer_loader)
+        
+        # Verify capabilities were loaded
+        assert 'messages' in provider.capabilities
+        assert 'count_tokens' in provider.capabilities
+        assert len(provider.capabilities) == 2
+
+    def test_provider_capability_class_resolution(self, mock_transformer_loader):
+        """Test capability class resolution for built-in classes."""
+        from app.config.user_models import ProviderConfig
+        from app.services.capabilities import MessagesCapability, TokenCountCapability, OpenAITokenCountCapability
+        
+        config = ProviderConfig(
+            name='capability-resolution-provider',
+            url='https://api.test.com/v1',
+            capabilities=[
+                {'operation': 'messages', 'class_name': 'MessagesCapability'},
+                {'operation': 'count_tokens', 'class_name': 'TokenCountCapability'},
+                {'operation': 'openai_count', 'class_name': 'OpenAITokenCountCapability'}
+            ]
+        )
+
+        provider = Provider(config, mock_transformer_loader)
+        
+        # Verify correct capability types were instantiated
+        assert isinstance(provider.capabilities['messages'], MessagesCapability)
+        assert isinstance(provider.capabilities['count_tokens'], TokenCountCapability)
+        assert isinstance(provider.capabilities['openai_count'], OpenAITokenCountCapability)
+
+    def test_provider_capability_with_params(self, mock_transformer_loader):
+        """Test capability instantiation with parameters."""
+        from app.config.user_models import ProviderConfig
+        
+        config = ProviderConfig(
+            name='parameterized-capability-provider',
+            url='https://api.test.com/v1',
+            capabilities=[
+                {
+                    'operation': 'messages', 
+                    'class_name': 'MessagesCapability',
+                    'params': {}  # No params for MessagesCapability
+                },
+                {
+                    'operation': 'count_tokens',
+                    'class_name': 'TokenCountCapability', 
+                    'params': {}  # No params for TokenCountCapability
+                }
+            ]
+        )
+
+        # Should succeed even with empty params
+        provider = Provider(config, mock_transformer_loader)
+        assert len(provider.capabilities) == 2

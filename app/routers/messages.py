@@ -11,6 +11,7 @@ from app.common.vars import get_request_context
 from app.config.log import get_logger
 from app.dependencies.dumper import get_dumper
 from app.dependencies.service_container import get_service_container
+from app.services.capabilities import UnsupportedOperationError
 
 router = APIRouter()
 logger = get_logger(__name__)
@@ -53,7 +54,7 @@ async def messages(payload: AnthropicRequest, request: Request, dumper: Dumper =
 
     # Phase 2: Get JSON response from provider (always JSON now)
     try:
-        json_response = await routing_result.provider.process_request(payload, request, routing_result.routing_key, dumper, dumper_handles)
+        json_response = await routing_result.provider.process_operation('messages', payload, request, routing_result.routing_key, dumper, dumper_handles)
 
         # Phase 3: Route based on ORIGINAL stream parameter from client
         original_stream_requested = payload.stream is True
@@ -103,34 +104,23 @@ async def count_tokens(payload: AnthropicRequest, request: Request, dumper: Dump
     dumper_handles = dumper.begin(request, payload.to_dict())
 
     try:
-        # Prepare request data and headers manually
-        current_request = payload.to_dict()
-        current_headers = {k: v for k, v in dict(request.headers).items() if k.lower() not in ('content-length', 'host', 'connection')}
+        # Check if provider supports count_tokens operation
+        if not routing_result.provider.supports_operation('count_tokens'):
+            logger.warning(f'Provider {routing_result.provider.name} does not support count_tokens operation')
+            error_response = {'error': {'type': 'not_supported_error', 'message': f'Provider {routing_result.provider.name} does not support token counting'}}
+            return ORJSONResponse(error_response, status_code=501)
 
-        # Manually set authorization header with provider's API key
-        if routing_result.provider.config.api_key:
-            current_headers['authorization'] = f'Bearer {routing_result.provider.config.api_key}'
-            current_headers.pop('x-api-key', None)
-
-        # Dump transformed request and headers
-        logger.info('Count request processing')
-        dumper.write_transformed_headers(dumper_handles, current_headers)
-        dumper.write_transformed_request(dumper_handles, current_request)
-
-        # Send non-streaming request to provider
-        # Create config with count_tokens URL
-        count_tokens_config = routing_result.provider.config.model_copy()
-        count_tokens_config.url += '/count_tokens'
-        response = await routing_result.provider._send_request(count_tokens_config, current_request, current_headers)
-
-        # Parse JSON response
-        response_json = response.json()
-
-        # Dump response
-        response_bytes = orjson.dumps(response_json)
-        dumper.write_response_chunk(dumper_handles, response_bytes)
+        # Use the new capability-based processing pipeline
+        logger.info('Processing count_tokens request using capability system')
+        response_json = await routing_result.provider.process_operation('count_tokens', payload, request, routing_result.routing_key, dumper, dumper_handles)
 
         return ORJSONResponse(response_json)
+
+    except UnsupportedOperationError as e:
+        # Handle capability-specific errors
+        logger.warning(f'Unsupported operation: {e.message}')
+        error_response = {'error': {'type': 'not_supported_error', 'message': e.message}}
+        return ORJSONResponse(error_response, status_code=501)
 
     except httpx.HTTPStatusError as e:
         # Map to proper Anthropic error type and extract message

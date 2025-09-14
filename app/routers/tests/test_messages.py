@@ -22,7 +22,7 @@ def mock_provider():
             self.config = Mock()
             self.config.name = name
 
-        async def process_request(self, payload, request, routing_key=None, dumper=None, dumper_handles=None):
+        async def process_operation(self, operation, payload, request, routing_key=None, dumper=None, dumper_handles=None):
             """Mock provider that returns JSON response."""
             return {
                 'id': 'msg_test123',
@@ -44,8 +44,39 @@ def mock_count_provider():
         def __init__(self, name='test-provider'):
             from app.config.user_models import ProviderConfig
 
-            self.config = ProviderConfig(name=name, url='https://api.test.com/v1/messages', api_key='test-api-key', transformers={'request': [], 'response': []}, timeout=30)
+            self.config = ProviderConfig(
+                name=name, 
+                url='https://api.test.com/v1/messages', 
+                api_key='test-api-key', 
+                transformers={'request': [], 'response': []}, 
+                timeout=30,
+                capabilities=[
+                    {'operation': 'messages', 'class_name': 'MessagesCapability'},
+                    {'operation': 'count_tokens', 'class_name': 'TokenCountCapability'}
+                ]
+            )
+            self.name = name
             self.request_transformers = []
+
+        def supports_operation(self, operation):
+            """Mock supports_operation method."""
+            return operation in ['messages', 'count_tokens']
+
+        async def process_operation(self, operation, payload, request, routing_key, dumper, dumper_handles):
+            """Mock process_operation method for count_tokens."""
+            if operation == 'count_tokens':
+                return {'input_tokens': 10, 'output_tokens': 0, 'total_tokens': 10}
+            elif operation == 'messages':
+                return {
+                    'id': 'msg_test123',
+                    'model': 'claude-3-haiku',
+                    'role': 'assistant',
+                    'content': [{'type': 'text', 'text': 'Hello from test!'}],
+                    'stop_reason': 'end_turn',
+                    'usage': {'input_tokens': 10, 'output_tokens': 5},
+                }
+            else:
+                raise Exception(f'Unsupported operation: {operation}')
 
         async def _send_request(self, config, request_data, headers):
             """Mock provider that returns count response."""

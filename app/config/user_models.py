@@ -2,7 +2,7 @@
 
 import re
 from pathlib import Path
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
@@ -20,6 +20,37 @@ class SimpleTransformerConfig(BaseModel):
     params: dict = Field(default_factory=dict, description='Parameters to pass to transformer constructor')
 
 
+class CapabilityConfig(BaseModel):
+    """Configuration for a provider capability."""
+
+    operation: str = Field(description='Operation name (messages, count_tokens, embeddings, etc.)')
+    class_name: str = Field(description='Capability class name (MessagesCapability, OpenAITokenCountCapability, etc.)')
+    params: Dict[str, Any] = Field(default_factory=dict, description='Parameters to pass to capability constructor')
+
+    @field_validator('operation')
+    @classmethod
+    def validate_operation(cls, v: str) -> str:
+        """Validate operation name format."""
+        if not re.match(r'^[a-zA-Z0-9_]+$', v):
+            raise ValueError('Operation name must contain only alphanumeric characters and underscores')
+        if len(v) < 1:
+            raise ValueError('Operation name cannot be empty')
+        if len(v) > 50:
+            raise ValueError('Operation name cannot be longer than 50 characters')
+        return v
+
+    @field_validator('class_name')
+    @classmethod
+    def validate_class_name(cls, v: str) -> str:
+        """Validate capability class name format."""
+        if not v:
+            raise ValueError('Capability class name cannot be empty')
+        # Allow both simple names (MessagesCapability) and module paths (my_module.CustomCapability)
+        if not re.match(r'^[a-zA-Z0-9_.]+$', v):
+            raise ValueError('Capability class name must contain only alphanumeric characters, dots, and underscores')
+        return v
+
+
 class ProviderConfig(BaseModel):
     """Simplified provider configuration for new architecture."""
 
@@ -28,6 +59,7 @@ class ProviderConfig(BaseModel):
     api_key: str = Field(default='', description='API key for the provider')
     transformers: dict = Field(default_factory=dict, description='Transformer configurations')
     timeout: int = Field(default=180, description='Request timeout in seconds')
+    capabilities: List[CapabilityConfig] = Field(description='Capability configurations - defines which operations this provider supports')
 
     def __init__(self, **data):
         # Handle transformers structure
