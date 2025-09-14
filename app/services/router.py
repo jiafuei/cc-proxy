@@ -40,7 +40,8 @@ def _create_default_anthropic_config() -> ProviderConfig:
         name='default-anthropic (fallback)',
         url=base_url,
         api_key=api_key,
-        capabilities=[{'operation': 'messages', 'class_name': 'MessagesCapability'}, {'operation': 'count_tokens', 'class_name': 'TokenCountCapability'}],
+        type='anthropic',
+        capabilities=['messages','count_tokens'],
         transformers={
             'request': [
                 {'class': 'app.services.transformers.anthropic.ClaudeSystemMessageCleanerTransformer', 'params': {}},

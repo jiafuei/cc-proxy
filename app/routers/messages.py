@@ -11,7 +11,6 @@ from app.common.vars import get_request_context
 from app.config.log import get_logger
 from app.dependencies.dumper import get_dumper
 from app.dependencies.service_container import get_service_container
-from app.services.capabilities import UnsupportedOperationError
 
 router = APIRouter()
 logger = get_logger(__name__)
@@ -116,10 +115,10 @@ async def count_tokens(payload: AnthropicRequest, request: Request, dumper: Dump
 
         return ORJSONResponse(response_json)
 
-    except UnsupportedOperationError as e:
+    except ValueError as e:
         # Handle capability-specific errors
-        logger.warning(f'Unsupported operation: {e.message}')
-        error_response = {'error': {'type': 'not_supported_error', 'message': e.message}}
+        logger.warning(f'Unsupported operation: {str(e)}')
+        error_response = {'error': {'type': 'not_supported_error', 'message': str(e)}}
         return ORJSONResponse(error_response, status_code=501)
 
     except httpx.HTTPStatusError as e:
