@@ -54,7 +54,7 @@ class TestAnthropicHeadersTransformer:
     @pytest.mark.asyncio
     async def test_injects_x_api_key_from_provider_config(self, transformer_x_api_key):
         """Test that x-api-key is injected from provider config."""
-        provider_config = ProviderConfig(name='anthropic-test', url='https://api.anthropic.com/v1/messages', api_key='sk-ant-config-key-123')
+        provider_config = ProviderConfig(name='anthropic-test', url='https://api.anthropic.com', type='anthropic', api_key='sk-ant-config-key-123')
 
         params = {
             'request': {'messages': []},
@@ -74,7 +74,7 @@ class TestAnthropicHeadersTransformer:
     @pytest.mark.asyncio
     async def test_injects_authorization_from_provider_config(self, transformer_authorization):
         """Test that authorization header is injected from provider config."""
-        provider_config = ProviderConfig(name='anthropic-test', url='https://api.anthropic.com/v1/messages', api_key='sk-ant-config-key-123')
+        provider_config = ProviderConfig(name='anthropic-test', url='https://api.anthropic.com', type='anthropic', api_key='sk-ant-config-key-123')
 
         params = {
             'request': {'messages': []},
@@ -94,7 +94,7 @@ class TestAnthropicHeadersTransformer:
     @pytest.mark.asyncio
     async def test_removes_authorization_when_injecting_x_api_key(self, transformer_x_api_key):
         """Test that authorization header is removed when x-api-key is injected from config."""
-        provider_config = ProviderConfig(name='anthropic-test', url='https://api.anthropic.com/v1/messages', api_key='sk-ant-config-key-123')
+        provider_config = ProviderConfig(name='anthropic-test', url='https://api.anthropic.com', type='anthropic', api_key='sk-ant-config-key-123')
 
         params = {
             'request': {'messages': []},
@@ -116,7 +116,8 @@ class TestAnthropicHeadersTransformer:
         """Test that client headers are preserved when no API key in config."""
         provider_config = ProviderConfig(
             name='anthropic-test',
-            url='https://api.anthropic.com/v1/messages',
+            url='https://api.anthropic.com',
+            type='anthropic',
             api_key='',  # Empty API key
         )
 
@@ -156,7 +157,7 @@ class TestAnthropicHeadersTransformer:
     @pytest.mark.asyncio
     async def test_empty_headers_with_provider_config_x_api_key(self, transformer_x_api_key):
         """Test with empty headers but provider config with API key using x-api-key."""
-        provider_config = ProviderConfig(name='anthropic-test', url='https://api.anthropic.com/v1/messages', api_key='sk-ant-config-key-123')
+        provider_config = ProviderConfig(name='anthropic-test', url='https://api.anthropic.com', type='anthropic', api_key='sk-ant-config-key-123')
 
         params = {'request': {'messages': []}, 'headers': {}, 'provider_config': provider_config}
 

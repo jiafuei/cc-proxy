@@ -20,7 +20,7 @@ class TestUrlPathTransformer:
     @pytest.fixture
     def provider_config(self):
         """Create a sample provider config."""
-        return ProviderConfig(name='test_provider', url='https://api.example.com', api_key='test_key')
+        return ProviderConfig(name='test_provider', url='https://api.example.com', type='anthropic', api_key='test_key')
 
     @pytest.mark.asyncio
     async def test_strips_trailing_slash_and_appends_path(self, transformer, provider_config):

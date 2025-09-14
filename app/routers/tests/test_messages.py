@@ -45,15 +45,13 @@ def mock_count_provider():
             from app.config.user_models import ProviderConfig
 
             self.config = ProviderConfig(
-                name=name, 
-                url='https://api.test.com/v1/messages', 
-                api_key='test-api-key', 
-                transformers={'request': [], 'response': []}, 
+                name=name,
+                url='https://api.test.com',
+                api_key='test-api-key',
+                type='anthropic',
+                transformers={'request': [], 'response': []},
                 timeout=30,
-                capabilities=[
-                    {'operation': 'messages', 'class_name': 'MessagesCapability'},
-                    {'operation': 'count_tokens', 'class_name': 'TokenCountCapability'}
-                ]
+                capabilities=['messages', 'count_tokens'],
             )
             self.name = name
             self.request_transformers = []

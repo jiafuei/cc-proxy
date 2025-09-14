@@ -25,13 +25,13 @@ class TestGeminiApiKeyTransformer:
         base_url = 'https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent'
 
         if api_key_source == 'provider_config':
-            provider_config = ProviderConfig(name='test_provider', url=base_url, api_key=expected_key)
+            provider_config = ProviderConfig(name='test_provider', url=base_url, type='gemini', api_key=expected_key)
             headers = {}
         elif api_key_source == 'authorization_header':
-            provider_config = ProviderConfig(name='test_provider', url=base_url, api_key='')
+            provider_config = ProviderConfig(name='test_provider', url=base_url, type='gemini', api_key='')
             headers = {'authorization': f'Bearer {expected_key}'}
         elif api_key_source == 'x_goog_api_key_header':
-            provider_config = ProviderConfig(name='test_provider', url=base_url, api_key='')
+            provider_config = ProviderConfig(name='test_provider', url=base_url, type='gemini', api_key='')
             headers = {'x-goog-api-key': expected_key}
 
         params = {'request': {'model': 'test'}, 'headers': headers, 'provider_config': provider_config}
@@ -49,9 +49,7 @@ class TestGeminiApiKeyTransformer:
     @pytest.mark.asyncio
     async def test_handles_url_with_existing_query_params(self):
         """Test handling URLs that already have query parameters."""
-        provider_config = ProviderConfig(
-            name='test_provider', url='https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?alt=json', api_key='test-key'
-        )
+        provider_config = ProviderConfig(name='test_provider', url='https://generativelanguage.googleapis.com?alt=json', type='gemini', api_key='test-key')
 
         params = {'request': {'model': 'test'}, 'headers': {}, 'provider_config': provider_config}
 
@@ -64,14 +62,14 @@ class TestGeminiApiKeyTransformer:
     @pytest.mark.asyncio
     async def test_provider_config_priority_over_headers(self):
         """Test that provider config API key takes priority over headers."""
-        provider_config = ProviderConfig(name='test_provider', url='https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent', api_key='config-key')
+        provider_config = ProviderConfig(name='test_provider', url='https://generativelanguage.googleapis.com', type='gemini', api_key='config-key')
 
         params = {'request': {'model': 'test'}, 'headers': {'authorization': 'Bearer header-key'}, 'provider_config': provider_config}
 
         request, headers = await self.transformer.transform(params)
 
         # Should use provider config key, not header key
-        expected_url = 'https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=config-key'
+        expected_url = 'https://generativelanguage.googleapis.com?key=config-key'
         assert provider_config.url == expected_url
 
     @pytest.mark.asyncio
@@ -88,14 +86,14 @@ class TestGeminiApiKeyTransformer:
     @pytest.mark.asyncio
     async def test_handles_missing_api_key(self):
         """Test behavior when no API key is found."""
-        provider_config = ProviderConfig(name='test_provider', url='https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent', api_key='')
+        provider_config = ProviderConfig(name='test_provider', url='https://generativelanguage.googleapis.com', type='gemini', api_key='')
 
         params = {'request': {'model': 'test'}, 'headers': {}, 'provider_config': provider_config}
 
         request, headers = await self.transformer.transform(params)
 
         # URL should remain unchanged
-        assert provider_config.url == 'https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent'
+        assert provider_config.url == 'https://generativelanguage.googleapis.com'
 
         # Should log warning
         self.logger.warning.assert_called_with('No API key found for Gemini authentication')
@@ -104,12 +102,12 @@ class TestGeminiApiKeyTransformer:
     @pytest.mark.asyncio
     async def test_handles_authorization_header_formats(self, auth_value, expected_key):
         """Test handling authorization header with and without Bearer prefix."""
-        provider_config = ProviderConfig(name='test_provider', url='https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent', api_key='')
+        provider_config = ProviderConfig(name='test_provider', url='https://generativelanguage.googleapis.com', type='gemini', api_key='')
 
         params = {'request': {'model': 'test'}, 'headers': {'authorization': auth_value}, 'provider_config': provider_config}
 
         request, headers = await self.transformer.transform(params)
 
         # Should extract key correctly regardless of Bearer prefix
-        expected_url = f'https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key={expected_key}'
+        expected_url = f'https://generativelanguage.googleapis.com?key={expected_key}'
         assert provider_config.url == expected_url
