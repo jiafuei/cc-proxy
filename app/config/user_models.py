@@ -2,7 +2,7 @@
 
 import re
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import List, Optional
 
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
@@ -20,46 +20,43 @@ class SimpleTransformerConfig(BaseModel):
     params: dict = Field(default_factory=dict, description='Parameters to pass to transformer constructor')
 
 
-class CapabilityConfig(BaseModel):
-    """Configuration for a provider capability."""
-
-    operation: str = Field(description='Operation name (messages, count_tokens, embeddings, etc.)')
-    class_name: str = Field(description='Capability class name (MessagesCapability, OpenAITokenCountCapability, etc.)')
-    params: Dict[str, Any] = Field(default_factory=dict, description='Parameters to pass to capability constructor')
-
-    @field_validator('operation')
-    @classmethod
-    def validate_operation(cls, v: str) -> str:
-        """Validate operation name format."""
-        if not re.match(r'^[a-zA-Z0-9_]+$', v):
-            raise ValueError('Operation name must contain only alphanumeric characters and underscores')
-        if len(v) < 1:
-            raise ValueError('Operation name cannot be empty')
-        if len(v) > 50:
-            raise ValueError('Operation name cannot be longer than 50 characters')
-        return v
-
-    @field_validator('class_name')
-    @classmethod
-    def validate_class_name(cls, v: str) -> str:
-        """Validate capability class name format."""
-        if not v:
-            raise ValueError('Capability class name cannot be empty')
-        # Allow both simple names (MessagesCapability) and module paths (my_module.CustomCapability)
-        if not re.match(r'^[a-zA-Z0-9_.]+$', v):
-            raise ValueError('Capability class name must contain only alphanumeric characters, dots, and underscores')
-        return v
-
-
 class ProviderConfig(BaseModel):
-    """Simplified provider configuration for new architecture."""
+    """Provider configuration with explicit type."""
 
     name: str = Field(description='Unique provider name')
     url: str = Field(description='Base URL for the provider API')
     api_key: str = Field(default='', description='API key for the provider')
-    transformers: dict = Field(default_factory=dict, description='Transformer configurations')
+
+    # REQUIRED: Explicit provider type
+    type: str = Field(description='Provider API type: anthropic, openai, or gemini')
+
+    # OPTIONAL: Limit operations (defaults to all supported by type)
+    capabilities: Optional[List[str]] = Field(default=None, description='Operations to enable (defaults to all supported by type)')
+
+    # OPTIONAL: Override default transformers
+    transformers: dict = Field(default_factory=dict, description='Transformer configuration overrides')
+
     timeout: int = Field(default=180, description='Request timeout in seconds')
-    capabilities: List[CapabilityConfig] = Field(description='Capability configurations - defines which operations this provider supports')
+
+    @field_validator('type')
+    @classmethod
+    def validate_type(cls, v: str) -> str:
+        """Validate provider type is specified."""
+        if not v:
+            raise ValueError('Provider type is required')
+        # Validation of actual type happens in Provider class
+        return v
+
+    @field_validator('capabilities')
+    @classmethod
+    def validate_capabilities(cls, v: Optional[List[str]]) -> Optional[List[str]]:
+        """Validate capabilities are valid operation names."""
+        if v is not None:
+            valid_ops = {'messages', 'count_tokens'}
+            for cap in v:
+                if cap not in valid_ops:
+                    raise ValueError(f"Invalid capability '{cap}'. Valid operations: {valid_ops}")
+        return v
 
     def __init__(self, **data):
         # Handle transformers structure
