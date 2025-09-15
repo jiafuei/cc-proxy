@@ -8,7 +8,7 @@ import structlog
 from structlog.types import FilteringBoundLogger
 
 from app.common.utils import get_app_dir
-from app.config import get_config
+from app.config import ConfigurationService
 
 
 class _ConsoleFormatter(logging.Formatter):
@@ -174,9 +174,9 @@ def get_logger(name: str) -> FilteringBoundLogger:
     return structlog.get_logger(name)
 
 
-def configure_structlog() -> None:
+def configure_structlog(config_service: ConfigurationService) -> None:
     """Configure structlog with dual output (console + rotating files) and standard library integration."""
-    config = get_config()
+    config = config_service.get_config()
     log_config = config.logging
 
     # Setup log directory

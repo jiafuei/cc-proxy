@@ -8,11 +8,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import ORJSONResponse
 
-from app.config import ConfigurationService, get_config, setup_config
+from app.config import ConfigurationService, setup_config
 from app.config.log import configure_structlog, get_logger
 from app.config.models import ConfigModel
 from app.dependencies.dumper import get_dumper
-from app.dependencies.service_container import get_service_container
+from app.dependencies.service_container import ServiceContainer
 from app.middlewares.request_context import RequestContextMiddleware
 from app.middlewares.security_headers import SecurityHeadersMiddleware
 from app.routers.config import router as config_router
@@ -32,25 +32,25 @@ def create_app(config: Optional[ConfigModel] = None) -> FastAPI:
     # Set up user config directory and file on startup
     setup_config()
 
-    # Use provided config or load default
-    if config is None:
-        config = get_config()
-
-    # Create config service for dependency injection
+    # Use provided config or create default config service
     config_service = ConfigurationService()
+    if config is None:
+        config = config_service.get_config()
 
     # Configure structured logging
-    configure_structlog()
+    configure_structlog(config_service)
 
     # Initialize service container with config service
-    service_container = get_service_container(config_service)
+    service_container = ServiceContainer(config_service)
 
     # Create FastAPI app
     app = FastAPI(title='cc-proxy', version='0.1.0')
 
     # Store dependencies in app state
     app.state.config = config
+    app.state.config_service = config_service
     app.state.service_container = service_container
+    print(service_container.__dict__.keys(), service_container.router.__dict__.keys())
 
     # Configure logging levels
     for k in logging.root.manager.loggerDict.keys():
@@ -78,7 +78,8 @@ def create_app(config: Optional[ConfigModel] = None) -> FastAPI:
     @app.exception_handler(RequestValidationError)
     async def request_validation_error_handler(request: Request, exc: RequestValidationError):
         req_body = await request.json()
-        dumper = get_dumper()
+        config_service = request.app.state.config_service
+        dumper = get_dumper(config_service)
         handles = dumper.begin(request=request, payload=req_body)
         logger = get_logger(__name__)
         logger.debug('validation error', body=req_body)

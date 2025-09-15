@@ -113,15 +113,3 @@ class ServiceContainer:
             await self.router.close()
 
 
-# Global service container instance
-_service_container: Optional[ServiceContainer] = None
-
-
-def get_service_container(config_service: Optional[ConfigurationService] = None) -> ServiceContainer:
-    """Get the global service container instance."""
-    global _service_container
-
-    if _service_container is None:
-        _service_container = ServiceContainer(config_service)
-
-    return _service_container

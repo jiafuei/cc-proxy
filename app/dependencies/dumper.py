@@ -1,10 +1,14 @@
 """Dumper dependency injection for FastAPI."""
 
+from typing import Annotated
+
+from fastapi import Depends
 from app.common.dumper import Dumper
-from app.config import get_config
+from app.config import ConfigurationService
+from app.dependencies import get_config_service_dependency
 
 
-def get_dumper() -> Dumper:
+def get_dumper(config_service: Annotated[ConfigurationService, Depends(get_config_service_dependency)]) -> Dumper:
     """Get a configured dumper instance for dependency injection."""
-    config = get_config()
+    config = config_service.get_config()
     return Dumper(config)

@@ -26,24 +26,6 @@ class ConfigurationService:
         return self._config
 
 
-# Default configuration service instance for backward compatibility
-_default_config_service: Optional[ConfigurationService] = None
-
-
-def get_config() -> ConfigModel:
-    """Get the default configuration instance (backward compatibility)."""
-    global _default_config_service
-    if _default_config_service is None:
-        _default_config_service = ConfigurationService()
-    return _default_config_service.get_config()
-
-
-def reload_config() -> ConfigModel:
-    """Reload the default configuration (backward compatibility)."""
-    global _default_config_service
-    if _default_config_service is None:
-        _default_config_service = ConfigurationService()
-    return _default_config_service.reload_config()
 
 
 def setup_config() -> None:
