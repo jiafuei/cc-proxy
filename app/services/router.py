@@ -41,7 +41,7 @@ def _create_default_anthropic_config() -> ProviderConfig:
         url=base_url,
         api_key=api_key,
         type='anthropic',
-        capabilities=['messages','count_tokens'],
+        capabilities=['messages', 'count_tokens'],
         transformers={
             'request': [
                 {'class': 'app.services.transformers.anthropic.ClaudeSystemMessageCleanerTransformer', 'params': {}},

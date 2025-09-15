@@ -1,5 +1,6 @@
 import logging
 from pprint import pprint
+from typing import Optional
 
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
@@ -7,8 +8,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import ORJSONResponse
 
-from app.config import get_config, setup_config
+from app.config import ConfigurationService, get_config, setup_config
 from app.config.log import configure_structlog, get_logger
+from app.config.models import ConfigModel
 from app.dependencies.dumper import get_dumper
 from app.dependencies.service_container import get_service_container
 from app.middlewares.request_context import RequestContextMiddleware
@@ -17,60 +19,92 @@ from app.routers.config import router as config_router
 from app.routers.health import router as health_router
 from app.routers.messages import router as messages_router
 
-app = FastAPI(title='cc-proxy', version='0.1.0')
-for k in logging.root.manager.loggerDict.keys():
-    if any(k.startswith(v) for v in {'fastapi', 'uvicorn', 'httpx', 'httpcore', 'hpack'}):
-        logging.getLogger(k).setLevel('INFO')
+
+def create_app(config: Optional[ConfigModel] = None) -> FastAPI:
+    """Application factory for creating FastAPI instances.
+
+    Args:
+        config: Optional configuration. If None, loads default config.
+
+    Returns:
+        Configured FastAPI application instance.
+    """
+    # Set up user config directory and file on startup
+    setup_config()
+
+    # Use provided config or load default
+    if config is None:
+        config = get_config()
+
+    # Create config service for dependency injection
+    config_service = ConfigurationService()
+
+    # Configure structured logging
+    configure_structlog()
+
+    # Initialize service container with config service
+    service_container = get_service_container(config_service)
+
+    # Create FastAPI app
+    app = FastAPI(title='cc-proxy', version='0.1.0')
+
+    # Store dependencies in app state
+    app.state.config = config
+    app.state.service_container = service_container
+
+    # Configure logging levels
+    for k in logging.root.manager.loggerDict.keys():
+        if any(k.startswith(v) for v in {'fastapi', 'uvicorn', 'httpx', 'httpcore', 'hpack'}):
+            logging.getLogger(k).setLevel('INFO')
+
+    # Register routers
+    app.include_router(config_router)
+    app.include_router(health_router, prefix='/api', tags=['health'])
+    app.include_router(messages_router)
+
+    # Add middlewares (executed LIFO)
+    app.add_middleware(GZipMiddleware)
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=config.cors_allow_origins,
+        allow_credentials=True,
+        allow_methods=['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+        allow_headers=['*'],
+    )
+    app.add_middleware(SecurityHeadersMiddleware)
+    app.add_middleware(RequestContextMiddleware)
+
+    # Add exception handlers
+    @app.exception_handler(RequestValidationError)
+    async def request_validation_error_handler(request: Request, exc: RequestValidationError):
+        req_body = await request.json()
+        dumper = get_dumper()
+        handles = dumper.begin(request=request, payload=req_body)
+        logger = get_logger(__name__)
+        logger.debug('validation error', body=req_body)
+        try:
+            error_msg = f'request validation error: {str(exc.errors())}'
+            dumper.write_response_chunk(handles, error_msg)
+            return ORJSONResponse(status_code=400, content={'type': 'error', 'error': {'type': 'invalid_request_error', 'message': error_msg}})
+        finally:
+            dumper.close(handles)
+
+    # Print config in dev mode
+    if config.dev:
+        pprint(config.model_dump())
+
+    return app
 
 
-app.include_router(config_router)
-app.include_router(health_router)
-app.include_router(messages_router)
-
-# Set up user config directory and file on startup
-setup_config()
-config = get_config()
-
-# Configure structured logging
-configure_structlog()
-
-# Initialize service container
-service_container = get_service_container()
-
-if config.dev:
-    pprint(config.model_dump())
-
-# Middlewares are executed LIFO
-app.add_middleware(GZipMiddleware)
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=config.cors_allow_origins,
-    allow_credentials=True,
-    allow_methods=['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allow_headers=['*'],
-)
-app.add_middleware(SecurityHeadersMiddleware)
-app.add_middleware(RequestContextMiddleware)
-
-logger = get_logger(__name__)
-
-
-@app.exception_handler(RequestValidationError)
-async def request_validation_error_handler(request: Request, exc: RequestValidationError):
-    req_body = await request.json()
-    dumper = get_dumper()
-    handles = dumper.begin(request=request, payload=req_body)
-    logger.debug('validation error', body=req_body)
-    try:
-        error_msg = f'request validation error: {str(exc.errors())}'
-        dumper.write_response_chunk(handles, error_msg)
-        return ORJSONResponse(status_code=400, content={'type': 'error', 'error': {'type': 'invalid_request_error', 'message': error_msg}})
-    finally:
-        dumper.close(handles)
+# Create the application instance
+app = create_app()
 
 
 if __name__ == '__main__':
     import uvicorn
+
+    # Get config from the app instance
+    config = app.state.config
 
     uvicorn.run(
         'main:app',

@@ -1,4 +1,3 @@
-import contextvars
 import uuid
 from typing import Callable
 
@@ -20,30 +19,22 @@ class RequestContextMiddleware(BaseHTTPMiddleware):
         self.correlation_header = correlation_header
 
     async def dispatch(self, request: Request, call_next: Callable) -> Response:
-        # Create request context
+        # Create or use existing correlation ID
         correlation_id = request.headers.get(self.correlation_header)
         if not correlation_id:
-            # For FastAPI requests, use normal UUID (32 characters)
             correlation_id = uuid.uuid4().hex
 
+        # Create request context
         context = RequestContext(correlation_id=correlation_id, path=str(request.url.path), method=request.method)
 
         # Store in request state for access by dependencies
         request.state.request_context = context
 
-        # Capture current context and run request within it
-        ctx = contextvars.copy_context()
-        request.state.ctx = ctx
-
-        # Run request with context set
-        response = await ctx.run(self._run_with_context, request, call_next, context)
+        # Set context variable and process request
+        request_context_var.set(context)
+        response = await call_next(request)
 
         # Add correlation ID to response headers
         response.headers[self.correlation_header] = context.correlation_id
 
         return response
-
-    async def _run_with_context(self, request: Request, call_next: Callable, context: RequestContext) -> Response:
-        """Run request with context set in ContextVar."""
-        request_context_var.set(context)
-        return await call_next(request)

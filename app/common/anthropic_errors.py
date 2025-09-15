@@ -1,5 +1,7 @@
 """Anthropic API error handling utilities."""
 
+import httpx
+
 
 def map_http_status_to_anthropic_error(status_code: int) -> str:
     """Map HTTP status codes to Anthropic error types."""
@@ -16,7 +18,7 @@ def map_http_status_to_anthropic_error(status_code: int) -> str:
     return mapping.get(status_code, 'api_error')
 
 
-def extract_error_message(http_error) -> str:
+def extract_error_message(http_error: httpx.HTTPStatusError) -> str:
     """Extract error message from HTTP response."""
     try:
         if hasattr(http_error.response, 'text') and http_error.response.text:

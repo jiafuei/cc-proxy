@@ -2,7 +2,7 @@
 
 from typing import Dict, Optional
 
-from app.config import get_config
+from app.config import ConfigurationService
 from app.config.log import get_logger
 from app.config.user_models import RoutingConfig, UserConfig
 from app.services.config.simple_user_config_manager import get_user_config_manager
@@ -16,8 +16,9 @@ logger = get_logger(__name__)
 class ServiceContainer:
     """Service container that manages providers, routing, and basic services."""
 
-    def __init__(self):
-        self.app_config = get_config()
+    def __init__(self, config_service: Optional[ConfigurationService] = None):
+        self.config_service = config_service or ConfigurationService()
+        self.app_config = self.config_service.get_config()
 
         # Core components
         self.transformer_loader: Optional[TransformerLoader] = None
@@ -116,11 +117,11 @@ class ServiceContainer:
 _service_container: Optional[ServiceContainer] = None
 
 
-def get_service_container() -> ServiceContainer:
+def get_service_container(config_service: Optional[ConfigurationService] = None) -> ServiceContainer:
     """Get the global service container instance."""
     global _service_container
 
     if _service_container is None:
-        _service_container = ServiceContainer()
+        _service_container = ServiceContainer(config_service)
 
     return _service_container

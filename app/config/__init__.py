@@ -1,28 +1,49 @@
-import threading
+from typing import Optional
 
 from app.common.utils import get_app_dir
 from app.config.models import ConfigModel
 
-_config_lock = threading.Lock()
 
-# Global config instance
-_config: ConfigModel | None = None
+class ConfigurationService:
+    """Configuration service that manages config loading without global state."""
+
+    def __init__(self, config_path: Optional[str] = None):
+        """Initialize configuration service with optional config path."""
+        self.config_path = config_path
+        self._config = self._load_config()
+
+    def _load_config(self) -> ConfigModel:
+        """Load configuration from file."""
+        return ConfigModel.load(self.config_path)
+
+    def get_config(self) -> ConfigModel:
+        """Get the configuration instance."""
+        return self._config
+
+    def reload_config(self) -> ConfigModel:
+        """Reload configuration from file."""
+        self._config = self._load_config()
+        return self._config
 
 
-def reload_config() -> ConfigModel:
-    """Reload the global configuration from file in a thread-safe manner."""
-    global _config
-    with _config_lock:
-        _config = ConfigModel.load()
-        return _config
+# Default configuration service instance for backward compatibility
+_default_config_service: Optional[ConfigurationService] = None
 
 
 def get_config() -> ConfigModel:
-    """Get the global configuration instance, loading it if not already loaded."""
-    global _config
-    if not _config:
-        return reload_config()
-    return _config
+    """Get the default configuration instance (backward compatibility)."""
+    global _default_config_service
+    if _default_config_service is None:
+        _default_config_service = ConfigurationService()
+    return _default_config_service.get_config()
+
+
+def reload_config() -> ConfigModel:
+    """Reload the default configuration (backward compatibility)."""
+    global _default_config_service
+    if _default_config_service is None:
+        _default_config_service = ConfigurationService()
+    return _default_config_service.reload_config()
 
 
 def setup_config() -> None:
