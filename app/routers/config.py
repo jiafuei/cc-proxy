@@ -3,13 +3,13 @@
 from typing import Any, Dict
 
 import yaml
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
 from app.common.yaml_utils import safe_load_with_env
 from app.config.log import get_logger
 from app.config.user_models import UserConfig
-from app.dependencies.service_container import get_service_container
+from app.dependencies import get_service_container_dependency
 from app.services.config.simple_user_config_manager import get_user_config_manager
 
 router = APIRouter(prefix='/api', tags=['Configuration'])
@@ -51,7 +51,7 @@ async def reload_configuration() -> Dict[str, Any]:
 
 
 @router.get('/config/status')
-async def get_configuration_status() -> Dict[str, Any]:
+async def get_configuration_status(service_container = Depends(get_service_container_dependency)) -> Dict[str, Any]:
     """Get current configuration status and information.
 
     Returns:
@@ -63,8 +63,6 @@ async def get_configuration_status() -> Dict[str, Any]:
 
         # Add simple system information
         try:
-            service_container = get_service_container()
-
             # Create routing summary from the service container
             routing_summary = {}
             if service_container.provider_manager and service_container.router:
@@ -98,7 +96,7 @@ async def get_configuration_status() -> Dict[str, Any]:
 
 
 @router.get('/config/validate')
-async def validate_configuration() -> Dict[str, Any]:
+async def validate_configuration(service_container = Depends(get_service_container_dependency)) -> Dict[str, Any]:
     """Validate current configuration without reloading.
 
     Returns:
@@ -122,8 +120,6 @@ async def validate_configuration() -> Dict[str, Any]:
 
         # Get simple system validation if available
         try:
-            service_container = get_service_container()
-
             # Basic validation of service container state
             if not service_container.provider_manager:
                 errors.append('System validation failed: Provider manager not initialized')

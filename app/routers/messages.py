@@ -1,3 +1,4 @@
+from typing import Annotated
 import httpx
 import orjson
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -9,15 +10,21 @@ from app.common.models import AnthropicRequest
 from app.common.sse_converter import convert_json_to_sse
 from app.common.vars import get_request_context
 from app.config.log import get_logger
+from app.dependencies import get_service_container_dependency
 from app.dependencies.dumper import get_dumper
-from app.dependencies.service_container import get_service_container
+from app.dependencies.service_container import ServiceContainer
 
 router = APIRouter()
 logger = get_logger(__name__)
 
 
 @router.post('/v1/messages')
-async def messages(payload: AnthropicRequest, request: Request, dumper: Dumper = Depends(get_dumper)):
+async def messages(
+    payload: AnthropicRequest, 
+    request: Request, 
+    service_container: ServiceContainer = Depends(get_service_container_dependency),
+    dumper: Dumper =  Depends(get_dumper),
+):
     """Handle Anthropic API messages with unified context."""
 
     # Context is already created by middleware
@@ -30,14 +37,9 @@ async def messages(payload: AnthropicRequest, request: Request, dumper: Dumper =
             payload.max_tokens = min(32000, payload.thinking.budget_tokens + 1)
 
     # Phase 1: Validation
-    try:
-        service_container = get_service_container()
-        if not service_container:
-            logger.error('Service container not available - check configuration')
-            return ORJSONResponse({'error': {'type': 'api_error', 'message': 'Service configuration failed'}}, status_code=500)
-    except Exception as e:
-        logger.error(f'Service container initialization failed: {e}')
-        return ORJSONResponse({'error': {'type': 'api_error', 'message': 'Service initialization failed'}}, status_code=500)
+    if not service_container:
+        logger.error('Service container not available - check configuration')
+        return ORJSONResponse({'error': {'type': 'api_error', 'message': 'Service configuration failed'}}, status_code=500)
 
     # Get routing result - context is automatically updated
     routing_result = service_container.router.get_provider_for_request(payload)
@@ -84,11 +86,15 @@ async def messages(payload: AnthropicRequest, request: Request, dumper: Dumper =
 
 
 @router.post('/v1/messages/count_tokens')
-async def count_tokens(payload: AnthropicRequest, request: Request, dumper: Dumper = Depends(get_dumper)):
+async def count_tokens(
+    payload: AnthropicRequest, 
+    request: Request, 
+    service_container: ServiceContainer = Depends(get_service_container_dependency),
+    dumper: Dumper =  Depends(get_dumper),
+):
     """Handle Anthropic API messages count requests with transparent routing to provider."""
 
     # Get the service container (router + providers)
-    service_container = get_service_container()
     if not service_container:
         logger.error('Service container not available - check configuration')
         raise HTTPException(status_code=500, detail={'error': {'type': 'api_error', 'message': 'Service configuration failed'}})
