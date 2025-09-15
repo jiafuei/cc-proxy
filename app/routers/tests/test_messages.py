@@ -8,6 +8,7 @@ from fastapi.testclient import TestClient
 
 from app.common.dumper import DumpFiles, DumpHandles
 from app.dependencies.dumper import get_dumper
+from app.dependencies import get_service_container_dependency
 from app.routers.messages import router
 from app.services.router import RoutingResult
 
@@ -154,18 +155,19 @@ def test_messages_endpoint(test_client, mock_router_with_provider, mock_dumper):
             self.router = mock_router_with_provider
             self.dumper = mock_dumper
 
-    with patch('app.routers.messages.get_service_container') as mock_get_container:
-        mock_get_container.return_value = MockServiceContainer()
+    # Override the dependency to inject our mock service container
+    test_client.app.dependency_overrides[get_service_container_dependency] = lambda: MockServiceContainer()
+    test_client.app.dependency_overrides[get_dumper] = lambda: mock_dumper
 
-        response = test_client.post('/v1/messages', json={'model': 'test-model', 'messages': [{'role': 'user', 'content': 'Hello'}], 'stream': True})
+    response = test_client.post('/v1/messages', json={'model': 'test-model', 'messages': [{'role': 'user', 'content': 'Hello'}], 'stream': True})
 
-        assert response.status_code == 200
-        assert response.headers['content-type'] == 'text/event-stream; charset=utf-8'
+    assert response.status_code == 200
+    assert response.headers['content-type'] == 'text/event-stream; charset=utf-8'
 
-        content = response.content.decode()
-        assert 'event: message_start' in content
-        assert 'event: message_stop' in content
-        assert 'Hello from test!' in content
+    content = response.content.decode()
+    assert 'event: message_start' in content
+    assert 'event: message_stop' in content
+    assert 'Hello from test!' in content
 
 
 def test_messages_count_endpoint(test_client, mock_count_provider, mock_dumper):
@@ -179,23 +181,21 @@ def test_messages_count_endpoint(test_client, mock_count_provider, mock_dumper):
         def __init__(self):
             self.router = MockRouter()
 
-    with patch('app.routers.messages.get_service_container') as mock_get_container:
-        mock_service_container = MockServiceContainer()
-        mock_get_container.return_value = mock_service_container
+    mock_service_container = MockServiceContainer()
+    test_client.app.dependency_overrides[get_service_container_dependency] = lambda: mock_service_container
+    test_client.app.dependency_overrides[get_dumper] = lambda: mock_dumper
 
-        test_client.app.dependency_overrides[get_dumper] = lambda: mock_dumper
+    response = test_client.post('/v1/messages/count_tokens', json={'model': 'test-model', 'messages': [{'role': 'user', 'content': 'Hello'}]})
 
-        response = test_client.post('/v1/messages/count_tokens', json={'model': 'test-model', 'messages': [{'role': 'user', 'content': 'Hello'}]})
+    assert response.status_code == 200
+    assert response.headers['content-type'] == 'application/json'
 
-        assert response.status_code == 200
-        assert response.headers['content-type'] == 'application/json'
-
-        json_response = response.json()
-        assert 'input_tokens' in json_response
-        assert 'output_tokens' in json_response
-        assert 'total_tokens' in json_response
-        assert json_response['input_tokens'] == 10
-        assert json_response['total_tokens'] == 10
+    json_response = response.json()
+    assert 'input_tokens' in json_response
+    assert 'output_tokens' in json_response
+    assert 'total_tokens' in json_response
+    assert json_response['input_tokens'] == 10
+    assert json_response['total_tokens'] == 10
 
 
 def test_messages_endpoint_no_provider(test_client, mock_router_no_provider):
@@ -206,14 +206,15 @@ def test_messages_endpoint_no_provider(test_client, mock_router_no_provider):
             self.router = mock_router_no_provider
             self.dumper = Mock()
 
-    with patch('app.routers.messages.get_service_container') as mock_get_container:
-        mock_get_container.return_value = MockServiceContainer()
+    mock_dumper_instance = Mock()
+    test_client.app.dependency_overrides[get_service_container_dependency] = lambda: MockServiceContainer()
+    test_client.app.dependency_overrides[get_dumper] = lambda: mock_dumper_instance
 
-        response = test_client.post('/v1/messages', json={'model': 'test-model', 'messages': [{'role': 'user', 'content': 'Hello'}], 'stream': True})
+    response = test_client.post('/v1/messages', json={'model': 'test-model', 'messages': [{'role': 'user', 'content': 'Hello'}], 'stream': True})
 
-        assert response.status_code == 400
-        response_data = response.json()
-        assert response_data['error']['type'] == 'model_not_found'
+    assert response.status_code == 400
+    response_data = response.json()
+    assert response_data['error']['type'] == 'model_not_found'
 
 
 @pytest.mark.parametrize(

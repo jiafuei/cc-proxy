@@ -1,6 +1,6 @@
 """Integration tests for end-to-end flows, configuration management, and resource handling."""
 
-from unittest.mock import Mock, patch
+from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 from fastapi.testclient import TestClient
@@ -16,7 +16,7 @@ class TestEndToEndRequestFlow:
     @pytest.fixture
     def mock_provider(self):
         """Create a mock provider that simulates realistic behavior."""
-        provider = Mock()
+        provider = AsyncMock()
         provider.config = Mock()
         provider.config.name = 'test-provider'
 
@@ -37,7 +37,24 @@ class TestEndToEndRequestFlow:
     @pytest.fixture
     def mock_service_container(self, mock_provider):
         """Create a realistic service container mock."""
-        return TestServiceFactory.create_test_service_container()
+        container = Mock()
+        
+        # Create config service with real ConfigModel
+        from app.tests.utils import TestServiceFactory
+        config_service = TestServiceFactory.create_test_config_service()
+        container.config_service = config_service
+        
+        # Create router that returns the mock provider
+        router = Mock()
+        router.get_provider_for_request.return_value = RoutingResult(
+            provider=mock_provider,
+            routing_key='default',
+            model_alias='test-model',
+            resolved_model_id='claude-3-haiku'
+        )
+        container.router = router
+        
+        return container
 
     @pytest.fixture
     def mock_dumper(self):
@@ -142,23 +159,37 @@ class TestConfigurationIntegration:
     )
     def test_config_validation_scenarios(self, config_data, should_be_valid):
         """Test configuration validation through API endpoint."""
+        from app.tests.utils import create_test_user_config, TestUserConfigManager
+        from app.services.config.simple_user_config_manager import set_user_config_manager
+        from app.config.user_models import UserConfig, ProviderConfig
+        
+        # Create test user config based on the test data
+        test_providers = []
+        for provider_data in config_data.get('providers', []):
+            # Add required 'type' field that's missing in test data
+            provider_data_with_type = provider_data.copy()
+            if 'type' not in provider_data_with_type:
+                provider_data_with_type['type'] = 'anthropic'  # Default for tests
+            test_providers.append(ProviderConfig(**provider_data_with_type))
+        
+        test_user_config = UserConfig(providers=test_providers)
+        test_config_manager = TestUserConfigManager(test_user_config)
+        set_user_config_manager(test_config_manager)
+        
         # Use test app factory for proper DI
-        app = create_test_app_with_mocks()
+        app = create_test_app_with_mocks(user_config=test_user_config)
         client = TestClient(app)
 
-        with patch('app.config.get_config') as mock_get_config:
-            if should_be_valid:
-                mock_get_config.return_value = Mock(dict=lambda: config_data)
-                response = client.get('/api/config/validate')
-                assert response.status_code == 200
-                data = response.json()
-                assert 'valid' in data
-            else:
-                mock_get_config.side_effect = Exception('Invalid configuration')
-                response = client.get('/api/config/validate')
-                assert response.status_code == 200
-                data = response.json()
-                assert 'errors' in data
+        response = client.get('/api/config/validate')
+        assert response.status_code == 200
+        data = response.json()
+        
+        if should_be_valid:
+            assert 'valid' in data
+            # Note: The test might still show warnings but should be structurally valid
+        else:
+            # For invalid URL test case, check that validation catches issues
+            assert 'errors' in data or ('valid' in data and not data['valid'])
 
 
 class TestErrorHandling:
@@ -166,10 +197,6 @@ class TestErrorHandling:
 
     def test_concurrent_requests_stability(self):
         """Test system stability under concurrent load."""
-        # Use test app factory for proper DI
-        app = create_test_app_with_mocks()
-        client = TestClient(app)
-
         # Mock dumper for dependency injection
         mock_dumper = Mock()
         mock_dumper.begin.return_value = DumpHandles(files=DumpFiles(), correlation_id='test-correlation-id', base_path='/tmp')
@@ -189,11 +216,18 @@ class TestErrorHandling:
             }
 
         mock_provider.process_operation = mock_process
+        mock_container.router = Mock()
         mock_container.router.get_provider_for_request.return_value = RoutingResult(
             provider=mock_provider, routing_key='default', model_alias='test', resolved_model_id='test-model'
         )
+        
+        # Add config service to mock container
+        from app.tests.utils import TestServiceFactory
+        mock_container.config_service = TestServiceFactory.create_test_config_service()
 
-        # The app already has mocked dependencies from create_test_app_with_mocks()
+        # Use test app factory with the mock container
+        app = create_test_app_with_mocks(service_container=mock_container)
+        client = TestClient(app)
 
         responses = []
         for i in range(5):  # Simulate concurrent requests
