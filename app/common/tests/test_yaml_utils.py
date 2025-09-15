@@ -12,78 +12,56 @@ from app.common.yaml_utils import safe_load_with_env
 class TestEnvVarLoader:
     """Test the custom YAML loader with !env tag support."""
 
-    def test_required_env_var_present(self):
-        """Test loading a required environment variable that exists."""
-        yaml_content = """
-        api_key: !env TEST_API_KEY
-        """
+    @pytest.mark.parametrize("scenario,yaml_content,env_vars,expected_result,should_raise,error_match", [
+        # Basic environment variable scenarios
+        ("required env var present",
+         "api_key: !env TEST_API_KEY",
+         {'TEST_API_KEY': 'secret-key-123'},
+         {'api_key': 'secret-key-123'},
+         False, None),
+        ("required env var missing",
+         "api_key: !env MISSING_API_KEY",
+         {},
+         None,
+         True, "Required environment variable 'MISSING_API_KEY' is not set"),
+        ("optional env var present",
+         "port: !env [TEST_PORT, 8000]",
+         {'TEST_PORT': '9000'},
+         {'port': '9000'},
+         False, None),
+        ("optional env var missing with defaults",
+         "port: !env [MISSING_PORT, 8000]\ntimeout: !env [MISSING_TIMEOUT, null]",
+         {},
+         {'port': 8000, 'timeout': None},
+         False, None),
+    ])
+    def test_env_var_scenarios(self, scenario, yaml_content, env_vars, expected_result, should_raise, error_match):
+        """Test environment variable loading scenarios."""
+        with patch.dict(os.environ, env_vars, clear=True):
+            if should_raise:
+                with pytest.raises(ValueError, match=error_match):
+                    safe_load_with_env(yaml_content)
+            else:
+                result = safe_load_with_env(yaml_content)
+                assert result == expected_result
 
-        with patch.dict(os.environ, {'TEST_API_KEY': 'secret-key-123'}):
+    @pytest.mark.parametrize("test_type,yaml_content,env_vars,validation", [
+        # Type preservation when using defaults
+        ("default types preserved",
+         "string_val: !env [TEST_STRING, 'default_string']\nint_val: !env [TEST_INT, 42]\nbool_val: !env [TEST_BOOL, true]\nfloat_val: !env [TEST_FLOAT, 3.14]\nnull_val: !env [TEST_NULL, null]",
+         {},
+         lambda r: r['string_val'] == 'default_string' and r['int_val'] == 42 and r['bool_val'] is True and r['float_val'] == 3.14 and r['null_val'] is None),
+        # Environment variables override as strings
+        ("env overrides as strings",
+         "port: !env [TEST_PORT, 8000]\nenabled: !env [TEST_ENABLED, false]",
+         {'TEST_PORT': '9000', 'TEST_ENABLED': 'true'},
+         lambda r: r['port'] == '9000' and r['enabled'] == 'true'),
+    ])
+    def test_type_handling(self, test_type, yaml_content, env_vars, validation):
+        """Test type handling for environment variables and defaults."""
+        with patch.dict(os.environ, env_vars, clear=True):
             result = safe_load_with_env(yaml_content)
-            assert result['api_key'] == 'secret-key-123'
-
-    def test_required_env_var_missing(self):
-        """Test loading a required environment variable that doesn't exist."""
-        yaml_content = """
-        api_key: !env MISSING_API_KEY
-        """
-
-        with patch.dict(os.environ, {}, clear=True):
-            with pytest.raises(ValueError, match="Required environment variable 'MISSING_API_KEY' is not set"):
-                safe_load_with_env(yaml_content)
-
-    def test_optional_env_var_present(self):
-        """Test loading an optional environment variable that exists."""
-        yaml_content = """
-        port: !env [TEST_PORT, 8000]
-        """
-
-        with patch.dict(os.environ, {'TEST_PORT': '9000'}):
-            result = safe_load_with_env(yaml_content)
-            assert result['port'] == '9000'
-
-    def test_optional_env_var_missing_with_default(self):
-        """Test loading an optional environment variable with default value."""
-        yaml_content = """
-        port: !env [MISSING_PORT, 8000]
-        timeout: !env [MISSING_TIMEOUT, null]
-        """
-
-        with patch.dict(os.environ, {}, clear=True):
-            result = safe_load_with_env(yaml_content)
-            assert result['port'] == 8000
-            assert result['timeout'] is None
-
-    def test_env_var_types(self):
-        """Test that environment variables maintain their YAML types when using defaults."""
-        yaml_content = """
-        string_val: !env [TEST_STRING, "default_string"]
-        int_val: !env [TEST_INT, 42]
-        bool_val: !env [TEST_BOOL, true]
-        float_val: !env [TEST_FLOAT, 3.14]
-        null_val: !env [TEST_NULL, null]
-        """
-
-        with patch.dict(os.environ, {}, clear=True):
-            result = safe_load_with_env(yaml_content)
-            assert result['string_val'] == 'default_string'
-            assert result['int_val'] == 42
-            assert result['bool_val'] is True
-            assert result['float_val'] == 3.14
-            assert result['null_val'] is None
-
-    def test_env_var_overrides_default_types(self):
-        """Test that environment variable values are always strings, regardless of default type."""
-        yaml_content = """
-        port: !env [TEST_PORT, 8000]
-        enabled: !env [TEST_ENABLED, false]
-        """
-
-        with patch.dict(os.environ, {'TEST_PORT': '9000', 'TEST_ENABLED': 'true'}):
-            result = safe_load_with_env(yaml_content)
-            # Environment variables are always strings
-            assert result['port'] == '9000'  # String, not int
-            assert result['enabled'] == 'true'  # String, not bool
+            assert validation(result)
 
     @pytest.mark.parametrize('invalid_sequence,description', [('[SINGLE_ITEM]', 'too few items'), ('[VAR_NAME, default, extra_item]', 'too many items')])
     def test_invalid_sequence_lengths(self, invalid_sequence, description):

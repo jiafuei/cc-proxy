@@ -229,116 +229,57 @@ cc28d87 feat: [ai] update Anthropic headers transformer to prefer x-api-key over
         assert result_request == request
         assert result_headers == headers
 
-    def test_remove_system_git_status_suffix(self, transformer):
+    @pytest.mark.parametrize("input_text,expected_output", [
+        # Normal case with git status suffix
+        ('You are Claude Code, an AI assistant.\nSome instructions here.\n\ngitStatus: This is the git status at the start of the conversation. Note that this status is a snapshot in time, and will not update during the conversation.\nCurrent branch: master\n\nMain branch: master\n\nStatus:\nmodified: file.py\n\nRecent commits:\nabc123 Latest commit',
+         'You are Claude Code, an AI assistant.\nSome instructions here.\n'),
+        # No git status suffix - should remain unchanged
+        ('You are Claude Code, an AI assistant.\nSome instructions here.',
+         'You are Claude Code, an AI assistant.\nSome instructions here.'),
+        # Empty text - should handle gracefully
+        ('', ''),
+        # Multiple gitStatus occurrences - should truncate at last one
+        ('Instructions.\ngitStatus: old status\nMore text.\ngitStatus: This is the git status at the start\nCurrent branch: master',
+         'Instructions.\ngitStatus: old status\nMore text.'),
+        # gitStatus at the beginning (no leading newline)
+        ('gitStatus: This is git status at start\nMore content after',
+         'gitStatus: This is git status at start\nMore content after'),
+        # gitStatus with exact newline prefix match
+        ('Some content\ngitStatus: Exact match\nMore git info',
+         'Some content'),
+    ])
+    def test_remove_system_git_status_suffix(self, transformer, input_text, expected_output):
         """Test removal of git status suffix from system messages."""
-        # Test case 1: Normal case with git status suffix
-        text_with_git_status = 'You are Claude Code, an AI assistant.\nSome instructions here.\n\ngitStatus: This is the git status at the start of the conversation. Note that this status is a snapshot in time, and will not update during the conversation.\nCurrent branch: master\n\nMain branch: master\n\nStatus:\nmodified: file.py\n\nRecent commits:\nabc123 Latest commit'
+        result = transformer._remove_system_git_status_suffix(input_text)
+        assert result == expected_output
 
-        result = transformer._remove_system_git_status_suffix(text_with_git_status)
-
-        expected_text = 'You are Claude Code, an AI assistant.\nSome instructions here.\n'
-        assert result == expected_text
-
-        # Test case 2: No git status suffix - should remain unchanged
-        text_no_git_status = 'You are Claude Code, an AI assistant.\nSome instructions here.'
-        result_no_git = transformer._remove_system_git_status_suffix(text_no_git_status)
-        assert result_no_git == text_no_git_status
-
-        # Test case 3: Empty text - should handle gracefully
-        result_empty = transformer._remove_system_git_status_suffix('')
-        assert result_empty == ''
-
-        # Test case 4: Multiple gitStatus occurrences - should truncate at last one
-        text_multiple_git_status = 'Instructions.\ngitStatus: old status\nMore text.\ngitStatus: This is the git status at the start\nCurrent branch: master'
-        result_multiple = transformer._remove_system_git_status_suffix(text_multiple_git_status)
-        expected_text_multiple = 'Instructions.\ngitStatus: old status\nMore text.'
-        assert result_multiple == expected_text_multiple
-
-        # Test case 5: gitStatus at the beginning (no leading newline)
-        text_git_at_start = 'gitStatus: This is git status at start\nMore content after'
-        result_git_start = transformer._remove_system_git_status_suffix(text_git_at_start)
-        # Should not remove gitStatus without leading newline
-        assert result_git_start == text_git_at_start
-
-        # Test case 6: gitStatus with exact newline prefix match
-        text_exact_match = 'Some content\ngitStatus: Exact match\nMore git info'
-        result_exact = transformer._remove_system_git_status_suffix(text_exact_match)
-        expected_exact = 'Some content'
-        assert result_exact == expected_exact
-
-    def test_remove_defensive_task_lines_basic(self, transformer):
-        """Test removal of basic defensive task lines."""
-        text_with_defensive = """You are Claude Code, an AI assistant.
-IMPORTANT: Assist with defensive security tasks only.
-Some other instructions here.
-You are powered by the model named Sonnet 4.
-More instructions.
-Assistant knowledge cutoff is January 2025.
-Final instructions."""
-
-        result = transformer._remove_defensive_task_lines(text_with_defensive)
-
-        expected_lines = ['You are Claude Code, an AI assistant.', 'Some other instructions here.', 'More instructions.', 'Final instructions.']
-        assert result == '\n'.join(expected_lines)
-
-    def test_remove_defensive_task_lines_partial_matches(self, transformer):
-        """Test that lines are removed based on prefix matching."""
-        text_with_partial = """Instructions here.
-IMPORTANT: Assist with defensive operations and security.
-You are powered by advanced AI technology.
-Assistant knowledge cutoff date is recent.
-More content."""
-
-        result = transformer._remove_defensive_task_lines(text_with_partial)
-
-        expected_lines = ['Instructions here.', 'More content.']
-        assert result == '\n'.join(expected_lines)
-
-    def test_remove_defensive_task_lines_no_matches(self, transformer):
-        """Test text with no defensive lines to remove."""
-        text_no_defensive = """You are Claude Code, an AI assistant.
-Help users with coding tasks.
-Provide accurate information.
-Be helpful and concise."""
-
-        result = transformer._remove_defensive_task_lines(text_no_defensive)
-
-        assert result == text_no_defensive
-
-    def test_remove_defensive_task_lines_empty_text(self, transformer):
-        """Test with empty text."""
-        result = transformer._remove_defensive_task_lines('')
-        assert result == ''
-
-    def test_remove_defensive_task_lines_single_line_removal(self, transformer):
-        """Test removal of individual defensive line types."""
-        # Test IMPORTANT: Assist with defensive removal
-        text1 = 'Normal line\nIMPORTANT: Assist with defensive tasks\nAnother normal line'
-        result1 = transformer._remove_defensive_task_lines(text1)
-        assert result1 == 'Normal line\nAnother normal line'
-
-        # Test You are powered removal
-        text2 = 'Normal line\nYou are powered by Claude\nAnother normal line'
-        result2 = transformer._remove_defensive_task_lines(text2)
-        assert result2 == 'Normal line\nAnother normal line'
-
-        # Test Assistant knowledge cutoff removal
-        text3 = 'Normal line\nAssistant knowledge cutoff is recent\nAnother normal line'
-        result3 = transformer._remove_defensive_task_lines(text3)
-        assert result3 == 'Normal line\nAnother normal line'
-
-    def test_remove_defensive_task_lines_case_sensitivity(self, transformer):
-        """Test that removal is case sensitive (only matches exact prefix)."""
-        text_different_case = """Normal line.
-important: assist with defensive tasks
-YOU ARE POWERED by something
-assistant knowledge cutoff info
-More content."""
-
-        result = transformer._remove_defensive_task_lines(text_different_case)
-
-        # Should remain unchanged since case doesn't match
-        assert result == text_different_case
+    @pytest.mark.parametrize("input_text,expected_output", [
+        # Basic defensive lines removal
+        ("You are Claude Code, an AI assistant.\nIMPORTANT: Assist with defensive security tasks only.\nSome other instructions here.\nYou are powered by the model named Sonnet 4.\nMore instructions.\nAssistant knowledge cutoff is January 2025.\nFinal instructions.",
+         "You are Claude Code, an AI assistant.\nSome other instructions here.\nMore instructions.\nFinal instructions."),
+        # Partial matches with prefix
+        ("Instructions here.\nIMPORTANT: Assist with defensive operations and security.\nYou are powered by advanced AI technology.\nAssistant knowledge cutoff date is recent.\nMore content.",
+         "Instructions here.\nMore content."),
+        # No defensive lines to remove
+        ("You are Claude Code, an AI assistant.\nHelp users with coding tasks.\nProvide accurate information.\nBe helpful and concise.",
+         "You are Claude Code, an AI assistant.\nHelp users with coding tasks.\nProvide accurate information.\nBe helpful and concise."),
+        # Empty text
+        ("", ""),
+        # Individual line types
+        ("Normal line\nIMPORTANT: Assist with defensive tasks\nAnother normal line",
+         "Normal line\nAnother normal line"),
+        ("Normal line\nYou are powered by Claude\nAnother normal line",
+         "Normal line\nAnother normal line"),
+        ("Normal line\nAssistant knowledge cutoff is recent\nAnother normal line",
+         "Normal line\nAnother normal line"),
+        # Case sensitivity - should remain unchanged
+        ("Normal line.\nimportant: assist with defensive tasks\nYOU ARE POWERED by something\nassistant knowledge cutoff info\nMore content.",
+         "Normal line.\nimportant: assist with defensive tasks\nYOU ARE POWERED by something\nassistant knowledge cutoff info\nMore content."),
+    ])
+    def test_remove_defensive_task_lines(self, transformer, input_text, expected_output):
+        """Test removal of defensive task lines with various scenarios."""
+        result = transformer._remove_defensive_task_lines(input_text)
+        assert result == expected_output
 
     @pytest.mark.asyncio
     async def test_transform_integration_with_both_cleaners(self, transformer):
@@ -382,46 +323,28 @@ abc123 Latest commit"""
         assert 'Some instructions here.' in cleaned_text
         assert 'Final instructions.' in cleaned_text
 
+    @pytest.mark.parametrize("test_request,headers,description", [
+        # Empty system array
+        ({'model': 'claude-sonnet-4-20250514', 'system': []}, 
+         {'authorization': 'Bearer test-key'}, 
+         "empty system array"),
+        # Missing system key
+        ({'model': 'claude-sonnet-4-20250514', 'messages': []}, 
+         {'content-type': 'application/json'}, 
+         "missing system key"),
+        # Non-string system text
+        ({'model': 'claude-sonnet-4-20250514', 'system': [{'type': 'text', 'text': 12345}]}, 
+         {}, 
+         "non-string system text"),
+    ])
     @pytest.mark.asyncio
-    async def test_transform_with_empty_system_array(self, transformer):
-        """Test transform handles empty system array gracefully."""
-        request = {'model': 'claude-sonnet-4-20250514', 'system': []}
-        headers = {'authorization': 'Bearer test-key'}
-        params = {'request': request, 'headers': headers}
-
+    async def test_transform_edge_cases(self, transformer, test_request, headers, description):
+        """Test transform handles edge cases gracefully."""
+        params = {'request': test_request, 'headers': headers}
         result_request, result_headers = await transformer.transform(params)
-
-        # Should return unchanged
-        assert result_request == request
-        assert result_headers == headers
-
-    @pytest.mark.asyncio
-    async def test_transform_with_missing_system_key(self, transformer):
-        """Test transform handles missing system key gracefully."""
-        request = {'model': 'claude-sonnet-4-20250514', 'messages': []}
-        headers = {'content-type': 'application/json'}
-        params = {'request': request, 'headers': headers}
-
-        result_request, result_headers = await transformer.transform(params)
-
-        # Should return unchanged
-        assert result_request == request
-        assert result_headers == headers
-
-    @pytest.mark.asyncio
-    async def test_transform_with_non_string_system_text(self, transformer):
-        """Test transform handles non-string text content gracefully."""
-        request = {
-            'model': 'claude-sonnet-4-20250514',
-            'system': [{'type': 'text', 'text': 12345}],  # Non-string content
-        }
-        headers = {}
-        params = {'request': request, 'headers': headers}
-
-        result_request, result_headers = await transformer.transform(params)
-
-        # Should return unchanged since text is not a string
-        assert result_request['system'][0]['text'] == 12345
+        
+        # Should return unchanged for all edge cases
+        assert result_request == test_request
         assert result_headers == headers
 
     @pytest.mark.asyncio

@@ -2,6 +2,8 @@
 
 from unittest.mock import Mock, patch
 
+import pytest
+
 from app.common.models import AnthropicRequest
 from app.common.models.anthropic import AnthropicSystemMessage
 from app.config.user_models import RoutingConfig
@@ -19,39 +21,87 @@ def test_routing_config():
     assert config.builtin_tools == 'claude-3-5-sonnet'
 
 
-def test_request_inspector_planning():
-    """Test request inspector identifies planning requests via plan mode activation."""
+@pytest.mark.parametrize("test_scenario,request_params,expected_routing", [
+    # Basic routing scenarios
+    ("planning via plan mode", 
+     {'messages': [{'role': 'user', 'content': '<system-reminder>\nPlan mode is active. Create a detailed plan'}]}, 
+     'planning'),
+    ("background via low max_tokens", 
+     {'max_tokens': 500, 'messages': [{'role': 'user', 'content': 'Analyze this data'}]}, 
+     'background'),
+    ("default routing", 
+     {'messages': [{'role': 'user', 'content': 'Hello, how are you?'}]}, 
+     'default'),
+    # Plan mode variations
+    ("plan mode string content", 
+     {'messages': [{'role': 'user', 'content': 'Plan mode is active. Build a new feature'}]}, 
+     'planning'),
+    ("plan mode list content", 
+     {'messages': [{'role': 'user', 'content': [{'type': 'text', 'text': 'Plan mode is active'}]}]}, 
+     'planning'),
+    ("plan mode only last user message", 
+     {'messages': [{'role': 'user', 'content': 'Normal message'}, {'role': 'assistant', 'content': 'Response'}, {'role': 'user', 'content': 'Plan mode is active'}]}, 
+     'planning'),
+    ("plan mode partial match ignored", 
+     {'messages': [{'role': 'user', 'content': 'This is not plan mode activation'}]}, 
+     'default'),
+    ("plan mode no user messages", 
+     {'messages': [{'role': 'assistant', 'content': 'Plan mode is active'}]}, 
+     'default'),
+    # Thinking scenarios
+    ("thinking routing", 
+     {'system': [{'type': 'text', 'text': 'thinking_budget_words:1000'}], 'messages': [{'role': 'user', 'content': 'Test'}]}, 
+     'thinking'),
+    ("thinking zero budget ignored", 
+     {'system': [{'type': 'text', 'text': 'thinking_budget_words:0'}], 'messages': [{'role': 'user', 'content': 'Test'}]}, 
+     'default'),
+    ("plan and think combined", 
+     {'system': [{'type': 'text', 'text': 'thinking_budget_words:500'}], 'messages': [{'role': 'user', 'content': 'Plan mode is active'}]}, 
+     'plan_and_think'),
+    ("thinking priority over planning", 
+     {'system': [{'type': 'text', 'text': 'thinking_budget_words:1000'}], 'messages': [{'role': 'user', 'content': 'Plan mode is active'}]}, 
+     'thinking'),
+    # Agent routing scenarios  
+    ("agent routing string system", 
+     {'system': 'use this agent: test_agent', 'messages': [{'role': 'user', 'content': 'Test'}]}, 
+     'agent:test_agent'),
+    ("agent routing list system", 
+     {'system': [{'type': 'text', 'text': 'use this agent: another_agent for task'}], 'messages': [{'role': 'user', 'content': 'Test'}]}, 
+     'agent:another_agent'),
+    ("agent routing no pattern", 
+     {'system': 'no agent pattern here', 'messages': [{'role': 'user', 'content': 'Test'}]}, 
+     'default'),
+    ("agent routing none system", 
+     {'system': None, 'messages': [{'role': 'user', 'content': 'Test'}]}, 
+     'default'),
+    # Builtin tools scenarios
+    ("builtin tools detection", 
+     {'tools': [{'name': 'WebSearch'}, {'name': 'custom'}], 'messages': [{'role': 'user', 'content': 'Test'}]}, 
+     'builtin_tools'),
+    ("builtin tools websearch webfetch", 
+     {'tools': [{'name': 'WebSearch'}, {'name': 'WebFetch'}], 'messages': [{'role': 'user', 'content': 'Test'}]}, 
+     'builtin_tools'),
+    ("builtin tools vs regular tools", 
+     {'tools': [{'name': 'custom_tool'}], 'messages': [{'role': 'user', 'content': 'Test'}]}, 
+     'default'),
+    ("builtin tools empty tools", 
+     {'tools': [], 'messages': [{'role': 'user', 'content': 'Test'}]}, 
+     'default'),
+    ("builtin tools no tools", 
+     {'messages': [{'role': 'user', 'content': 'Test'}]}, 
+     'default'),
+])
+def test_request_inspector_routing_scenarios(test_scenario, request_params, expected_routing):
+    """Test request inspector routing for various scenarios."""
     inspector = RequestInspector()
-
-    # Create a planning request with plan mode activation text
-    request = AnthropicRequest(
-        model='claude-3-sonnet', messages=[{'role': 'user', 'content': '<system-reminder>\nPlan mode is active. Please create a detailed plan for implementing this feature'}]
-    )
-
+    
+    # Set default model if not provided
+    if 'model' not in request_params:
+        request_params['model'] = 'claude-3-sonnet'
+    
+    request = AnthropicRequest(**request_params)
     routing_key = inspector.determine_routing_key(request)
-    assert routing_key == 'planning'
-
-
-def test_request_inspector_background():
-    """Test request inspector identifies background requests."""
-    inspector = RequestInspector()
-
-    # Create a background request with low max_tokens (since keyword matching is currently disabled)
-    request = AnthropicRequest(model='claude-3-sonnet', max_tokens=500, messages=[{'role': 'user', 'content': 'Please analyze this data and generate a report'}])
-
-    routing_key = inspector.determine_routing_key(request)
-    assert routing_key == 'background'
-
-
-def test_request_inspector_default():
-    """Test request inspector defaults to 'default' routing."""
-    inspector = RequestInspector()
-
-    # Create a regular request
-    request = AnthropicRequest(model='claude-3-sonnet', messages=[{'role': 'user', 'content': 'Hello, how are you?'}])
-
-    routing_key = inspector.determine_routing_key(request)
-    assert routing_key == 'default'
+    assert routing_key == expected_routing, f"Failed for scenario: {test_scenario}"
 
 
 def test_simple_router_success():

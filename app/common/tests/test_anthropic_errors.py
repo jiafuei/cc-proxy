@@ -1,5 +1,4 @@
-"""Tests for anthropic_errors utility module."""
-
+import pytest
 from unittest.mock import Mock
 
 from app.common.anthropic_errors import extract_error_message, map_http_status_to_anthropic_error
@@ -8,87 +7,88 @@ from app.common.anthropic_errors import extract_error_message, map_http_status_t
 class TestMapHttpStatusToAnthropicError:
     """Test HTTP status code to Anthropic error type mapping."""
 
-    def test_known_error_codes(self):
-        """Test mapping for known error codes."""
-        assert map_http_status_to_anthropic_error(400) == 'invalid_request_error'
-        assert map_http_status_to_anthropic_error(401) == 'authentication_error'
-        assert map_http_status_to_anthropic_error(403) == 'permission_error'
-        assert map_http_status_to_anthropic_error(404) == 'not_found_error'
-        assert map_http_status_to_anthropic_error(413) == 'request_too_large'
-        assert map_http_status_to_anthropic_error(429) == 'rate_limit_error'
-        assert map_http_status_to_anthropic_error(500) == 'api_error'
-        assert map_http_status_to_anthropic_error(529) == 'overloaded_error'
-
-    def test_unknown_error_codes(self):
-        """Test fallback for unknown error codes."""
-        assert map_http_status_to_anthropic_error(422) == 'api_error'
-        assert map_http_status_to_anthropic_error(503) == 'api_error'
-        assert map_http_status_to_anthropic_error(999) == 'api_error'
+    @pytest.mark.parametrize("status_code,expected_error_type", [
+        # Known error codes
+        (400, 'invalid_request_error'),
+        (401, 'authentication_error'),
+        (403, 'permission_error'),
+        (404, 'not_found_error'),
+        (413, 'request_too_large'),
+        (429, 'rate_limit_error'),
+        (500, 'api_error'),
+        (529, 'overloaded_error'),
+        # Unknown error codes - fallback to api_error
+        (422, 'api_error'),
+        (503, 'api_error'),
+        (999, 'api_error'),
+    ])
+    def test_status_code_mapping(self, status_code, expected_error_type):
+        """Test HTTP status code to error type mapping."""
+        assert map_http_status_to_anthropic_error(status_code) == expected_error_type
 
 
 class TestExtractErrorMessage:
     """Test error message extraction from HTTP responses."""
 
-    def test_extract_from_json_response(self):
-        """Test extracting message from JSON error response."""
-        # Mock httpx.HTTPStatusError with JSON response
+    @pytest.mark.parametrize("scenario,mock_setup,expected_message", [
+        # JSON response with error message
+        ("json_response",
+         lambda: {
+             'text': '{"error": {"message": "Invalid API key"}}',
+             'json_return': {'error': {'message': 'Invalid API key'}},
+             'status_code': 401,
+             'reason_phrase': 'Unauthorized'
+         },
+         'Invalid API key'),
+        # Fallback with response text (no error key)
+        ("fallback_with_text",
+         lambda: {
+             'text': 'Rate limit exceeded',
+             'json_return': {'message': 'Rate limit exceeded'},
+             'status_code': 429,
+             'reason_phrase': 'Too Many Requests'
+         },
+         'HTTP 429: Too Many Requests - Rate limit exceeded'),
+        # JSON parsing fails
+        ("json_parsing_fails",
+         lambda: {
+             'text': 'Internal Server Error',
+             'json_exception': Exception('Invalid JSON'),
+             'status_code': 500,
+             'reason_phrase': 'Internal Server Error'
+         },
+         'HTTP 500: Internal Server Error - Internal Server Error'),
+        # Response text unreadable
+        ("text_unreadable",
+         lambda: {
+             'text_exception': Exception('Cannot read response'),
+             'status_code': 503,
+             'reason_phrase': 'Service Unavailable'
+         },
+         'HTTP 503: Service Unavailable - <unable to read response>')
+    ])
+    def test_extract_error_message_scenarios(self, scenario, mock_setup, expected_message):
+        """Test error message extraction from HTTP responses."""
+        setup = mock_setup()
+        
         mock_response = Mock()
-        mock_response.text = '{"error": {"message": "Invalid API key"}}'
-        mock_response.json.return_value = {'error': {'message': 'Invalid API key'}}
-        mock_response.status_code = 401
-        mock_response.reason_phrase = 'Unauthorized'
-
+        mock_response.status_code = setup['status_code']
+        mock_response.reason_phrase = setup['reason_phrase']
+        
+        # Handle text property
+        if 'text_exception' in setup:
+            type(mock_response).text = property(lambda self: (_ for _ in ()).throw(setup['text_exception']))
+        else:
+            mock_response.text = setup['text']
+        
+        # Handle JSON method
+        if 'json_exception' in setup:
+            mock_response.json.side_effect = setup['json_exception']
+        elif 'json_return' in setup:
+            mock_response.json.return_value = setup['json_return']
+        
         mock_error = Mock()
         mock_error.response = mock_response
-
+        
         result = extract_error_message(mock_error)
-        assert result == 'Invalid API key'
-
-    def test_extract_fallback_with_response_text(self):
-        """Test fallback message with response text."""
-        # Mock httpx.HTTPStatusError without JSON error structure
-        mock_response = Mock()
-        mock_response.text = 'Rate limit exceeded'
-        mock_response.json.return_value = {'message': 'Rate limit exceeded'}  # No "error" key
-        mock_response.status_code = 429
-        mock_response.reason_phrase = 'Too Many Requests'
-
-        mock_error = Mock()
-        mock_error.response = mock_response
-
-        result = extract_error_message(mock_error)
-        assert result == 'HTTP 429: Too Many Requests - Rate limit exceeded'
-
-    def test_extract_fallback_json_parsing_fails(self):
-        """Test fallback when JSON parsing fails."""
-        # Mock httpx.HTTPStatusError with invalid JSON
-        mock_response = Mock()
-        mock_response.text = 'Internal Server Error'
-        mock_response.json.side_effect = Exception('Invalid JSON')
-        mock_response.status_code = 500
-        mock_response.reason_phrase = 'Internal Server Error'
-
-        mock_error = Mock()
-        mock_error.response = mock_response
-
-        result = extract_error_message(mock_error)
-        assert result == 'HTTP 500: Internal Server Error - Internal Server Error'
-
-    def test_extract_fallback_no_response_text(self):
-        """Test fallback when response text cannot be read."""
-        # Mock httpx.HTTPStatusError with unreadable response text
-        mock_response = Mock()
-
-        # Create a property that raises an exception
-        def text_property():
-            raise Exception('Cannot read response')
-
-        type(mock_response).text = property(lambda self: text_property())
-        mock_response.status_code = 503
-        mock_response.reason_phrase = 'Service Unavailable'
-
-        mock_error = Mock()
-        mock_error.response = mock_response
-
-        result = extract_error_message(mock_error)
-        assert result == 'HTTP 503: Service Unavailable - <unable to read response>'
+        assert result == expected_message

@@ -7,65 +7,52 @@ import pytest
 from app.config.models import ConfigModel
 
 
-def test_config_defaults():
-    """Test that ConfigModel loads with default values when no file is present."""
-    # Create a config with a non-existent file path
-    config = ConfigModel.load('non-existent-config.yaml')
-
-    # Check default values
-    assert config.cors_allow_origins == []
-    assert config.host == '127.0.0.1'
-    assert config.port == 8000
-    assert config.dev == False
-
-
-def test_config_from_yaml():
-    """Test that ConfigModel loads values from a YAML file."""
-    # Create a temporary YAML file with test configuration
-    config_data = {
-        'cors_allow_origins': ['http://test.com', 'https://test.com'],
-        'host': '0.0.0.0',
-        'port': 9000,
-        'dev': True,
-    }
-
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as f:
-        import yaml
-
-        yaml.dump(config_data, f)
-        temp_path = f.name
-
-    try:
-        # Load config from the temporary file
-        config = ConfigModel.load(temp_path)
-
-        # Check that values match what's in the YAML file
-        assert config.cors_allow_origins == config_data['cors_allow_origins']
-        assert config.host == config_data['host']
-        assert config.port == config_data['port']
-        assert config.dev == config_data['dev']
-    finally:
-        # Clean up the temporary file
-        os.unlink(temp_path)
-
-
-def test_config_invalid_yaml():
-    """Test that ConfigModel raises ValueError for invalid YAML."""
-    # Create a temporary file with invalid YAML
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as f:
-        f.write('{ invalid yaml')
-        temp_path = f.name
-
-    try:
-        # Attempt to load config from the invalid YAML file
+@pytest.mark.parametrize("scenario,config_data,validation,should_raise,error_match", [
+    # Config loading scenarios
+    ("defaults for non-existent file", 
+     None,  # No file created
+     lambda c: c.cors_allow_origins == [] and c.host == '127.0.0.1' and c.port == 8000 and c.dev == False,
+     False, None),
+    ("values from yaml file",
+     {'cors_allow_origins': ['http://test.com'], 'host': '0.0.0.0', 'port': 9000, 'dev': True},
+     lambda c: c.cors_allow_origins == ['http://test.com'] and c.host == '0.0.0.0' and c.port == 9000 and c.dev == True,
+     False, None),
+    ("invalid yaml",
+     '{ invalid yaml',  # String indicates invalid YAML content
+     None,
+     True, 'Invalid YAML'),
+])
+def test_config_loading(scenario, config_data, validation, should_raise, error_match):
+    """Test configuration loading scenarios."""
+    if config_data is None:
+        # Test non-existent file
+        config = ConfigModel.load('non-existent-config.yaml')
+        assert validation(config)
+    elif isinstance(config_data, str):
+        # Test invalid YAML
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as f:
+            f.write(config_data)
+            temp_path = f.name
         try:
-            ConfigModel.load(temp_path)
-            assert False, 'Expected ValueError to be raised'
-        except ValueError as e:
-            assert 'Invalid YAML' in str(e)
-    finally:
-        # Clean up the temporary file
-        os.unlink(temp_path)
+            if should_raise:
+                with pytest.raises(ValueError, match=error_match):
+                    ConfigModel.load(temp_path)
+            else:
+                config = ConfigModel.load(temp_path)
+                assert validation(config)
+        finally:
+            os.unlink(temp_path)
+    else:
+        # Test valid config data
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as f:
+            import yaml
+            yaml.dump(config_data, f)
+            temp_path = f.name
+        try:
+            config = ConfigModel.load(temp_path)
+            assert validation(config)
+        finally:
+            os.unlink(temp_path)
 
 
 def test_config_validation():
