@@ -4,8 +4,8 @@ from typing import List
 import yaml
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.common.utils import get_app_dir
-from app.common.yaml_utils import safe_load_with_env
+from app.config.paths import get_app_dir
+from app.config.yaml import safe_load_with_env
 
 
 class LoggingConfig(BaseModel):

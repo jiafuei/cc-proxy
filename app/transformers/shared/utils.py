@@ -33,9 +33,9 @@ class UrlPathTransformer(ProviderRequestTransformer):
 
         if 'provider_config' in params:
             provider_config: ProviderConfig = params['provider_config']
-            base_url = provider_config.url.strip('/')
+            base_url = provider_config.base_url.rstrip('/')
             path = self.path if self.path.startswith('/') or not self.path else '/' + self.path
-            provider_config.url = base_url + path
+            provider_config.base_url = base_url + path
 
         return request, headers
 
@@ -311,7 +311,7 @@ class GeminiApiKeyTransformer(ProviderRequestTransformer):
 
         if api_key:
             # Parse current URL
-            parsed = urlparse(provider_config.url)
+            parsed = urlparse(provider_config.base_url)
             query_params = parse_qs(parsed.query, keep_blank_values=True)
 
             # Add the key parameter
@@ -321,7 +321,7 @@ class GeminiApiKeyTransformer(ProviderRequestTransformer):
             new_query = urlencode(query_params, doseq=True)
             new_url = urlunparse((parsed.scheme, parsed.netloc, parsed.path, parsed.params, new_query, parsed.fragment))
 
-            provider_config.url = new_url
+            provider_config.base_url = new_url
             self.logger.debug('Added API key as query parameter to Gemini URL')
         else:
             self.logger.warning('No API key found for Gemini authentication')

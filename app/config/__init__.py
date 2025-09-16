@@ -1,7 +1,7 @@
 from typing import Optional
 
-from app.common.utils import get_app_dir
 from app.config.models import ConfigModel
+from app.config.paths import get_app_dir
 
 
 class ConfigurationService:
@@ -24,8 +24,6 @@ class ConfigurationService:
         """Reload configuration from file."""
         self._config = self._load_config()
         return self._config
-
-
 
 
 def setup_config() -> None:

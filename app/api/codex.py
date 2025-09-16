@@ -7,12 +7,12 @@ import orjson
 from fastapi import APIRouter, Body, Depends, Request
 from fastapi.responses import ORJSONResponse
 
-from app.common.anthropic_errors import extract_error_message, map_http_status_to_anthropic_error
-from app.common.dumper import Dumper
+from app.api.errors import extract_error_message, map_http_status_to_anthropic_error
 from app.config.log import get_logger
 from app.dependencies import get_service_container_dependency
+from app.dependencies.container import ServiceContainer
 from app.dependencies.dumper import get_dumper
-from app.di.container import ServiceContainer
+from app.observability.dumper import Dumper
 from app.routing.exchange import ExchangeRequest
 
 router = APIRouter(prefix='/codex/v1', tags=['codex'])
@@ -59,9 +59,9 @@ async def responses(
 
     try:
         if not routing_result.provider.supports_operation('responses'):
-            logger.warning("Provider %s does not support responses operation", routing_result.provider.config.name)
+            logger.warning('Provider %s does not support responses operation', routing_result.provider.config.name)
             return ORJSONResponse(
-                {'error': {'type': 'not_supported_error', 'message': f"Provider {routing_result.provider.config.name} does not support responses"}},
+                {'error': {'type': 'not_supported_error', 'message': f'Provider {routing_result.provider.config.name} does not support responses'}},
                 status_code=501,
             )
 

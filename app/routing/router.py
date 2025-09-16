@@ -7,10 +7,10 @@ import re
 from dataclasses import dataclass
 from typing import Optional
 
-from app.common.models import AnthropicRequest
-from app.common.vars import get_request_context
 from app.config.log import get_logger
 from app.config.user_models import ProviderConfig, RoutingConfig
+from app.context import get_request_context
+from app.models import AnthropicRequest
 from app.providers.provider import ProviderClient, ProviderManager
 from app.providers.types import ProviderType
 from app.routing.exchange import ExchangeRequest
@@ -50,27 +50,12 @@ def _create_default_anthropic_config() -> ProviderConfig:
     if not api_key:
         logger.warning('CCPROXY_FALLBACK_API_KEY not set - default provider will not work without authentication')
 
-    transformers = {
-        'claude': {
-            'request': [
-                {'class': 'app.transformers.providers.claude.anthropic.ClaudeSystemMessageCleanerTransformer', 'params': {}},
-                {'class': 'app.transformers.providers.claude.anthropic.CacheBreakpointTransformer', 'params': {}},
-                {'class': 'app.transformers.providers.claude.anthropic.ClaudeAnthropicRequestTransformer', 'params': {'auth_header': 'x-api-key'}},
-                {'class': 'app.transformers.providers.claude.anthropic.ClaudeSoftwareEngineeringSystemMessageTransformer', 'params': {}},
-                {'class': 'app.transformers.shared.utils.ToolDescriptionOptimizerTransformer', 'params': {}},
-            ],
-            'response': [{'class': 'app.transformers.providers.claude.anthropic.ClaudeAnthropicResponseTransformer', 'params': {}}],
-            'stream': [],
-        }
-    }
-
     return ProviderConfig(
         name='default-anthropic (fallback)',
         base_url=base_url,
         api_key=api_key,
         type=ProviderType.ANTHROPIC,
         capabilities=['messages', 'count_tokens'],
-        transformers=transformers,
     )
 
 

@@ -6,11 +6,11 @@ import yaml
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
-from app.common.yaml_utils import safe_load_with_env
 from app.config.log import get_logger
+from app.config.user_manager import get_user_config_manager
 from app.config.user_models import UserConfig
+from app.config.yaml import safe_load_with_env
 from app.dependencies import get_service_container_dependency
-from app.services.config.simple_user_config_manager import get_user_config_manager
 
 router = APIRouter(prefix='/api', tags=['Configuration'])
 logger = get_logger(__name__)
@@ -51,7 +51,7 @@ async def reload_configuration() -> Dict[str, Any]:
 
 
 @router.get('/config/status')
-async def get_configuration_status(service_container = Depends(get_service_container_dependency)) -> Dict[str, Any]:
+async def get_configuration_status(service_container=Depends(get_service_container_dependency)) -> Dict[str, Any]:
     """Get current configuration status and information.
 
     Returns:
@@ -96,7 +96,7 @@ async def get_configuration_status(service_container = Depends(get_service_conta
 
 
 @router.get('/config/validate')
-async def validate_configuration(service_container = Depends(get_service_container_dependency)) -> Dict[str, Any]:
+async def validate_configuration(service_container=Depends(get_service_container_dependency)) -> Dict[str, Any]:
     """Validate current configuration without reloading.
 
     Returns:

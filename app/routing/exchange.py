@@ -29,7 +29,7 @@ class ExchangeRequest:
         tools: Optional[Iterable[Any]] = None,
         metadata: Optional[Dict[str, Any]] = None,
         extras: Optional[Dict[str, Any]] = None,
-    ) -> "ExchangeRequest":
+    ) -> 'ExchangeRequest':
         """Create an exchange request from an arbitrary payload."""
 
         return cls(
@@ -42,7 +42,7 @@ class ExchangeRequest:
             extras=dict(extras or {}),
         )
 
-    def copy_with(self, **updates: Any) -> "ExchangeRequest":
+    def copy_with(self, **updates: Any) -> 'ExchangeRequest':
         """Return a shallow copy of the request with updates applied."""
 
         data = {
@@ -78,4 +78,3 @@ class ExchangeStreamChunk:
     event: str
     data: Dict[str, Any]
     finished: bool = False
-

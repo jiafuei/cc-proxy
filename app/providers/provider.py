@@ -8,12 +8,12 @@ from typing import Any, Dict, List, Optional, Tuple
 import httpx
 from fastapi import Request
 
-from app.common.dumper import Dumper, DumpHandles
 from app.config.log import get_logger
 from app.config.user_models import ModelConfig, ProviderConfig
+from app.observability.dumper import Dumper, DumpHandles
 from app.providers.descriptors import ProviderDescriptor
 from app.providers.registry import get_descriptor
-from app.providers.types import ChannelName, all_channels
+from app.providers.types import ChannelName, ProviderType, all_channels
 from app.routing.exchange import ExchangeRequest, ExchangeResponse
 from app.transformers.loader import TransformerLoader
 
@@ -104,7 +104,7 @@ class ProviderClient:
                 raise ValueError(f"Operation '{operation}' requires a resolved model identifier")
             suffix = suffix.format(model=model)
 
-        return f"{self.config.base_url.rstrip('/')}{suffix}"
+        return f'{self.config.base_url.rstrip("/")}{suffix}'
 
     async def execute(
         self,
@@ -127,6 +127,21 @@ class ProviderClient:
             current_request = dict(request_payload)
 
         current_headers = dict(original_request.headers)
+
+        # Inject provider-level credentials so configs don't need manual header transformers.
+        if self.config.api_key:
+            provider_type = self.config.type
+            if provider_type == ProviderType.ANTHROPIC:
+                current_headers.setdefault('x-api-key', self.config.api_key)
+                auth_header = current_headers.get('authorization', '')
+                if auth_header and auth_header.strip().lower().startswith('bearer dummy'):
+                    current_headers.pop('authorization', None)
+            elif provider_type in (ProviderType.OPENAI, ProviderType.OPENAI_RESPONSES):
+                auth_header = current_headers.get('authorization', '')
+                if not auth_header or auth_header.strip().lower().startswith('bearer dummy'):
+                    current_headers['authorization'] = f'Bearer {self.config.api_key}'
+            # Gemini credentials are appended via the Gemini transformer using provider_config.
+
         current_request['stream'] = False
 
         for transformer in pipeline.request:

@@ -51,8 +51,3 @@ class ProviderStreamTransformer(ABC):
     @abstractmethod
     async def transform_chunk(self, params: Dict[str, Any]) -> AsyncIterator[bytes]:
         """Transform a streaming response chunk."""
-
-
-# Backwards-compatible aliases for legacy modules/tests
-RequestTransformer = ProviderRequestTransformer
-ResponseTransformer = ProviderResponseTransformer

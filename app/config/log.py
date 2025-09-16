@@ -7,8 +7,9 @@ import orjson
 import structlog
 from structlog.types import FilteringBoundLogger
 
-from app.common.utils import get_app_dir
 from app.config import ConfigurationService
+from app.config.paths import get_app_dir
+from app.context import get_request_context
 
 
 class _ConsoleFormatter(logging.Formatter):
@@ -157,7 +158,6 @@ def _create_log_handlers(log_config, log_dir: Path) -> list:
 
 def _request_context_processor(logger, method_name, event_dict):
     """Add request context fields to log events."""
-    from app.common.vars import get_request_context
 
     ctx = get_request_context()
     # Add context fields that aren't already in event_dict

@@ -7,17 +7,6 @@ from typing import Dict
 from app.providers.descriptors import ProviderDescriptor
 from app.providers.types import ProviderType
 
-
-def _claude_request_transformers(auth_header: str = 'x-api-key'):
-    return [
-        {'class': 'app.transformers.providers.claude.anthropic.ClaudeSystemMessageCleanerTransformer', 'params': {}},
-        {'class': 'app.transformers.providers.claude.anthropic.CacheBreakpointTransformer', 'params': {}},
-        {'class': 'app.transformers.providers.claude.anthropic.ClaudeAnthropicRequestTransformer', 'params': {'auth_header': auth_header}},
-        {'class': 'app.transformers.providers.claude.anthropic.ClaudeSoftwareEngineeringSystemMessageTransformer', 'params': {}},
-        {'class': 'app.transformers.shared.utils.ToolDescriptionOptimizerTransformer', 'params': {}},
-    ]
-
-
 PROVIDER_REGISTRY: Dict[ProviderType, ProviderDescriptor] = {
     ProviderType.ANTHROPIC: ProviderDescriptor(
         type=ProviderType.ANTHROPIC,
@@ -27,10 +16,8 @@ PROVIDER_REGISTRY: Dict[ProviderType, ProviderDescriptor] = {
         },
         default_transformers={
             'claude': {
-                'request': _claude_request_transformers('x-api-key'),
-                'response': [
-                    {'class': 'app.transformers.providers.claude.anthropic.ClaudeAnthropicResponseTransformer', 'params': {}},
-                ],
+                'request': [],
+                'response': [],
                 'stream': [],
             },
             'codex': {
@@ -53,10 +40,6 @@ PROVIDER_REGISTRY: Dict[ProviderType, ProviderDescriptor] = {
         default_transformers={
             'claude': {
                 'request': [
-                    {
-                        'class': 'app.transformers.shared.utils.HeaderTransformer',
-                        'params': {'operations': [{'key': 'authorization', 'prefix': 'Bearer ', 'value': ''}]},
-                    },
                     {'class': 'app.transformers.providers.claude.openai.ClaudeOpenAIRequestTransformer', 'params': {}},
                 ],
                 'response': [
@@ -65,12 +48,8 @@ PROVIDER_REGISTRY: Dict[ProviderType, ProviderDescriptor] = {
                 'stream': [],
             },
             'codex': {
-                'request': [
-                    {'class': 'app.transformers.providers.codex.placeholders.CodexOpenAIRequestTransformer', 'params': {}},
-                ],
-                'response': [
-                    {'class': 'app.transformers.providers.codex.placeholders.CodexOpenAIResponseTransformer', 'params': {}},
-                ],
+                'request': [],
+                'response': [],
                 'stream': [],
             },
         },
@@ -84,10 +63,6 @@ PROVIDER_REGISTRY: Dict[ProviderType, ProviderDescriptor] = {
         default_transformers={
             'claude': {
                 'request': [
-                    {
-                        'class': 'app.transformers.shared.utils.HeaderTransformer',
-                        'params': {'operations': [{'key': 'authorization', 'prefix': 'Bearer ', 'value': ''}]},
-                    },
                     {'class': 'app.transformers.providers.claude.openai.ClaudeOpenAIRequestTransformer', 'params': {}},
                 ],
                 'response': [
@@ -96,12 +71,8 @@ PROVIDER_REGISTRY: Dict[ProviderType, ProviderDescriptor] = {
                 'stream': [],
             },
             'codex': {
-                'request': [
-                    {'class': 'app.transformers.providers.codex.placeholders.CodexOpenAIResponsesRequestTransformer', 'params': {}},
-                ],
-                'response': [
-                    {'class': 'app.transformers.providers.codex.placeholders.CodexOpenAIResponsesResponseTransformer', 'params': {}},
-                ],
+                'request': [],
+                'response': [],
                 'stream': [],
             },
         },
@@ -147,4 +118,3 @@ def get_descriptor(provider_type: ProviderType) -> ProviderDescriptor:
     """Retrieve the descriptor for a provider type."""
 
     return PROVIDER_REGISTRY[provider_type]
-

@@ -6,10 +6,10 @@ from typing import Dict, Optional
 
 from app.config import ConfigurationService
 from app.config.log import get_logger
+from app.config.user_manager import get_user_config_manager
 from app.config.user_models import RoutingConfig, UserConfig
 from app.providers.provider import ProviderManager
 from app.routing.router import SimpleRouter
-from app.services.config.simple_user_config_manager import get_user_config_manager
 from app.transformers.loader import TransformerLoader
 
 logger = get_logger(__name__)
@@ -127,3 +127,5 @@ def build_service_container(config_service: Optional[ConfigurationService] = Non
 
     return ServiceContainer(config_service=config_service)
 
+
+__all__ = ['ServiceContainer', 'build_service_container']

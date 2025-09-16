@@ -4,8 +4,7 @@ from typing import Callable
 from fastapi import Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware
 
-from app.common.request_context import RequestContext
-from app.common.vars import request_context_var
+from app.context import RequestContext, request_context_var
 
 
 class RequestContextMiddleware(BaseHTTPMiddleware):

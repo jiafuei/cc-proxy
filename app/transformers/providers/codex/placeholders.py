@@ -61,4 +61,3 @@ class CodexGeminiBridgeResponseTransformer(ProviderResponseTransformer):
 
     async def transform_response(self, params: Dict[str, Any]) -> Dict[str, Any]:
         return params['response']
-

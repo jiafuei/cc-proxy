@@ -27,4 +27,3 @@ class ProviderDescriptor:
         """Return the supported operation keys."""
 
         return list(self.base_url_suffixes.keys())
-

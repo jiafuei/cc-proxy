@@ -3,15 +3,15 @@ import orjson
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import ORJSONResponse, StreamingResponse
 
-from app.common.anthropic_errors import extract_error_message, map_http_status_to_anthropic_error
-from app.common.dumper import Dumper
-from app.common.models import AnthropicRequest
-from app.common.sse_converter import convert_exchange_to_sse
-from app.common.vars import get_request_context
+from app.api.errors import extract_error_message, map_http_status_to_anthropic_error
+from app.api.sse import convert_exchange_to_sse
 from app.config.log import get_logger
+from app.context import get_request_context
 from app.dependencies import get_service_container_dependency
+from app.dependencies.container import ServiceContainer
 from app.dependencies.dumper import get_dumper
-from app.di.container import ServiceContainer
+from app.models import AnthropicRequest
+from app.observability.dumper import Dumper
 from app.routing.exchange import ExchangeRequest
 
 router = APIRouter(prefix='/claude/v1', tags=['claude'])
@@ -113,9 +113,9 @@ async def count_tokens(
 
     try:
         if not routing_result.provider.supports_operation('count_tokens'):
-            logger.warning("Provider %s does not support count_tokens", routing_result.provider.config.name)
+            logger.warning('Provider %s does not support count_tokens', routing_result.provider.config.name)
             return ORJSONResponse(
-                {'error': {'type': 'not_supported_error', 'message': f"Provider {routing_result.provider.config.name} does not support token counting"}},
+                {'error': {'type': 'not_supported_error', 'message': f'Provider {routing_result.provider.config.name} does not support token counting'}},
                 status_code=501,
             )
 

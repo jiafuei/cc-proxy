@@ -22,4 +22,3 @@ def all_channels() -> tuple[ChannelName, ChannelName]:
     """Return the supported channel names."""
 
     return ('claude', 'codex')
-

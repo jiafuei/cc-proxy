@@ -7,8 +7,8 @@ from typing import Any, Dict, List, Optional
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-from app.common.utils import get_app_dir
-from app.common.yaml_utils import safe_load_with_env
+from app.config.paths import get_app_dir
+from app.config.yaml import safe_load_with_env
 from app.providers.types import ProviderType
 
 
@@ -39,6 +39,8 @@ class TransformerStageConfig(BaseModel):
             'response': [cfg.to_loader_dict() for cfg in self.response],
             'stream': [cfg.to_loader_dict() for cfg in self.stream],
         }
+
+
 class ProviderConfig(BaseModel):
     """Provider configuration with explicit type and channel-aware transformers."""
 
@@ -51,25 +53,6 @@ class ProviderConfig(BaseModel):
     capabilities: Optional[List[str]] = Field(default=None, description='Operations to enable (subset of descriptor operations)')
     transformers: Dict[str, TransformerStageConfig] = Field(default_factory=dict, description='Per-channel transformer overrides')
     timeout: int = Field(default=180, description='Request timeout in seconds')
-
-    @model_validator(mode='before')
-    @classmethod
-    def _migrate_legacy_fields(cls, data: Dict[str, Any]) -> Dict[str, Any]:
-        """Support legacy field names and structures."""
-
-        if not isinstance(data, dict):
-            return data
-
-        if 'url' in data and 'base_url' not in data:
-            data['base_url'] = data.pop('url')
-
-        transformers = data.get('transformers')
-        if transformers and isinstance(transformers, dict):
-            # Legacy format: flat request/response lists
-            if 'request' in transformers or 'response' in transformers or 'stream' in transformers:
-                data['transformers'] = {'claude': transformers}
-
-        return data
 
     @model_validator(mode='after')
     def _ensure_transformer_models(self) -> 'ProviderConfig':
@@ -104,16 +87,6 @@ class ProviderConfig(BaseModel):
         """Return transformer overrides for a given channel."""
 
         return self.transformers.get(channel, TransformerStageConfig())
-
-    @property
-    def url(self) -> str:
-        """Compatibility alias for base_url used by legacy transformers."""
-
-        return self.base_url
-
-    @url.setter
-    def url(self, value: str) -> None:
-        self.base_url = value
 
 
 class ModelConfig(BaseModel):

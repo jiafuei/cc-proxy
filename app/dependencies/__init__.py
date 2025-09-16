@@ -3,7 +3,7 @@
 from fastapi import Request
 
 from app.config import ConfigurationService
-from app.dependencies.service_container import ServiceContainer, build_service_container
+from app.dependencies.container import ServiceContainer, build_service_container
 
 
 def get_config_service_dependency(request: Request) -> ConfigurationService:
