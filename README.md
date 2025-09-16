@@ -53,10 +53,14 @@ Perfect for developers who want flexibility without sacrificing the Claude Code 
 
 5. **Test it works**
    ```bash
-   curl -X POST "http://127.0.0.1:8000/v1/messages" \
+   # New Claude-prefixed endpoint (preferred)
+   curl -X POST "http://127.0.0.1:8000/claude/v1/messages" \
      -H "Content-Type: application/json" \
      -H "Authorization: Bearer dummy-key" \
      -d '{"model": "sonnet", "messages": [{"role": "user", "content": "Hello!"}], "max_tokens": 100}'
+
+   # Legacy endpoint still available for existing Claude Code clients
+   curl -X POST "http://127.0.0.1:8000/v1/messages" -d '...'
    ```
 
 ## Key Features
@@ -97,8 +101,22 @@ Your providers, models, and routing rules. This is where the magic happens:
 providers:
   - name: 'anthropic-provider'
     api_key: !env ANTHROPIC_API_KEY
-    url: 'https://api.anthropic.com/v1/messages'
-    # ... transformers configuration
+    base_url: 'https://api.anthropic.com'
+    type: 'anthropic'
+
+  - name: 'openai-provider'
+    api_key: !env OPENAI_API_KEY
+    base_url: 'https://api.openai.com'
+    type: 'openai'
+    transformers:
+      claude:
+        request:
+          - class: 'app.transformers.shared.utils.HeaderTransformer'
+            params:
+              operations:
+                - key: 'authorization'
+                  prefix: 'Bearer '
+                  value: !env OPENAI_API_KEY
 
 models:
   - alias: 'sonnet'
@@ -109,10 +127,10 @@ models:
     provider: 'openai-provider'
 
 routing:
-  default: 'sonnet'        # Default model for most requests
-  builtin_tools: 'sonnet'  # Built-in tools (WebSearch, WebFetch, etc.) - highest priority
-  planning: 'gpt4'         # Use GPT-4 for planning tasks
-  background: 'haiku'      # Use Haiku for quick tasks
+  default: 'sonnet'
+  builtin_tools: 'sonnet'
+  planning: 'gpt4'
+  background: 'haiku'
 ```
 
 See the example files for complete configuration options with detailed comments.
@@ -121,7 +139,7 @@ See the example files for complete configuration options with detailed comments.
 
 1. **Start cc-proxy** (if not already running)
    ```bash
-   uv run fastapi run
+   uv run fastapi dev  # autoreload during development
    ```
 
 2. **Configure Claude Code** to use the proxy
@@ -142,11 +160,13 @@ That's it! Claude Code works exactly the same, but now with all the flexibility 
 providers:
   - name: 'my-custom-api'
     api_key: !env CUSTOM_API_KEY
-    url: 'https://my-api.example.com/v1/completions'
+    base_url: 'https://my-api.example.com'
+    type: 'openai-responses'
     transformers:
-      request:
-        - class: 'my_transformers.CustomAuthTransformer'
-          params: {special_header: 'custom-value'}
+      codex:
+        request:
+          - class: 'my_transformers.CustomAuthTransformer'
+            params: {special_header: 'custom-value'}
 ```
 
 ### Multiple Model Routing
@@ -170,10 +190,11 @@ CC-Proxy automatically converts Anthropic's built-in tools (WebSearch, WebFetch)
 # OpenAI Provider with built-in tools support
 - name: 'openai-provider'
   transformers:
-    request:
-      - class: 'app.services.transformers.openai.OpenAIRequestTransformer'
-    response:
-      - class: 'app.services.transformers.openai.OpenAIResponseTransformer'
+    claude:
+      request:
+        - class: 'app.transformers.providers.claude.openai.ClaudeOpenAIRequestTransformer'
+      response:
+        - class: 'app.transformers.providers.claude.openai.ClaudeOpenAIResponseTransformer'
 ```
 
 **WebSearch Conversion**:
@@ -199,14 +220,15 @@ CC-Proxy automatically converts Anthropic's built-in tools (WebSearch, WebFetch)
 
 ### Development Commands
 ```bash
-# Run tests
-python -m pytest app/ -v
-
 # Lint and format
 uvx ruff check --fix && uvx ruff format .
 
-# Start development server
+# Start development server with autoreload
 uv run fastapi dev
+
+# Manual smoke test (Claude channel)
+curl -X POST http://127.0.0.1:8000/claude/v1/messages -H 'Content-Type: application/json' \
+  -d '{"model": "sonnet", "messages": [{"role": "user", "content": "ping"}]}'
 ```
 
 ## Contributing & Support
@@ -219,7 +241,7 @@ uv run fastapi dev
 ### Contributing
 1. Fork the repository
 2. Create a feature branch
-3. Add tests for new functionality  
+3. Document manual verification steps (or add new automated coverage once the post-migration harness lands)
 4. Run linting: `uvx ruff check --fix && uvx ruff format .`
 5. Submit a pull request
 

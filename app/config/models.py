@@ -35,7 +35,7 @@ class ConfigModel(BaseModel):
     dump_dir: str | None = Field(default=None)
     cors_allow_origins: List[str] = Field(default_factory=list)
     redact_headers: List[str] | None = Field(default_factory=lambda: ['authorization', 'x-api-key', 'cookie', 'set-cookie'])
-    fallback_api_url: str | None = Field(default='https://api.anthropic.com/v1/messages')
+    fallback_api_url: str | None = Field(default='https://api.anthropic.com')
     fallback_api_key: str | None = Field(default=None)
     logging: LoggingConfig = Field(default_factory=LoggingConfig, description='Logging configuration')
 
@@ -80,7 +80,10 @@ class ConfigModel(BaseModel):
                 raise ValueError(f'Error reading config file {path}: {e}')
 
         # Use default values for missing keys
-        os.environ.setdefault('CCPROXY_FALLBACK_URL', data.get('fallback_api_url', 'https://api.anthropic.com/v1/messages'))
+        fallback_url = data.get('fallback_api_url', 'https://api.anthropic.com')
+        if fallback_url.endswith('/v1/messages'):
+            fallback_url = fallback_url[: -len('/v1/messages')]
+        os.environ.setdefault('CCPROXY_FALLBACK_URL', fallback_url)
         os.environ.setdefault('CCPROXY_FALLBACK_API_KEY', data.get('fallback_api_key', ''))
         return cls(**data)
 

@@ -4,67 +4,67 @@ providers:
   # Anthropic/Claude provider
   - name: 'anthropic-provider'
     api_key: !env ANTHROPIC_API_KEY
-    url: 'https://api.anthropic.com'
+    base_url: 'https://api.anthropic.com'
     type: 'anthropic'
     timeout: 300
 
   # OpenAI provider
-  - name: 'openai-provider' 
+  - name: 'openai-provider'
     api_key: !env OPENAI_API_KEY
-    url: 'https://api.openai.com'
+    base_url: 'https://api.openai.com'
     type: 'openai'
     timeout: 300
     transformers:
-      request:
-        - class: 'app.services.transformers.openai.OpenAIRequestTransformer'
-          params: {}
-      response:
-        - class: 'app.services.transformers.openai.OpenAIResponseTransformer'
-          params: {}
+      claude:
+        request:
+          - class: 'app.transformers.shared.utils.HeaderTransformer'
+            params:
+              operations:
+                - key: 'authorization'
+                  prefix: 'Bearer '
+                  value: !env OPENAI_API_KEY
+        response:
+          - class: 'app.transformers.providers.claude.openai.ClaudeOpenAIResponseTransformer'
+            params: {}
 
   # Gemini provider
   - name: 'gemini-provider'
     api_key: !env GEMINI_API_KEY
-    url: 'https://generativelanguage.googleapis.com'
+    base_url: 'https://generativelanguage.googleapis.com'
     type: 'gemini'
     timeout: 300
     transformers:
-      request:
-        - class: 'app.services.transformers.utils.GeminiApiKeyTransformer'
-          params: {}
-        - class: 'app.services.transformers.gemini.GeminiRequestTransformer'
-          params: {}
-      response:
-        - class: 'app.services.transformers.gemini.GeminiResponseTransformer'
-          params: {}
+      claude:
+        request:
+          - class: 'app.transformers.shared.utils.GeminiApiKeyTransformer'
+            params: {}
+          - class: 'app.transformers.providers.claude.gemini.ClaudeGeminiRequestTransformer'
+            params: {}
+        response:
+          - class: 'app.transformers.providers.claude.gemini.ClaudeGeminiResponseTransformer'
+            params: {}
 
   # Custom Anthropic provider with comprehensive transformers
   - name: 'custom-anthropic'
     api_key: !env CUSTOM_ANTHROPIC_KEY
-    url: 'https://api.anthropic.com'
+    base_url: 'https://api.anthropic.com'
     type: 'anthropic'
     timeout: 300
     transformers:
-      request:
-        - class: 'app.services.transformers.anthropic.ClaudeSystemMessageCleanerTransformer'
-          params: {}
-        - class: 'app.services.transformers.anthropic.ClaudeSoftwareEngineeringSystemMessageTransformer'
-          params: {}
-        - class: 'app.services.transformers.anthropic.AnthropicCacheTransformer'
-          params:
-            max_tools_breakpoints: 2
-        - class: 'app.services.transformers.utils.HeaderTransformer'
-          params:
-            operations:
-              - key: 'x-api-key'
-                value: !env CUSTOM_ANTHROPIC_KEY
-              - key: 'anthropic-version'
-                value: '2023-06-01'
-        - class: 'app.services.transformers.utils.ToolDescriptionOptimizerTransformer'
-          params: {}
-      response:
-        - class: 'app.services.transformers.anthropic.AnthropicResponseTransformer'
-          params: {}
+      claude:
+        request:
+          - class: 'app.transformers.providers.claude.anthropic.ClaudeSystemMessageCleanerTransformer'
+            params: {}
+          - class: 'app.transformers.providers.claude.anthropic.ClaudeSoftwareEngineeringSystemMessageTransformer'
+            params: {}
+          - class: 'app.transformers.providers.claude.anthropic.CacheBreakpointTransformer'
+            params:
+              max_tools_breakpoints: 2
+          - class: 'app.transformers.shared.utils.ToolDescriptionOptimizerTransformer'
+            params: {}
+        response:
+          - class: 'app.transformers.providers.claude.anthropic.ClaudeAnthropicResponseTransformer'
+            params: {}
 
 # Model definitions
 models:

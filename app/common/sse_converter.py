@@ -8,6 +8,7 @@ import orjson
 
 from app.common.dumper import Dumper, DumpHandles
 from app.config.log import get_logger
+from app.routing.exchange import ExchangeResponse
 
 
 @dataclass
@@ -111,17 +112,15 @@ class SSEEventGenerator:
         self.config = config
         self.delta_generator = DeltaGenerator(config)
 
-    async def convert_json_to_sse(self, response: Dict[str, Any], dumper: Dumper, dumper_handles: DumpHandles) -> AsyncIterator[bytes]:
-        """Convert a JSON response to SSE format.
+    async def convert_exchange_response(
+        self,
+        exchange_response: ExchangeResponse,
+        dumper: Dumper,
+        dumper_handles: DumpHandles,
+    ) -> AsyncIterator[bytes]:
+        """Convert an ExchangeResponse to SSE format."""
 
-        Args:
-            response: JSON response dictionary from LLM provider
-            dumper: Dumper instance for logging
-            dumper_handles: Dumper handles for the current request
-
-        Yields:
-            SSE-formatted response chunks
-        """
+        response = exchange_response.payload or {}
         # Create message_start event
         async for event in self._generate_message_start(response, dumper, dumper_handles):
             yield event
@@ -140,6 +139,8 @@ class SSEEventGenerator:
         # Create message_stop event
         async for event in self._generate_message_stop(dumper, dumper_handles):
             yield event
+
+        dumper.close(dumper_handles)
 
     async def _generate_message_start(self, response: Dict[str, Any], dumper: Dumper, dumper_handles: DumpHandles) -> AsyncIterator[bytes]:
         """Generate message start SSE events."""
@@ -200,19 +201,10 @@ class SSEEventGenerator:
         yield chunk
 
 
-async def convert_json_to_sse(response: Dict[str, Any], dumper: Dumper, dumper_handles: DumpHandles) -> AsyncIterator[bytes]:
-    """Convert a JSON response to SSE format.
-
-    Args:
-        response: JSON response dictionary from LLM provider
-        dumper: Dumper instance for logging
-        dumper_handles: Dumper handles for the current request
-
-    Yields:
-        SSE-formatted response chunks
-    """
+async def convert_exchange_to_sse(exchange_response: ExchangeResponse, dumper: Dumper, dumper_handles: DumpHandles) -> AsyncIterator[bytes]:
+    """Convert an ExchangeResponse to SSE format."""
     generator = SSEEventGenerator()
-    async for event in generator.convert_json_to_sse(response, dumper, dumper_handles):
+    async for event in generator.convert_exchange_response(exchange_response, dumper, dumper_handles):
         yield event
 
 

@@ -4,24 +4,27 @@
 - `cc-proxy` turns Claude Code into a provider-agnostic client by speaking Anthropic’s API on the front end and translating requests to other providers behind the scenes.
 
 ## High-Level Layout
-- FastAPI application factory lives at `app/main.py`, wiring configuration, structured logging, middlewares, and routers before exporting `app`.
-- Runtime behavior is driven by two config layers:
+- The FastAPI application factory lives in `app/main.py`. It bootstraps configuration, structured logging, middlewares, and mounts the provider-specific routers:
+  - `app/api/legacy.py` forwards `/v1/messages` to keep older Claude Code builds working.
+  - `app/api/claude.py` exposes the new `/claude/v1/messages` + `/claude/v1/messages/count_tokens` endpoints.
+  - `app/api/codex.py` scaffolds `/codex/v1/responses` for Codex/OpenAI Responses integration.
+- Runtime behavior is driven by two configuration layers:
   - Server defaults (`ConfigModel`) cover host/port, logging, dump settings in `app/config/models.py`.
   - User routing/provider config (`UserConfig`) is hot-reloadable and stored in `~/.cc-proxy/user.yaml` via models in `app/config/user_models.py`.
-- Dependency injection keeps global state out. `ServiceContainer` in `app/dependencies/service_container.py` assembles core services and rides in FastAPI `app.state`.
+- Dependency injection keeps global state out. `app/di/container.py` builds the `ServiceContainer`, wiring the transformer loader, provider manager, and router before stashing the instance on `app.state`.
 
 ## Request Lifecycle
 1. **Ingress & Context**
    - `RequestContextMiddleware` (`app/middlewares/request_context.py`) creates a per-request correlation ID and stashes metadata on a `ContextVar` for logs/dumps.
    - Security and CORS headers are applied by `SecurityHeadersMiddleware` and FastAPI’s native middleware stack.
 2. **Routing Decision**
-   - `/v1/messages` endpoint (`app/routers/messages.py`) validates the Anthropic-style payload, normalizes thinking budgets, and asks the router which provider/model to use.
-   - `SimpleRouter` (`app/services/router.py`) inspects the request (built-in tools, plan mode, `/model` directives, `!` suffix) and returns a `RoutingResult` describing provider, resolved model id, and routing flags. Fallback: default Anthropic provider seeded from environment.
+   - Routers translate HTTP payloads into `ExchangeRequest` objects (`app/routing/exchange.py`) capturing the channel (`claude` or `codex`), original stream intent, and metadata.
+   - `SimpleRouter` (`app/routing/router.py`) classifies Anthropic requests (built-in tools, plan mode, `/model` overrides, `!` suffix) and returns a `RoutingResult`. Non-Claude channels bypass heuristics and delegate directly by alias. A default Anthropic provider seeded from environment variables handles fallbacks.
 3. **Provider Execution**
-   - `ProviderManager` (`app/services/provider.py`) maps model aliases to provider instances. Each `Provider` uses specs from `app/services/providers/specs.py` to know operations, URL suffixes, and default transformer stacks.
-   - Outbound request flows through request transformers, hits the target HTTP endpoint via `httpx.AsyncClient`, and response transformers normalize the payload back to Anthropic format.
+   - `ProviderManager` (`app/providers/provider.py`) maps model aliases to concrete `ProviderClient` instances. Provider behavior is described by `ProviderDescriptor`s in `app/providers/registry.py`, which define operations, URL suffixes, default transformers per channel, and capability flags.
+   - `ProviderClient.execute()` orchestrates request transformers, issues the HTTP call via `httpx.AsyncClient`, runs response transformers, and emits an `ExchangeResponse` for downstream formatting. Channel-specific transformer pipelines are loaded via `app/transformers/loader.py`.
 4. **Response Handling**
-   - Non-streamed calls return JSON via `ORJSONResponse`; streamed calls are converted to Server-Sent Events with `app/common/sse_converter.py`, which emits `message_start`, `content_block_*`, `message_delta`, and `message_stop` frames.
+   - Non-streamed calls return JSON via `ORJSONResponse`; streamed calls are converted to Server-Sent Events using `app/common/sse_converter.py` operating on `ExchangeResponse` objects. The dumper captures raw/normalized payloads for debugging.
 5. **Observability**
    - `Dumper` (`app/common/dumper.py`) optionally writes sanitized headers, transformed payloads, and SSE traces to disk based on config flags.
    - Structlog configuration (`app/config/log.py`) merges request context into console + rotating JSON logs.
@@ -32,20 +35,24 @@
 - API endpoints in `app/routers/config.py` allow status queries, YAML validation, and manual reloads. Validation uses Pydantic plus custom reference checks to ensure models reference existing providers and routing aliases.
 
 ## Transformers & Extensibility
-- `TransformerLoader` (`app/services/transformer_loader.py`) dynamically imports request/response transformers, caches instances, and honours user-specified search paths.
-- Built-in transformers live under `app/services/transformers/`, handling Anthropic cleanup, OpenAI/Gemini shape conversions, tool translation, authentication headers, and specialized Claude Code prompts.
+- `TransformerLoader` (`app/transformers/loader.py`) dynamically imports request/response/stream transformers, caches instances, and honours user-specified search paths.
+- Built-in transformers now live under `app/transformers/providers/<channel>/` with shared utilities in `app/transformers/shared/` and common ABCs in `app/transformers/interfaces.py`. Claude channel classes are prefixed `Claude*`; Codex placeholders ship ready for future implementations.
 - Users can define custom transformers in directories listed under `transformer_paths` in `user.yaml` and reference them with fully-qualified class paths.
 
+## Exchange Layer & Channels
+- `ExchangeRequest`, `ExchangeResponse`, and `ExchangeStreamChunk` (`app/routing/exchange.py`) provide provider-neutral contracts that keep routers, providers, and response formatters decoupled.
+- The router notes the logical channel on every request, allowing multiple API families (Claude, Codex) to share a single service container while maintaining independent transformer pipelines.
+
 ## Testing & Samples
-- `app/tests/test_integration.py` exercises end-to-end message handling, routing decisions, configuration validation, and reload flows using mocked providers/service containers supplied by helpers in `app/tests/utils.py`.
-- `examples/` contains recorded Anthropic/OpenAI/Gemini JSON and SSE transcripts for manual testing or regression comparison.
+- Automated tests have been removed for this migration cycle; rely on manual smoke tests (cURL or Claude Code) plus the dumper outputs to validate behavior after configuration changes.
+- `examples/` contains recorded Anthropic/OpenAI/Gemini JSON and SSE transcripts for ad-hoc verification.
 
 ## Key Runtime Assets
 - `config.yaml` (repo root) – sample server config; copy to `~/.cc-proxy/config.yaml`.
 - `user.example.yaml` – rich user config template covering providers, models, routing, and transformer overrides.
-- `exports/` – design docs and system prompts captured during development.
+- `exports/` - design docs and system prompts captured during development.
 
 ## Operational Tips
-- Start the proxy with `uv run python -m app.main` (or `uv run fastapi dev` for autoreload).
+- Start the proxy with `uv run fastapi dev` for autoreload while iterating on providers or routers.
 - Inspect `/api/config/status` to confirm providers/models are loaded; call `/api/config/reload` after editing `user.yaml`.
-- Tail logs in `~/.cc-proxy/logs/` and the dump directory to diagnose routing, headers, and transformed payloads.
+- Tail logs in `~/.cc-proxy/logs/` and the dump directory to inspect routing information, headers, and transformed payloads per request.

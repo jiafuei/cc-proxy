@@ -8,16 +8,18 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import ORJSONResponse
 
+from app.api.claude import router as claude_router
+from app.api.codex import router as codex_router
+from app.api.legacy import router as legacy_router
 from app.config import ConfigurationService, setup_config
 from app.config.log import configure_structlog, get_logger
 from app.config.models import ConfigModel
 from app.dependencies.dumper import get_dumper
-from app.dependencies.service_container import ServiceContainer
+from app.di.container import build_service_container
 from app.middlewares.request_context import RequestContextMiddleware
 from app.middlewares.security_headers import SecurityHeadersMiddleware
 from app.routers.config import router as config_router
 from app.routers.health import router as health_router
-from app.routers.messages import router as messages_router
 
 
 def create_app(config: Optional[ConfigModel] = None) -> FastAPI:
@@ -41,7 +43,7 @@ def create_app(config: Optional[ConfigModel] = None) -> FastAPI:
     configure_structlog(config_service)
 
     # Initialize service container with config service
-    service_container = ServiceContainer(config_service)
+    service_container = build_service_container(config_service)
 
     # Create FastAPI app
     app = FastAPI(title='cc-proxy', version='0.1.0')
@@ -50,7 +52,6 @@ def create_app(config: Optional[ConfigModel] = None) -> FastAPI:
     app.state.config = config
     app.state.config_service = config_service
     app.state.service_container = service_container
-    print(service_container.__dict__.keys(), service_container.router.__dict__.keys())
 
     # Configure logging levels
     for k in logging.root.manager.loggerDict.keys():
@@ -60,7 +61,9 @@ def create_app(config: Optional[ConfigModel] = None) -> FastAPI:
     # Register routers
     app.include_router(config_router)
     app.include_router(health_router, prefix='/api', tags=['health'])
-    app.include_router(messages_router)
+    app.include_router(legacy_router)
+    app.include_router(claude_router)
+    app.include_router(codex_router)
 
     # Add middlewares (executed LIFO)
     app.add_middleware(GZipMiddleware)

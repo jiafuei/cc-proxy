@@ -202,17 +202,32 @@ async def validate_yaml_content(request: ConfigValidationRequest) -> Dict[str, A
             warnings.append('No routing configuration - will use default routing')
 
         # Check for potential transformer loading issues
-        for provider in config.providers:
-            request_transformers = provider.transformers.get('request', [])
-            response_transformers = provider.transformers.get('response', [])
+        total_request_transformers = 0
+        total_response_transformers = 0
+        total_stream_transformers = 0
 
-            for transformer_list, transformer_type in [(request_transformers, 'request'), (response_transformers, 'response')]:
-                for transformer_config in transformer_list:
-                    class_path = transformer_config.get('class', '')
-                    if not class_path:
-                        errors.append(f"Provider '{provider.name}' {transformer_type} transformer missing 'class' field")
-                    elif not isinstance(transformer_config.get('params', {}), dict):
-                        errors.append(f"Provider '{provider.name}' {transformer_type} transformer 'params' must be a dictionary")
+        for provider in config.providers:
+            for channel, stage_config in provider.transformers.items():
+                for transformer in stage_config.request:
+                    total_request_transformers += 1
+                    if not transformer.class_path:
+                        errors.append(f"Provider '{provider.name}' channel '{channel}' request transformer missing class path")
+                    if not isinstance(transformer.params, dict):
+                        errors.append(f"Provider '{provider.name}' channel '{channel}' request transformer params must be a dictionary")
+
+                for transformer in stage_config.response:
+                    total_response_transformers += 1
+                    if not transformer.class_path:
+                        errors.append(f"Provider '{provider.name}' channel '{channel}' response transformer missing class path")
+                    if not isinstance(transformer.params, dict):
+                        errors.append(f"Provider '{provider.name}' channel '{channel}' response transformer params must be a dictionary")
+
+                for transformer in stage_config.stream:
+                    total_stream_transformers += 1
+                    if not transformer.class_path:
+                        errors.append(f"Provider '{provider.name}' channel '{channel}' stream transformer missing class path")
+                    if not isinstance(transformer.params, dict):
+                        errors.append(f"Provider '{provider.name}' channel '{channel}' stream transformer params must be a dictionary")
 
         # Generate summary
         config_summary = {
@@ -220,8 +235,9 @@ async def validate_yaml_content(request: ConfigValidationRequest) -> Dict[str, A
             'models': len(config.models),
             'routing_configured': config.routing is not None,
             'transformer_paths': len(config.transformer_paths),
-            'total_request_transformers': sum(len(p.transformers.get('request', [])) for p in config.providers),
-            'total_response_transformers': sum(len(p.transformers.get('response', [])) for p in config.providers),
+            'total_request_transformers': total_request_transformers,
+            'total_response_transformers': total_response_transformers,
+            'total_stream_transformers': total_stream_transformers,
         }
 
         return {

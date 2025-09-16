@@ -179,7 +179,7 @@ Advanced tooling and user interface improvements.
 - **Subagent Routing**: Advanced routing capabilities for complex AI workflows
 
 ### Advanced Transformers (Phase 4 extras)
-- **AnthropicCacheTransformer**: Intelligent cache breakpoint optimization with up to 4 strategic breakpoints
+- **CacheBreakpointTransformer**: Intelligent cache breakpoint optimization with up to 4 strategic breakpoints
 - **ClaudeSystemMessageCleanerTransformer**: Advanced system message processing and cleaning
 - **ClaudeSoftwareEngineeringSystemMessageTransformer**: Specialized system message for coding tasks
 - **UrlPathTransformer**: Dynamic provider URL modification

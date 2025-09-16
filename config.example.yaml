@@ -35,7 +35,7 @@ redact_headers:
 
 # Fallback provider configuration
 # Used when no user configuration is available or as emergency backup
-fallback_api_url: !env [CC_PROXY_FALLBACK_URL, "https://api.anthropic.com/v1/messages"]  # Default to Anthropic API
+fallback_api_url: !env [CC_PROXY_FALLBACK_URL, "https://api.anthropic.com"]  # Default to Anthropic API base URL
 fallback_api_key: !env [CC_PROXY_FALLBACK_API_KEY, null]                                  # Required: Set your fallback API key
 
 # Logging configuration

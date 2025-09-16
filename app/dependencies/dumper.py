@@ -3,6 +3,7 @@
 from typing import Annotated
 
 from fastapi import Depends
+
 from app.common.dumper import Dumper
 from app.config import ConfigurationService
 from app.dependencies import get_config_service_dependency

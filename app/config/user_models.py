@@ -2,13 +2,14 @@
 
 import re
 from pathlib import Path
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from app.common.utils import get_app_dir
 from app.common.yaml_utils import safe_load_with_env
+from app.providers.types import ProviderType
 
 
 class SimpleTransformerConfig(BaseModel):
@@ -19,55 +20,100 @@ class SimpleTransformerConfig(BaseModel):
     class_path: str = Field(alias='class', description='Full class path like "my_module.MyTransformer"')
     params: dict = Field(default_factory=dict, description='Parameters to pass to transformer constructor')
 
+    def to_loader_dict(self) -> Dict[str, Any]:
+        """Return configuration compatible with the transformer loader."""
 
+        return {'class': self.class_path, 'params': self.params}
+
+
+class TransformerStageConfig(BaseModel):
+    """Per-stage transformer configuration (request/response/stream)."""
+
+    request: List[SimpleTransformerConfig] = Field(default_factory=list)
+    response: List[SimpleTransformerConfig] = Field(default_factory=list)
+    stream: List[SimpleTransformerConfig] = Field(default_factory=list)
+
+    def to_loader_dict(self) -> Dict[str, List[Dict[str, Any]]]:
+        return {
+            'request': [cfg.to_loader_dict() for cfg in self.request],
+            'response': [cfg.to_loader_dict() for cfg in self.response],
+            'stream': [cfg.to_loader_dict() for cfg in self.stream],
+        }
 class ProviderConfig(BaseModel):
-    """Provider configuration with explicit type."""
+    """Provider configuration with explicit type and channel-aware transformers."""
+
+    model_config = ConfigDict(populate_by_name=True)
 
     name: str = Field(description='Unique provider name')
-    url: str = Field(description='Base URL for the provider API')
+    base_url: str = Field(description='Base URL for the provider API')
     api_key: str = Field(default='', description='API key for the provider')
-
-    # REQUIRED: Explicit provider type
-    type: str = Field(description='Provider API type: anthropic, openai, or gemini')
-
-    # OPTIONAL: Limit operations (defaults to all supported by type)
-    capabilities: Optional[List[str]] = Field(default=None, description='Operations to enable (defaults to all supported by type)')
-
-    # OPTIONAL: Override default transformers
-    transformers: dict = Field(default_factory=dict, description='Transformer configuration overrides')
-
+    type: ProviderType = Field(description='Provider API type: anthropic, openai, openai-responses, or gemini')
+    capabilities: Optional[List[str]] = Field(default=None, description='Operations to enable (subset of descriptor operations)')
+    transformers: Dict[str, TransformerStageConfig] = Field(default_factory=dict, description='Per-channel transformer overrides')
     timeout: int = Field(default=180, description='Request timeout in seconds')
 
-    @field_validator('type')
+    @model_validator(mode='before')
     @classmethod
-    def validate_type(cls, v: str) -> str:
-        """Validate provider type is specified."""
-        if not v:
-            raise ValueError('Provider type is required')
-        # Validation of actual type happens in Provider class
-        return v
+    def _migrate_legacy_fields(cls, data: Dict[str, Any]) -> Dict[str, Any]:
+        """Support legacy field names and structures."""
+
+        if not isinstance(data, dict):
+            return data
+
+        if 'url' in data and 'base_url' not in data:
+            data['base_url'] = data.pop('url')
+
+        transformers = data.get('transformers')
+        if transformers and isinstance(transformers, dict):
+            # Legacy format: flat request/response lists
+            if 'request' in transformers or 'response' in transformers or 'stream' in transformers:
+                data['transformers'] = {'claude': transformers}
+
+        return data
+
+    @model_validator(mode='after')
+    def _ensure_transformer_models(self) -> 'ProviderConfig':
+        """Convert raw transformer dicts into stage configs."""
+
+        resolved: Dict[str, TransformerStageConfig] = {}
+        for channel, config in self.transformers.items():
+            if isinstance(config, TransformerStageConfig):
+                resolved[channel] = config
+                continue
+
+            if not isinstance(config, dict):
+                raise ValueError(f'Transformer config for channel "{channel}" must be a mapping')
+
+            resolved[channel] = TransformerStageConfig(**config)
+
+        self.transformers = resolved
+        return self
 
     @field_validator('capabilities')
     @classmethod
     def validate_capabilities(cls, v: Optional[List[str]]) -> Optional[List[str]]:
         """Validate capabilities are valid operation names."""
         if v is not None:
-            valid_ops = {'messages', 'count_tokens'}
+            valid_ops = {'messages', 'count_tokens', 'responses'}
             for cap in v:
                 if cap not in valid_ops:
                     raise ValueError(f"Invalid capability '{cap}'. Valid operations: {valid_ops}")
         return v
 
-    def __init__(self, **data):
-        # Handle transformers structure
-        if 'transformers' in data and isinstance(data['transformers'], dict):
-            transformers = data['transformers']
-            # Ensure request and response transformer lists exist
-            if 'request' not in transformers:
-                transformers['request'] = []
-            if 'response' not in transformers:
-                transformers['response'] = []
-        super().__init__(**data)
+    def channel_transformers(self, channel: str) -> TransformerStageConfig:
+        """Return transformer overrides for a given channel."""
+
+        return self.transformers.get(channel, TransformerStageConfig())
+
+    @property
+    def url(self) -> str:
+        """Compatibility alias for base_url used by legacy transformers."""
+
+        return self.base_url
+
+    @url.setter
+    def url(self, value: str) -> None:
+        self.base_url = value
 
 
 class ModelConfig(BaseModel):
