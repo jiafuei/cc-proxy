@@ -1,73 +1,78 @@
 # Copy this file to ~/.cc-proxy/user.yaml and modify as needed
 
+# Optional search paths where cc-proxy will look for custom transformer modules
+transformer_paths:
+  - '~/cc-proxy/plugins'
+  - './examples/concrete/transformers'
+
 providers:
-  # Anthropic/Claude provider
+  # Primary Anthropic/Claude provider for Claude channel traffic
   - name: 'anthropic-provider'
-    api_key: !env ANTHROPIC_API_KEY
     base_url: 'https://api.anthropic.com'
+    api_key: !env ANTHROPIC_API_KEY
     type: 'anthropic'
     timeout: 300
+    capabilities:
+      - 'messages'
+      - 'count_tokens'
 
-  # OpenAI provider
-  - name: 'openai-provider'
-    api_key: !env OPENAI_API_KEY
+  # OpenAI Chat Completions for Claude UI and Codex fallback
+  - name: 'openai-chat'
     base_url: 'https://api.openai.com'
+    api_key: !env OPENAI_API_KEY
     type: 'openai'
-    timeout: 300
-    transformers:
-      claude:
-        request:
-          - class: 'app.transformers.shared.utils.HeaderTransformer'
-            params:
-              operations:
-                - key: 'authorization'
-                  prefix: 'Bearer '
-                  value: !env OPENAI_API_KEY
-        response:
-          - class: 'app.transformers.providers.claude.openai.ClaudeOpenAIResponseTransformer'
-            params: {}
+    timeout: 240
+    capabilities:
+      - 'messages'
 
-  # Gemini provider
+  # OpenAI Responses API dedicated to Codex channel
+  - name: 'openai-responses'
+    base_url: 'https://api.openai.com'
+    api_key: !env OPENAI_API_KEY
+    type: 'openai-responses'
+    timeout: 240
+    capabilities:
+      - 'responses'
+
+  # Gemini provider with Claude-channel bridge
   - name: 'gemini-provider'
-    api_key: !env GEMINI_API_KEY
     base_url: 'https://generativelanguage.googleapis.com'
+    api_key: !env GEMINI_API_KEY
     type: 'gemini'
     timeout: 300
-    transformers:
-      claude:
-        request:
-          - class: 'app.transformers.shared.utils.GeminiApiKeyTransformer'
-            params: {}
-          - class: 'app.transformers.providers.claude.gemini.ClaudeGeminiRequestTransformer'
-            params: {}
-        response:
-          - class: 'app.transformers.providers.claude.gemini.ClaudeGeminiResponseTransformer'
-            params: {}
+    capabilities:
+      - 'messages'
+      - 'count_tokens'
 
-  # Custom Anthropic provider with comprehensive transformers
+  # Example provider leveraging a custom transformer from transformer_paths
   - name: 'custom-anthropic'
-    api_key: !env CUSTOM_ANTHROPIC_KEY
     base_url: 'https://api.anthropic.com'
+    api_key: !env CUSTOM_ANTHROPIC_KEY
     type: 'anthropic'
-    timeout: 300
+    timeout: 180
+    capabilities:
+      - 'messages'
     transformers:
       claude:
         request:
           - class: 'app.transformers.providers.claude.anthropic.ClaudeSystemMessageCleanerTransformer'
             params: {}
-          - class: 'app.transformers.providers.claude.anthropic.ClaudeSoftwareEngineeringSystemMessageTransformer'
-            params: {}
-          - class: 'app.transformers.providers.claude.anthropic.CacheBreakpointTransformer'
-            params:
-              max_tools_breakpoints: 2
           - class: 'app.transformers.shared.utils.ToolDescriptionOptimizerTransformer'
             params: {}
+          - class: 'my_company.transformers.SystemPromptAugmenter'
+            params:
+              profile: 'software-engineer'
         response:
           - class: 'app.transformers.providers.claude.anthropic.ClaudeAnthropicResponseTransformer'
             params: {}
+        stream:
+          - class: 'my_company.transformers.EventTapStreamTransformer'
+            params:
+              dump_path: '~/logs/cc-proxy/stream-events'
 
 # Model definitions
 models:
+  # Claude channel models
   - alias: 'sonnet'
     id: 'claude-3-5-sonnet-20241022'
     provider: 'anthropic-provider'
@@ -76,10 +81,10 @@ models:
     provider: 'anthropic-provider'
   - alias: 'gpt4'
     id: 'gpt-4o'
-    provider: 'openai-provider'
+    provider: 'openai-chat'
   - alias: 'gpt4-mini'
     id: 'gpt-4o-mini'
-    provider: 'openai-provider'
+    provider: 'openai-chat'
   - alias: 'gemini'
     id: 'gemini-pro'
     provider: 'gemini-provider'
@@ -87,11 +92,19 @@ models:
     id: 'claude-3-5-sonnet-20241022'
     provider: 'custom-anthropic'
 
-# Request routing configuration
+  # Codex channel models (used via /codex/v1/responses)
+  - alias: 'codex-openai'
+    id: 'gpt-4o-mini'
+    provider: 'openai-responses'
+  - alias: 'codex-anthropic'
+    id: 'claude-3-5-sonnet-20241022'
+    provider: 'custom-anthropic'
+
+# Request routing configuration for Claude channel
 routing:
   default: 'sonnet'
   background: 'haiku'
-  planning: 'sonnet'
-  thinking: 'sonnet'
-  plan_and_think: 'sonnet'
-  builtin_tools: 'sonnet'
+  planning: 'gpt4'
+  thinking: 'gpt4'
+  plan_and_think: 'gpt4'
+  builtin_tools: 'gpt4'

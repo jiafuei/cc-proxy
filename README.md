@@ -98,25 +98,31 @@ Basic server settings - host, port, logging, CORS, etc. Most users can use the d
 Your providers, models, and routing rules. This is where the magic happens:
 
 ```yaml
+transformer_paths:
+  - '~/cc-proxy/plugins'
+
 providers:
   - name: 'anthropic-provider'
-    api_key: !env ANTHROPIC_API_KEY
     base_url: 'https://api.anthropic.com'
+    api_key: !env ANTHROPIC_API_KEY
     type: 'anthropic'
+    capabilities:
+      - 'messages'
+      - 'count_tokens'
 
-  - name: 'openai-provider'
-    api_key: !env OPENAI_API_KEY
+  - name: 'openai-chat'
     base_url: 'https://api.openai.com'
+    api_key: !env OPENAI_API_KEY
     type: 'openai'
-    transformers:
-      claude:
-        request:
-          - class: 'app.transformers.shared.utils.HeaderTransformer'
-            params:
-              operations:
-                - key: 'authorization'
-                  prefix: 'Bearer '
-                  value: !env OPENAI_API_KEY
+    capabilities:
+      - 'messages'
+
+  - name: 'openai-responses'
+    base_url: 'https://api.openai.com'
+    api_key: !env OPENAI_API_KEY
+    type: 'openai-responses'
+    capabilities:
+      - 'responses'
 
 models:
   - alias: 'sonnet'
@@ -124,16 +130,20 @@ models:
     provider: 'anthropic-provider'
   - alias: 'gpt4'
     id: 'gpt-4o'
-    provider: 'openai-provider'
+    provider: 'openai-chat'
+  - alias: 'codex-openai'
+    id: 'gpt-4o-mini'
+    provider: 'openai-responses'
 
 routing:
   default: 'sonnet'
-  builtin_tools: 'sonnet'
+  builtin_tools: 'gpt4'
   planning: 'gpt4'
   background: 'haiku'
+  thinking: 'gpt4'
 ```
 
-See the example files for complete configuration options with detailed comments.
+Built-in defaults now bridge Claude ↔ OpenAI/Gemini and inject API keys from your provider config, so you only need to add transformers when you want custom behavior. See the example files for complete configuration options with detailed comments, including additional Codex aliases, custom transformer overrides, and more capability combinations.
 
 ## Usage with Claude Code
 
@@ -162,6 +172,8 @@ providers:
     api_key: !env CUSTOM_API_KEY
     base_url: 'https://my-api.example.com'
     type: 'openai-responses'
+    capabilities:
+      - 'responses'
     transformers:
       codex:
         request:
@@ -186,16 +198,9 @@ Place Python files in directories listed in `transformer_paths` and reference th
 #### Built-in Tools Support
 CC-Proxy automatically converts Anthropic's built-in tools (WebSearch, WebFetch) to provider-specific formats:
 
-```yaml
-# OpenAI Provider with built-in tools support
-- name: 'openai-provider'
-  transformers:
-    claude:
-      request:
-        - class: 'app.transformers.providers.claude.openai.ClaudeOpenAIRequestTransformer'
-      response:
-        - class: 'app.transformers.providers.claude.openai.ClaudeOpenAIResponseTransformer'
-```
+No extra configuration is required—the OpenAI and Gemini defaults ship with the
+necessary transformers. When a Claude request includes built-in tools, cc-proxy
+automatically converts them and forwards the appropriate authentication.
 
 **WebSearch Conversion**:
 - Anthropic `web_search` tool → OpenAI `web_search_options` parameter

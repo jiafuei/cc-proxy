@@ -4,14 +4,14 @@
 - `cc-proxy` turns Claude Code into a provider-agnostic client by speaking Anthropic’s API on the front end and translating requests to other providers behind the scenes.
 
 ## High-Level Layout
-- The FastAPI application factory lives in `app/main.py`. It bootstraps configuration, structured logging, middlewares, and mounts the provider-specific routers:
-  - `app/api/legacy.py` forwards `/v1/messages` to keep older Claude Code builds working.
-  - `app/api/claude.py` exposes the new `/claude/v1/messages` + `/claude/v1/messages/count_tokens` endpoints.
+- The FastAPI application factory lives in `app/main.py`. It bootstraps configuration, structured logging, middlewares, and mounts the channel-specific routers:
+  - `app/api/claude.py` exposes `/claude/v1/messages` and `/claude/v1/messages/count_tokens`.
   - `app/api/codex.py` scaffolds `/codex/v1/responses` for Codex/OpenAI Responses integration.
+  - Legacy `/v1/messages` forwarding has been removed; clients must target the channel-prefixed routes.
 - Runtime behavior is driven by two configuration layers:
   - Server defaults (`ConfigModel`) cover host/port, logging, dump settings in `app/config/models.py`.
   - User routing/provider config (`UserConfig`) is hot-reloadable and stored in `~/.cc-proxy/user.yaml` via models in `app/config/user_models.py`.
-- Dependency injection keeps global state out. `app/di/container.py` builds the `ServiceContainer`, wiring the transformer loader, provider manager, and router before stashing the instance on `app.state`.
+- Dependency injection keeps global state out. `app/dependencies/container.py` builds the `ServiceContainer`, wiring the transformer loader, provider manager, and router before stashing the instance on `app.state`.
 
 ## Request Lifecycle
 1. **Ingress & Context**
@@ -24,15 +24,15 @@
    - `ProviderManager` (`app/providers/provider.py`) maps model aliases to concrete `ProviderClient` instances. Provider behavior is described by `ProviderDescriptor`s in `app/providers/registry.py`, which define operations, URL suffixes, default transformers per channel, and capability flags.
    - `ProviderClient.execute()` orchestrates request transformers, issues the HTTP call via `httpx.AsyncClient`, runs response transformers, and emits an `ExchangeResponse` for downstream formatting. Channel-specific transformer pipelines are loaded via `app/transformers/loader.py`.
 4. **Response Handling**
-   - Non-streamed calls return JSON via `ORJSONResponse`; streamed calls are converted to Server-Sent Events using `app/common/sse_converter.py` operating on `ExchangeResponse` objects. The dumper captures raw/normalized payloads for debugging.
+   - Non-streamed calls return JSON via `ORJSONResponse`; streamed calls are converted to Server-Sent Events using `app/api/sse.py` operating on `ExchangeResponse` objects. The dumper captures raw/normalized payloads for debugging.
 5. **Observability**
-   - `Dumper` (`app/common/dumper.py`) optionally writes sanitized headers, transformed payloads, and SSE traces to disk based on config flags.
+   - `Dumper` (`app/observability/dumper.py`) optionally writes sanitized headers, transformed payloads, and SSE traces to disk based on config flags.
    - Structlog configuration (`app/config/log.py`) merges request context into console + rotating JSON logs.
 
 ## Configuration & Reloading
 - `ConfigurationService` (`app/config/__init__.py`) loads server config and exposes `reload_config`.
-- `SimpleUserConfigManager` (`app/services/config/simple_user_config_manager.py`) owns user config I/O, validation, and hot reload callbacks. It watches for API-triggered reloads and notifies the service container, which rebuilds providers/router safely.
-- API endpoints in `app/routers/config.py` allow status queries, YAML validation, and manual reloads. Validation uses Pydantic plus custom reference checks to ensure models reference existing providers and routing aliases.
+- `SimpleUserConfigManager` (`app/config/user_manager.py`) owns user config I/O, validation, and hot reload callbacks. It watches for API-triggered reloads and notifies the service container, which rebuilds providers/router safely.
+- API endpoints in `app/api/config.py` allow status queries, YAML validation, and manual reloads. Validation uses Pydantic plus custom reference checks to ensure models reference existing providers and routing aliases.
 
 ## Transformers & Extensibility
 - `TransformerLoader` (`app/transformers/loader.py`) dynamically imports request/response/stream transformers, caches instances, and honours user-specified search paths.

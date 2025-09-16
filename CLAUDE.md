@@ -3,12 +3,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Code organization
 - `app/main.py` (FastAPI factory & router mounting)
-- `app/api/` (channel-specific routers: `legacy`, `claude`, `codex`)
+- `app/api/` (channel-specific routers: `claude`, `codex`; legacy `/v1` shim has been removed)
 - `app/routing/` (request inspector, router, exchange dataclasses)
 - `app/providers/` (provider descriptors, registry, manager, HTTP clients)
 - `app/transformers/` (interfaces, shared utilities, channelled transformers)
-- `app/di/` (service container wiring)
-- `app/common/` (shared utilities: dumper, SSE converter, models, middleware helpers)
+- `app/dependencies/` (service container wiring and FastAPI dependencies)
+- `app/context.py` (request-scoped context helpers for logging/dumping)
+- `app/observability/` (dumper implementation and related helpers)
+- `app/models/` (Pydantic request/response models shared across routers)
 - Tests have been removed for this migration cycle; rely on manual smoke checks.
 
 ## Commands
@@ -21,7 +23,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `user.example.yaml` The example dynamic user config
 
 
-- Embrace dependency injection (`app/di/container.py`)—never instantiate providers/routers ad hoc.
+- Embrace dependency injection (`app/dependencies/container.py`)—never instantiate providers/routers ad hoc.
 - Transformers live under `app/transformers/providers/<channel>/`; prefer channel-specific naming.
 - Manual verification matters: use curl/Claude Code plus the dumper outputs until automated coverage returns.
 - Keep responses concise; avoid over-engineering core routing/exchange logic.
