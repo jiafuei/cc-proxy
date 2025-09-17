@@ -23,7 +23,7 @@ class UrlPathTransformer(ProviderRequestTransformer):
             logger: Logger instance
             path: Path to append to the base URL (e.g., '/v1/chat/completions')
         """
-        self.logger = logger
+        super().__init__(logger)
         self.path = path
 
     async def transform(self, params: Dict[str, Any]) -> Tuple[Dict[str, Any], Dict[str, str]]:
@@ -58,7 +58,7 @@ class HeaderTransformer(ProviderRequestTransformer):
                 - prefix: Text to prepend to value (default: '', only for 'set')
                 - suffix: Text to append to value (default: '', only for 'set')
         """
-        self.logger = logger
+        super().__init__(logger)
         self.operations = operations or []
 
         if not self.operations:
@@ -429,14 +429,6 @@ Remember to always parallelize and chain commands where possible.
 """,
     }
 
-    def __init__(self, logger):
-        """Initialize transformer.
-
-        Args:
-            logger: Logger instance
-        """
-        self.logger = logger
-
     async def transform(self, params: Dict[str, Any]) -> Tuple[Dict[str, Any], Dict[str, str]]:
         """Optimize tool descriptions based on hardcoded mapping.
 
@@ -460,3 +452,44 @@ Remember to always parallelize and chain commands where possible.
                         tool['description'] = new_description
 
         return request, headers
+
+
+class AuthHeaderTransformer(ProviderRequestTransformer):
+    """Anthropic-specific header filtering transformer.
+
+    Filters incoming headers to only include those with specific prefixes
+    required by the Anthropic API.
+    """
+
+    def __init__(self, logger, auth_header: str, passthrough_prefixes: list[str] = ['x-', 'anthropic', 'user-']):
+        """Initialize transformer.
+
+        Args:
+            logger: Logger instance
+            auth_header: Authentication header to use ('x-api-key' or 'authorization')
+        """
+        super().__init__(logger)
+        self.auth_header = auth_header.lower()
+        self.passthrough_prefixes = passthrough_prefixes
+
+    async def transform(self, params: Dict[str, Any]) -> Tuple[Dict[str, Any], Dict[str, str]]:
+        """Filter headers to only include Anthropic-compatible prefixes."""
+        request: dict[str, Any] = params['request']
+        headers: dict[str, str] = params['headers']
+
+        # Filter headers to only keep Anthropic-compatible ones
+        filtered_headers = {k: v for k, v in headers.items() if any((k.startswith(prefix) for prefix in self.passthrough_prefixes))}
+
+        # Inject API key from provider config if available
+        provider_config = params.get('provider_config')
+        if provider_config and provider_config.api_key:
+            filtered_headers.pop('authorization', None)
+            filtered_headers.pop('x-api-key', None)
+
+            # Set the configured auth header
+            if self.auth_header.startswith('autho'):
+                filtered_headers[self.auth_header] = f'Bearer {provider_config.api_key}'
+            else:
+                filtered_headers[self.auth_header] = provider_config.api_key
+
+        return request, filtered_headers

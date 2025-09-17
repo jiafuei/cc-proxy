@@ -5,6 +5,8 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from typing import Any, AsyncIterator, Dict, Tuple
 
+from structlog.types import FilteringBoundLogger
+
 
 class PreflightTransformer(ABC):
     """Transformers that adjust exchange requests before routing."""
@@ -17,11 +19,17 @@ class PreflightTransformer(ABC):
 class ProviderRequestTransformer(ABC):
     """Interface for transformers that modify outgoing provider requests."""
 
-    def __init__(self, logger):
+    def __init__(self, logger: FilteringBoundLogger):
         self.logger = logger
 
     def _is_builtin_tool(self, tool: dict) -> bool:
-        return isinstance(tool, dict) and 'type' in tool and 'input_schema' not in tool
+        return isinstance(tool, dict) and 'type' in tool and 'input_schema' not in tool and not tool['type'] == 'function'
+
+    def _is_function_tool_call(self, tool: dict) -> bool:
+        return isinstance(tool, dict) and 'type' in tool and 'function' in tool and tool['type'] == 'function'
+
+    def _is_websearch_tool(self, tool: dict):
+        return 'web_search' == tool.get('name', '')
 
     def _has_builtin_tools(self, tools: list) -> bool:
         return any(self._is_builtin_tool(tool) for tool in tools if isinstance(tool, dict))

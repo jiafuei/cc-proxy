@@ -16,7 +16,13 @@ PROVIDER_REGISTRY: Dict[ProviderType, ProviderDescriptor] = {
         },
         default_transformers={
             'claude': {
-                'request': [],
+                'request': [
+                    {'class': 'app.transformers.shared.utils.AuthHeaderTransformer', 'params': {'auth_header': 'authorization'}},
+                    {'class': 'app.transformers.providers.claude.anthropic.ClaudeSystemMessageCleanerTransformer', 'params': {}},
+                    {'class': 'app.transformers.providers.claude.anthropic.ClaudeSoftwareEngineeringSystemMessageTransformer', 'params': {}},
+                    {'class': 'app.transformers.shared.utils.ToolDescriptionOptimizerTransformer', 'params': {}},
+                    {'class': 'app.transformers.providers.claude.anthropic.CacheBreakpointTransformer', 'params': {}},
+                ],
                 'response': [],
                 'stream': [],
             },
@@ -40,6 +46,10 @@ PROVIDER_REGISTRY: Dict[ProviderType, ProviderDescriptor] = {
         default_transformers={
             'claude': {
                 'request': [
+                    {'class': 'app.transformers.shared.utils.AuthHeaderTransformer', 'params': {'auth_header': 'authorization'}},
+                    {'class': 'app.transformers.providers.claude.anthropic.ClaudeSystemMessageCleanerTransformer', 'params': {}},
+                    {'class': 'app.transformers.providers.claude.anthropic.ClaudeSoftwareEngineeringSystemMessageTransformer', 'params': {}},
+                    {'class': 'app.transformers.shared.utils.ToolDescriptionOptimizerTransformer', 'params': {}},
                     {'class': 'app.transformers.providers.claude.openai.ClaudeOpenAIRequestTransformer', 'params': {}},
                 ],
                 'response': [
@@ -90,6 +100,8 @@ PROVIDER_REGISTRY: Dict[ProviderType, ProviderDescriptor] = {
             'claude': {
                 'request': [
                     {'class': 'app.transformers.shared.utils.GeminiApiKeyTransformer', 'params': {}},
+                    {'class': 'app.transformers.providers.claude.anthropic.ClaudeSystemMessageCleanerTransformer', 'params': {}},
+                    {'class': 'app.transformers.providers.claude.anthropic.ClaudeSoftwareEngineeringSystemMessageTransformer', 'params': {}},
                     {'class': 'app.transformers.providers.claude.gemini.ClaudeGeminiRequestTransformer', 'params': {}},
                 ],
                 'response': [

@@ -13,7 +13,7 @@ from app.config.user_models import ModelConfig, ProviderConfig
 from app.observability.dumper import Dumper, DumpHandles
 from app.providers.descriptors import ProviderDescriptor
 from app.providers.registry import get_descriptor
-from app.providers.types import ChannelName, ProviderType, all_channels
+from app.providers.types import ChannelName, all_channels
 from app.routing.exchange import ExchangeRequest, ExchangeResponse
 from app.transformers.loader import TransformerLoader
 
@@ -127,20 +127,9 @@ class ProviderClient:
             current_request = dict(request_payload)
 
         current_headers = dict(original_request.headers)
-
-        # Inject provider-level credentials so configs don't need manual header transformers.
-        if self.config.api_key:
-            provider_type = self.config.type
-            if provider_type == ProviderType.ANTHROPIC:
-                current_headers.setdefault('x-api-key', self.config.api_key)
-                auth_header = current_headers.get('authorization', '')
-                if auth_header and auth_header.strip().lower().startswith('bearer dummy'):
-                    current_headers.pop('authorization', None)
-            elif provider_type in (ProviderType.OPENAI, ProviderType.OPENAI_RESPONSES):
-                auth_header = current_headers.get('authorization', '')
-                if not auth_header or auth_header.strip().lower().startswith('bearer dummy'):
-                    current_headers['authorization'] = f'Bearer {self.config.api_key}'
-            # Gemini credentials are appended via the Gemini transformer using provider_config.
+        # Remove auth headers for security, use transformers to inject proper auth headers
+        current_headers.pop('x-api-key', None)
+        current_headers.pop('authorization', None)
 
         current_request['stream'] = False
 
@@ -155,7 +144,7 @@ class ProviderClient:
             }
             current_request, current_headers = await transformer.transform(transform_params)
 
-        dumper.write_transformed_headers(dumper_handles, current_headers)
+        dumper.write_transformed_headers(dumper_handles, current_headers.copy())
         dumper.write_transformed_request(dumper_handles, current_request)
 
         url = self._build_operation_url(operation, resolved_model)

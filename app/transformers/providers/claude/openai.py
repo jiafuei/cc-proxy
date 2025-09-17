@@ -27,92 +27,72 @@ class ClaudeOpenAIRequestTransformer(ProviderRequestTransformer):
     async def transform(self, params: Dict[str, Any]) -> Tuple[Dict[str, Any], Dict[str, str]]:
         """Convert Claude request format to OpenAI format."""
         request = params['request']
-
-        # Check for built-in tools first
-        tools = request.get('tools', [])
-        if tools and self._has_builtin_tools(tools):
-            return await self._transform_builtin_tools(params)
-
-        # Handle regular tools transformation
-        return await self._transform_regular_tools(params)
-
-    async def _transform_builtin_tools(self, params: Dict[str, Any]) -> Tuple[Dict[str, Any], Dict[str, str]]:
-        """Transform built-in tools to OpenAI format."""
-        request = params['request']
         headers = params['headers']
 
-        tools = request.get('tools', [])
-        if not tools:
-            return request, headers
+        tools = request.get('tools') or []
+        builtin_tools = [tool for tool in tools if self._is_builtin_tool(tool)]
+        callable_tools = [tool for tool in tools if not self._is_builtin_tool(tool)]
 
-        # Defensive check: built-in tools should have exactly one tool
-        if len(tools) > 1:
-            self.logger.warning(f'Expected single built-in tool but found {len(tools)} tools, using first tool only')
+        builtin_tool = self._select_builtin_tool(builtin_tools, callable_tools)
 
-        # Check if the first (and expected only) tool is built-in
-        tool = tools[0]
-        if not self._is_builtin_tool(tool):
-            return request, headers
+        openai_request = self._build_openai_request(
+            request,
+            tools=None if builtin_tool else callable_tools,
+        )
 
-        # Process WebSearch tool if applicable
-        web_search_config = None
+        if builtin_tool:
+            self._apply_builtin_tool(openai_request, builtin_tool)
+
+        return openai_request, headers
+
+    def _build_openai_request(self, request: Dict[str, Any], tools: Optional[list]) -> Dict[str, Any]:
+        """Build the base OpenAI payload shared by all tool paths."""
+
+        stream = request.get('stream')
+        openai_request = {
+            'model': request.get('model'),
+            'temperature': request.get('temperature'),
+            'stream': stream,
+            'messages': self._convert_messages(request),
+            'max_completion_tokens': request.get('max_tokens'),
+            'reasoning_effort': self._get_reasoning_effort(request),
+        }
+
+        if stream:
+            openai_request['stream_options'] = {'include_usage': True}
+
+        if tools is not None:
+            converted_tools = self._convert_tools(tools)
+            if converted_tools is not None:
+                openai_request['tools'] = converted_tools
+
+        return {k: v for k, v in openai_request.items() if v is not None}
+
+    def _apply_builtin_tool(self, openai_request: Dict[str, Any], tool: dict) -> None:
+        """Apply built-in tool specific adjustments to the OpenAI payload."""
+
+        openai_request.pop('tools', None)
+
         if self._is_websearch_tool(tool):
             web_search_config = self._extract_websearch_config(tool)
             self.logger.debug(f'Extracted WebSearch config: {web_search_config}')
-
-        # Build base request
-        openai_request = {
-            k: v
-            for k, v in {
-                'model': request.get('model'),
-                'temperature': request.get('temperature'),
-                'stream': request.get('stream'),
-                'messages': self._convert_messages(request),
-                'max_completion_tokens': request.get('max_tokens'),
-                'reasoning_effort': self._get_reasoning_effort(request),
-                'stream_options': {'include_usage': True} if request.get('stream') else None,
-            }.items()
-            if v is not None
-        }
-
-        # Apply transformations for web search
-        if web_search_config:
             openai_request['web_search_options'] = web_search_config
-            # Use reliable model for web search
-            original_model = openai_request.get('model', '')
             openai_request['model'] = 'gpt-4o-search-preview'
-            self.logger.debug(f'Set model to gpt-4o-search-preview for web search (was: {original_model})')
 
-        # Tools array is removed for built-in tools since they're handled via request parameters
-        filtered_headers = {k: v for k, v in headers.items() if any(k.startswith(prefix) for prefix in {'user-', 'accept'})}
+    def _select_builtin_tool(self, builtin_tools: list, callable_tools: list) -> Optional[dict]:
+        """Determine if the request should use the built-in tool pathway."""
 
-        self.logger.info('Transformed built-in tool for OpenAI')
-        return openai_request, filtered_headers
+        if not builtin_tools:
+            return None
 
-    async def _transform_regular_tools(self, params: Dict[str, Any]) -> Tuple[Dict[str, Any], Dict[str, str]]:
-        """Transform regular tools to OpenAI format."""
-        request = params['request']
-        headers = params['headers']
+        if callable_tools:
+            self.logger.warning('Ignoring built-in tool path because callable tools are present alongside built-ins')
+            return None
 
-        # Build OpenAI request with filtered comprehension
-        stream = request.get('stream')
-        openai_request = {
-            k: v
-            for k, v in {
-                'model': request.get('model'),
-                'temperature': request.get('temperature'),
-                'stream': stream,
-                'tools': self._convert_tools(request.get('tools')),
-                'messages': self._convert_messages(request),
-                'max_completion_tokens': request.get('max_tokens'),
-                'reasoning_effort': self._get_reasoning_effort(request),
-                'stream_options': {'include_usage': True} if stream else None,
-            }.items()
-            if v is not None
-        }
-        filtered_headers = {k: v for k, v in headers.items() if any(k.startswith(prefix) for prefix in {'user-', 'accept'})}
+        if len(builtin_tools) > 1:
+            self.logger.warning(f'Expected single built-in tool but found {len(builtin_tools)}, using first tool only')
 
-        return openai_request, filtered_headers
+        return builtin_tools[0]
 
     def _get_reasoning_effort(self, request):
         """Get reasoning effort from thinking.budget_tokens."""
