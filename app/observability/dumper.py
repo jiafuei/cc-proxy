@@ -29,7 +29,7 @@ class HeaderSanitizer:
 
         for lower_key, original_key in lower_keys.items():
             if lower_key in self.sensitive_headers:
-                result[original_key] = '***REDACTED***'
+                result[original_key] = headers[original_key][:3] + '***' + headers[original_key][-3:]
             else:
                 result[original_key] = headers[original_key]
         return result
