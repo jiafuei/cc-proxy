@@ -73,9 +73,7 @@ class SimpleUserConfigManager(UserConfigManager):
 
             logger.error('No valid configuration available - system will run with empty config but may not function correctly')
             logger.error('Please check your config file syntax and structure using the /api/config/validate-yaml endpoint')
-            empty_config = UserConfig()
-            self._current_config = empty_config
-            return empty_config
+            raise exc
 
         try:
             config.validate_references()

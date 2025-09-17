@@ -56,6 +56,9 @@ class ServiceContainer:
                 len(self.provider_manager.list_models()) if self.provider_manager else 0,
             )
 
+        except ValueError as exc:
+            logger.error('Failed to initialize service container: %s', exc, exc_info=True)
+            raise exc
         except Exception as exc:  # pragma: no cover - defensive fallback
             logger.error('Failed to initialize service container: %s', exc, exc_info=True)
             # Initialize with empty configs as fallback
