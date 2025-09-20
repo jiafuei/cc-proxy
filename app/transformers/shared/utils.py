@@ -496,17 +496,16 @@ class AuthHeaderTransformer(ProviderRequestTransformer):
 
 
 class OpenRouterReasoningTransformer(ProviderRequestTransformer):
-
     async def transform(self, params: Dict[str, Any]) -> Tuple[Dict[str, Any], Dict[str, str]]:
         request: dict[str, Any] = params['request']
         headers = params['headers']
 
-        # Anthropic 
+        # Anthropic
         if thinking := request.get('thinking', {}):
             request['reasoning'] = {'max_tokens': thinking.get('budget_tokens', 0)}
             request.pop('thinking', None)
             return request, headers
-        
+
         # OpenAI
         if reasoning_effort := request.get('reasoning_effort', None):
             request['reasoning'] = {'effort': reasoning_effort}

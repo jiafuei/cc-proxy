@@ -1,6 +1,9 @@
 # Server configuration file for cc-proxy
 # Copy this file to ~/.cc-proxy/config.yaml and modify as needed
 # This is the main server configuration (different from user.yaml which contains dynamic user settings)
+#
+# NOTE: user.yaml now supports optional pre/post transformer fields (pre_request, post_request, etc.)
+# for additive transformer configuration without redefining provider defaults
 
 # Configuration version
 version: "1"

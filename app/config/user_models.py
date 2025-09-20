@@ -29,15 +29,32 @@ class SimpleTransformerConfig(BaseModel):
 class TransformerStageConfig(BaseModel):
     """Per-stage transformer configuration (request/response/stream)."""
 
-    request: List[SimpleTransformerConfig] = Field(default_factory=list)
-    response: List[SimpleTransformerConfig] = Field(default_factory=list)
-    stream: List[SimpleTransformerConfig] = Field(default_factory=list)
+    request: Optional[List[SimpleTransformerConfig]] = Field(default=None, description='Full override for request transformers (if specified, pre/post ignored for this stage)')
+    response: Optional[List[SimpleTransformerConfig]] = Field(default=None, description='Full override for response transformers (if specified, pre/post ignored for this stage)')
+    stream: Optional[List[SimpleTransformerConfig]] = Field(default=None, description='Full override for stream transformers (if specified, pre/post ignored for this stage)')
+
+    pre_request: Optional[List[SimpleTransformerConfig]] = Field(
+        default=None, description='Optional pre-request transformers to apply before defaults (ignored if request specified)'
+    )
+    post_request: Optional[List[SimpleTransformerConfig]] = Field(
+        default=None, description='Optional post-request transformers to apply after defaults (ignored if request specified)'
+    )
+    pre_response: Optional[List[SimpleTransformerConfig]] = Field(
+        default=None, description='Optional pre-response transformers to apply before defaults (ignored if response specified)'
+    )
+    post_response: Optional[List[SimpleTransformerConfig]] = Field(
+        default=None, description='Optional post-response transformers to apply after defaults (ignored if response specified)'
+    )
+    pre_stream: Optional[List[SimpleTransformerConfig]] = Field(default=None, description='Optional pre-stream transformers to apply before defaults (ignored if stream specified)')
+    post_stream: Optional[List[SimpleTransformerConfig]] = Field(
+        default=None, description='Optional post-stream transformers to apply after defaults (ignored if stream specified)'
+    )
 
     def to_loader_dict(self) -> Dict[str, List[Dict[str, Any]]]:
         return {
-            'request': [cfg.to_loader_dict() for cfg in self.request],
-            'response': [cfg.to_loader_dict() for cfg in self.response],
-            'stream': [cfg.to_loader_dict() for cfg in self.stream],
+            'request': [cfg.to_loader_dict() for cfg in (self.request or [])],
+            'response': [cfg.to_loader_dict() for cfg in (self.response or [])],
+            'stream': [cfg.to_loader_dict() for cfg in (self.stream or [])],
         }
 
 

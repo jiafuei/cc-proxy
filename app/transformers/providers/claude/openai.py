@@ -42,9 +42,9 @@ class ClaudeOpenAIRequestTransformer(ProviderRequestTransformer):
 
         if builtin_tool:
             self._apply_builtin_tool(openai_request, builtin_tool)
-        
+
         if 'tools' in openai_request and not openai_request.get('tools'):
-            openai_request.pop('tools',None)
+            openai_request.pop('tools', None)
 
         return openai_request, headers
 
@@ -206,7 +206,7 @@ class ClaudeOpenAIRequestTransformer(ProviderRequestTransformer):
 
     def _convert_tool_result(self, block):
         """Convert Claude tool_result to OpenAI tool message."""
-        message =  {'role': 'tool', 'tool_call_id': block.get('tool_use_id'), 'content': block.get('content') or ('Error' if block.get('is_error') else 'Success')}
+        message = {'role': 'tool', 'tool_call_id': block.get('tool_use_id'), 'content': block.get('content') or ('Error' if block.get('is_error') else 'Success')}
         if isinstance(message['content'], list) and len(message['content']) == 1 and message['content'][0] == 'text':
             message['content'] = message['content'][0]['text']
 

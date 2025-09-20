@@ -70,6 +70,26 @@ providers:
             params:
               dump_path: '~/logs/cc-proxy/stream-events'
 
+  # Example provider using new optional pre/post transformers (avoids redefining defaults)
+  - name: 'custom-anthropic-with-addons'
+    base_url: 'https://api.anthropic.com'
+    api_key: !env CUSTOM_ANTHROPIC_KEY
+    type: 'anthropic'
+    timeout: 180
+    capabilities:
+      - 'messages'
+    transformers:
+      claude:
+        # This adds pre- and post-transformers without overriding defaults
+        # Omit 'request'/'response'/'stream' keys to merge with provider defaults
+        pre_request:
+          - class: 'my_company.transformers.CustomPreAuth'
+            params:
+              key: 'value'
+        post_response:
+          - class: 'my_company.transformers.ResponseLogger'
+            params: {}
+
 # Model definitions
 models:
   # Claude channel models

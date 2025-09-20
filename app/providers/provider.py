@@ -54,15 +54,46 @@ class ProviderClient:
         self._pipelines: Dict[ChannelName, TransformerPipeline] = {}
         for channel in all_channels():
             channel_defaults = self.descriptor.default_transformers.get(channel, {})
-            overrides = config.channel_transformers(channel).to_loader_dict()
+            stage_config = config.channel_transformers(channel)
 
             stage_configs: Dict[str, List[Dict[str, Any]]] = {}
             for stage in ('request', 'response', 'stream'):
-                override_list = overrides.get(stage)
-                if override_list:
-                    stage_configs[stage] = override_list
+                # Get full override and pre/post configs for this stage
+                full_transformers = getattr(stage_config, stage)
+                pre_transformers = getattr(stage_config, f'pre_{stage}')
+                post_transformers = getattr(stage_config, f'post_{stage}')
+
+                # Build the merged configuration: pre + (full OR defaults) + post
+                merged_configs = []
+
+                # Add pre-transformers
+                if pre_transformers:
+                    merged_configs.extend([cfg.to_loader_dict() for cfg in pre_transformers])
+
+                # Add main transformers (either full override or defaults)
+                if full_transformers is not None:
+                    # Full override specified (including empty list)
+                    merged_configs.extend([cfg.to_loader_dict() for cfg in full_transformers])
                 else:
-                    stage_configs[stage] = list(channel_defaults.get(stage, []))
+                    # Use provider defaults
+                    merged_configs.extend(list(channel_defaults.get(stage, [])))
+
+                # Add post-transformers
+                if post_transformers:
+                    merged_configs.extend([cfg.to_loader_dict() for cfg in post_transformers])
+
+                stage_configs[stage] = merged_configs
+
+                # Log the composition for debugging
+                pre_count = len(pre_transformers or [])
+                main_count = len(full_transformers or []) if full_transformers is not None else len(channel_defaults.get(stage, []))
+                post_count = len(post_transformers or [])
+                main_type = 'override' if full_transformers is not None else 'default'
+
+                if pre_count > 0 or post_count > 0 or main_count > 0:
+                    logger.debug(
+                        "Provider '%s' channel '%s' stage '%s': %d pre + %d %s + %d post transformers", config.name, channel, stage, pre_count, main_count, main_type, post_count
+                    )
 
             self._pipelines[channel] = TransformerPipeline(
                 request=transformer_loader.load_transformers(stage_configs['request']),

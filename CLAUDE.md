@@ -22,6 +22,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `config.example.yaml`: The example static server config
 - `user.example.yaml` The example dynamic user config
 
+### Transformer Configuration
+Providers support flexible transformer configuration:
+- **Full override**: Specify `request`, `response`, or `stream` lists to completely replace provider defaults
+- **Additive configuration**: Use `pre_request`, `post_request`, `pre_response`, `post_response`, `pre_stream`, `post_stream` to add transformers before/after any stage configuration
+- **Merging behavior**: Pre-transformers + (full override OR provider defaults) + post-transformers
+- **Always applied**: Pre/post transformers are always applied when specified, regardless of whether full stage overrides exist
+- **Backward compatibility**: Existing configurations using full stage lists continue to work unchanged
+
 
 - Embrace dependency injection (`app/dependencies/container.py`)—never instantiate providers/routers ad hoc.
 - Transformers live under `app/transformers/providers/<channel>/`; prefer channel-specific naming.
