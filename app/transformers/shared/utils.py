@@ -493,3 +493,23 @@ class AuthHeaderTransformer(ProviderRequestTransformer):
                 filtered_headers[self.auth_header] = provider_config.api_key
 
         return request, filtered_headers
+
+
+class OpenRouterReasoningTransformer(ProviderRequestTransformer):
+
+    async def transform(self, params: Dict[str, Any]) -> Tuple[Dict[str, Any], Dict[str, str]]:
+        request: dict[str, Any] = params['request']
+        headers = params['headers']
+
+        # Anthropic 
+        if thinking := request.get('thinking', {}):
+            request['reasoning'] = {'max_tokens': thinking.get('budget_tokens', 0)}
+            request.pop('thinking', None)
+            return request, headers
+        
+        # OpenAI
+        if reasoning_effort := request.get('reasoning_effort', None):
+            request['reasoning'] = {'effort': reasoning_effort}
+            request.pop('reasoning_effort')
+            return request, headers
+        return request, headers
