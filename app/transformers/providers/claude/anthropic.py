@@ -76,6 +76,9 @@ class CacheBreakpointTransformer(ProviderRequestTransformer):
         total_breakpoints = self._validate_breakpoint_count(request)
         self.logger.info(f'Applied {total_breakpoints}/4 cache breakpoints for routing_key: {routing_key}')
 
+        if 'tools' in request and not request['tools']:
+            request.pop('tools', None)
+
         return request, headers
 
     def _remove_system_cache_breakpoints(self, request: dict[str, Any]):

@@ -40,7 +40,7 @@ async def responses(
         channel='codex',
         model=model,
         original_stream=original_stream,
-        tools=payload.get('tools') or [],
+        tools=payload.get('tools') or None,
         metadata={},
         extras={},
     )
