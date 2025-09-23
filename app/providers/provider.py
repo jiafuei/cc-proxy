@@ -162,7 +162,8 @@ class ProviderClient:
         current_headers.pop('x-api-key', None)
         current_headers.pop('authorization', None)
 
-        current_request['stream'] = False
+        if current_request.get('stream', False):
+            current_request['stream'] = False
 
         for transformer in pipeline.request:
             transform_params = {
