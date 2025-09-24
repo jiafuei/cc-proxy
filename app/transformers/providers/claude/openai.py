@@ -1,7 +1,8 @@
 """OpenAI transformers with real format conversion."""
 
 import hashlib
-from typing import Any, AsyncIterator, Dict, Optional, Tuple
+import json
+from typing import Any, AsyncIterator, Dict, List, Optional, Tuple
 
 import orjson
 
@@ -56,6 +57,7 @@ class ClaudeOpenAIRequestTransformer(ProviderRequestTransformer):
             'model': request.get('model'),
             'temperature': request.get('temperature'),
             'stream': stream,
+            'store': False,
             'messages': self._convert_messages(request),
             'max_completion_tokens': request.get('max_tokens'),
             'reasoning_effort': self._get_reasoning_effort(request),
@@ -206,9 +208,17 @@ class ClaudeOpenAIRequestTransformer(ProviderRequestTransformer):
 
     def _convert_tool_result(self, block):
         """Convert Claude tool_result to OpenAI tool message."""
-        message = {'role': 'tool', 'tool_call_id': block.get('tool_use_id'), 'content': block.get('content') or ('Error' if block.get('is_error') else 'Success')}
-        if isinstance(message['content'], list) and len(message['content']) == 1 and message['content'][0] == 'text':
-            message['content'] = message['content'][0]['text']
+        message = {
+            'role': 'tool',
+            'tool_call_id': block.get('tool_use_id'),
+            'content': block.get('content'),
+        }
+        if isinstance(message['content'], list) and len(message['content']) == 1:
+            item = message['content'][0]
+            if isinstance(item, dict) and item.get('type') == 'text':
+                message['content'] = item.get('text', '')
+        if block.get('is_error'):
+            message['content'] = f"Error: {message.get('content', '')}"
 
         return message
 
@@ -382,29 +392,27 @@ class ClaudeOpenAIResponseTransformer(ProviderResponseTransformer):
 
             choice = choices[0]
             message = choice.get('message', {})
-            content = message.get('content', '')
             tool_calls = message.get('tool_calls') or []
 
-            # Build Claude content array
-            claude_content = []
-            if content:
-                claude_content.append({'type': 'text', 'text': content})
+            claude_content: List[Dict[str, Any]] = []
 
-            # Convert tool calls to Claude tool_use blocks
-            for tool_call in tool_calls:
-                function = tool_call.get('function', {})
-                try:
-                    arguments = orjson.loads(function.get('arguments', '{}'))
-                except orjson.JSONDecodeError:
-                    arguments = {}
+            reasoning_block = self._convert_reasoning(message.get('reasoning'))
+            if reasoning_block:
+                claude_content.append(reasoning_block)
 
-                claude_content.append({'type': 'tool_use', 'id': tool_call.get('id', ''), 'name': function.get('name', ''), 'input': arguments})
+            message_blocks = self._convert_message_content(message)
+            if message_blocks:
+                claude_content.extend(message_blocks)
 
-            # Build usage info more efficiently
+            if tool_calls:
+                claude_content.extend(self._convert_tool_calls(tool_calls))
+
+            if not claude_content:
+                claude_content = [{'type': 'text', 'text': ''}]
+
             usage = response.get('usage', {})
             claude_usage = self._convert_openai_usage(usage)
 
-            # Convert to Claude response format
             claude_response = {
                 'id': response.get('id', ''),
                 'type': 'message',
@@ -632,7 +640,7 @@ class ClaudeOpenAIResponseTransformer(ProviderResponseTransformer):
 
         return response
 
-    def _create_web_search_result(self, citation: dict, content: str) -> Optional[dict]:
+    def _create_web_search_result(self, citation: dict, content: Any) -> Optional[dict]:
         """Create Anthropic web_search_tool_result from OpenAI citation.
 
         Args:
@@ -656,21 +664,217 @@ class ClaudeOpenAIResponseTransformer(ProviderResponseTransformer):
 
         return {'type': 'web_search_tool_result', 'id': result_id, 'content': {'type': 'web_search_result', 'url': url, 'title': title or 'Untitled', 'snippet': snippet or ''}}
 
-    def _extract_snippet(self, content: str, start_index: Optional[int], end_index: Optional[int]) -> str:
-        """Extract snippet from content using citation indices.
+    def _extract_snippet(self, content: Any, start_index: Optional[int], end_index: Optional[int]) -> str:
+        """Extract snippet from content using citation indices."""
 
-        Args:
-            content: Full content string
-            start_index: Start index of citation
-            end_index: End index of citation
+        if isinstance(content, str):
+            text = content
+        elif isinstance(content, list):
+            text = ''.join(part.get('text', '') for part in content if isinstance(part, dict) and part.get('type') == 'text')
+        else:
+            text = ''
 
-        Returns:
-            Extracted snippet or empty string
-        """
+        if not text:
+            return ''
+
         if start_index is not None and end_index is not None:
             try:
-                return content[start_index:end_index]
+                return text[start_index:end_index]
             except (IndexError, TypeError):
                 self.logger.warning(f'Invalid citation indices: {start_index}-{end_index}')
 
         return ''
+
+    def _convert_message_content(self, message: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """Convert OpenAI message content into Anthropic content blocks."""
+
+        content = message.get('content')
+        if content is None:
+            return []
+
+        if isinstance(content, str):
+            return [{'type': 'text', 'text': content}] if content else []
+
+        if isinstance(content, dict):
+            content = [content]
+
+        if not isinstance(content, list):
+            return []
+
+        blocks: List[Dict[str, Any]] = []
+        for part in content:
+            converted = self._convert_content_part(part)
+            if not converted:
+                continue
+            if isinstance(converted, list):
+                blocks.extend(converted)
+            else:
+                blocks.append(converted)
+
+        return blocks
+
+    def _convert_content_part(self, part: Any) -> Optional[Any]:
+        """Convert a single OpenAI content part into Anthropic format."""
+
+        if not isinstance(part, dict):
+            return None
+
+        part_type = part.get('type')
+
+        if part_type == 'text':
+            return {'type': 'text', 'text': part.get('text', '')}
+
+        if part_type == 'image_url':
+            return self._convert_image_part(part)
+
+        if part_type == 'tool_result':
+            return self._normalize_tool_result_part(part)
+
+        if part_type in {'web_search_tool_result', 'tool_use', 'thinking', 'image'}:
+            return part
+
+        self.logger.debug('Dropping unsupported message content', part_type=part_type)
+        return None
+
+    def _normalize_tool_result_part(self, part: Dict[str, Any]) -> Dict[str, Any]:
+        """Ensure tool_result content is a single text block."""
+
+        content = part.get('content')
+
+        text_value: str
+        if isinstance(content, list):
+            texts = [item.get('text', '') for item in content if isinstance(item, dict) and item.get('type') == 'text']
+            text_value = '\n'.join(filter(None, texts))
+        elif isinstance(content, (dict, list)):
+            try:
+                text_value = orjson.dumps(content).decode()
+            except TypeError:
+                text_value = json.dumps(content, default=str)
+        else:
+            text_value = '' if content is None else str(content)
+
+        normalized = part.copy()
+        normalized['content'] = [{'type': 'text', 'text': text_value}]
+        return normalized
+
+    def _convert_image_part(self, part: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """Convert OpenAI image_url part into an Anthropic image block."""
+
+        image_url = part.get('image_url')
+        if not isinstance(image_url, dict):
+            return None
+
+        url = image_url.get('url')
+        if not url:
+            return None
+
+        if url.startswith('data:'):
+            parsed = self._parse_data_url(url)
+            if not parsed:
+                self.logger.warning('Unsupported data URL for image content', url=url)
+                return None
+            media_type, data = parsed
+            return {'type': 'image', 'source': {'type': 'base64', 'media_type': media_type, 'data': data}}
+
+        return {'type': 'image', 'source': {'type': 'url', 'url': url}}
+
+    def _parse_data_url(self, url: str) -> Optional[Tuple[str, str]]:
+        """Parse a data URL string into (media_type, base64_data)."""
+
+        try:
+            header, data = url.split(',', 1)
+        except ValueError:
+            return None
+
+        metadata = header[len('data:') :]
+        parts = metadata.split(';') if metadata else []
+        if not parts:
+            return None
+
+        media_type = parts[0] or 'application/octet-stream'
+        is_base64 = any(p.lower() == 'base64' for p in parts[1:])
+        if not is_base64:
+            return None
+
+        return media_type, data
+
+    def _convert_tool_calls(self, tool_calls: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """Convert OpenAI tool_calls array into Anthropic tool_use blocks."""
+
+        blocks: List[Dict[str, Any]] = []
+        for tool_call in tool_calls:
+            if not isinstance(tool_call, dict):
+                continue
+
+            if tool_call.get('type') and tool_call.get('type') != 'function':
+                self.logger.debug('Skipping unsupported tool call type', tool_call_type=tool_call.get('type'))
+                continue
+
+            function = tool_call.get('function', {}) or {}
+            name = function.get('name', '')
+            if not name:
+                self.logger.warning('Skipping tool call without name', tool_call_id=tool_call.get('id', ''))
+                continue
+
+            arguments_payload = function.get('arguments')
+            if isinstance(arguments_payload, (dict, list)):
+                parsed_arguments = arguments_payload
+            elif isinstance(arguments_payload, str):
+                try:
+                    parsed_arguments = orjson.loads(arguments_payload)
+                except orjson.JSONDecodeError:
+                    self.logger.warning('Failed to parse tool call arguments', tool_call_id=tool_call.get('id', ''))
+                    parsed_arguments = {}
+            else:
+                parsed_arguments = {}
+
+            blocks.append({'type': 'tool_use', 'id': tool_call.get('id', ''), 'name': name, 'input': parsed_arguments or {}})
+
+        return blocks
+
+    def _convert_reasoning(self, reasoning: Any) -> Optional[Dict[str, Any]]:
+        """Convert OpenAI reasoning traces into Anthropic thinking block."""
+
+        if not reasoning:
+            return None
+
+        signature: Optional[str] = None
+        segments: List[str] = []
+
+        if isinstance(reasoning, dict):
+            signature = reasoning.get('signature')
+
+            tokens = reasoning.get('tokens')
+            if isinstance(tokens, list):
+                for token in tokens:
+                    if isinstance(token, dict):
+                        text_value = token.get('text') or token.get('content')
+                        if text_value:
+                            segments.append(str(text_value))
+                    elif isinstance(token, str):
+                        segments.append(token)
+
+            for key in ('content', 'output_text', 'text'):
+                value = reasoning.get(key)
+                if isinstance(value, str):
+                    segments.append(value)
+
+        elif isinstance(reasoning, list):
+            for item in reasoning:
+                if isinstance(item, dict):
+                    text_value = item.get('text') or item.get('content')
+                    if text_value:
+                        segments.append(str(text_value))
+                elif isinstance(item, str):
+                    segments.append(item)
+        elif isinstance(reasoning, str):
+            segments.append(reasoning)
+
+        thinking_text = ''.join(segments).strip()
+        if not thinking_text:
+            return None
+
+        block: Dict[str, Any] = {'type': 'thinking', 'thinking': thinking_text}
+        if signature:
+            block['signature'] = signature
+        return block

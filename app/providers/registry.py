@@ -73,10 +73,14 @@ PROVIDER_REGISTRY: Dict[ProviderType, ProviderDescriptor] = {
         default_transformers={
             'claude': {
                 'request': [
-                    {'class': 'app.transformers.providers.claude.openai.ClaudeOpenAIRequestTransformer', 'params': {}},
+                    {'class': 'app.transformers.shared.utils.AuthHeaderTransformer', 'params': {'auth_header': 'authorization'}},
+                    {'class': 'app.transformers.providers.claude.anthropic.ClaudeSystemMessageCleanerTransformer', 'params': {}},
+                    {'class': 'app.transformers.providers.claude.anthropic.ClaudeSoftwareEngineeringSystemMessageTransformer', 'params': {}},
+                    {'class': 'app.transformers.shared.utils.ToolDescriptionOptimizerTransformer', 'params': {}},
+                    {'class': 'app.transformers.providers.claude.openai_responses.ClaudeOpenAIResponsesRequestTransformer', 'params': {}},
                 ],
                 'response': [
-                    {'class': 'app.transformers.providers.claude.openai.ClaudeOpenAIResponseTransformer', 'params': {}},
+                    {'class': 'app.transformers.providers.claude.openai_responses.ClaudeOpenAIResponsesResponseTransformer', 'params': {}},
                 ],
                 'stream': [],
             },
