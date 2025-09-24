@@ -81,21 +81,19 @@ class ClaudeOpenAIResponsesRequestTransformer(ProviderRequestTransformer):
             if converted_builtins:
                 payload['tools'].extend(converted_builtins)
 
-        tool_choice, parallel_tool_calls = self._convert_tool_choice(request.get('tool_choice'))
-        if parallel_tool_calls is not None:
-            payload['parallel_tool_calls'] = parallel_tool_calls
-        if tool_choice is not None:
-            payload['tool_choice'] = tool_choice
+        # tool_choice, parallel_tool_calls = self._convert_tool_choice(request.get('tool_choice'))
+        # if tool_choice is not None:
+        #     payload['tool_choice'] = tool_choice
 
-        response_format = self._convert_response_format(request.get('response_format'))
-        if response_format:
-            payload['response_format'] = response_format
+        # response_format = self._convert_response_format(request.get('response_format'))
+        # if response_format:
+        #     payload['response_format'] = response_format
 
-        if request.get('modalities'):
-            payload['modalities'] = copy.deepcopy(request['modalities'])
-        if request.get('attachments'):
-            payload['attachments'] = copy.deepcopy(request['attachments'])
-        payload['previous_response_id'] = request.get('previous_response_id')
+        # if request.get('modalities'):
+        #     payload['modalities'] = copy.deepcopy(request['modalities'])
+        # if request.get('attachments'):
+        #     payload['attachments'] = copy.deepcopy(request['attachments'])
+        # payload['previous_response_id'] = request.get('previous_response_id')
 
         clean_payload = {k: v for k, v in payload.items() if v is not None}
 
@@ -265,7 +263,6 @@ class ClaudeOpenAIResponsesRequestTransformer(ProviderRequestTransformer):
 
     def _convert_metadata(self, metadata: Optional[Dict[str, Any]]) -> Dict[str, Any]:
         metadata_copy = metadata.copy() if isinstance(metadata, dict) else {}
-        metadata_copy.setdefault('source', 'cc-proxy')
         return metadata_copy
 
     def _convert_tools(self, tools: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
@@ -308,7 +305,9 @@ class ClaudeOpenAIResponsesRequestTransformer(ProviderRequestTransformer):
             self.logger.warning('Invalid web search configuration; dropping tool', error=str(exc))
             return None
 
-        return {'type': 'web_search', 'web_search': config}
+        entry: Dict[str, Any] = {'type': 'web_search_preview'}
+        entry.update(config)
+        return entry
 
     def _extract_websearch_config(self, tool: Dict[str, Any]) -> Dict[str, Any]:
         self._validate_domain_filters(tool)
@@ -317,31 +316,15 @@ class ClaudeOpenAIResponsesRequestTransformer(ProviderRequestTransformer):
 
         allowed_domains = tool.get('allowed_domains')
         blocked_domains = tool.get('blocked_domains')
-        if allowed_domains or blocked_domains:
-            filters: Dict[str, Any] = {}
-            if allowed_domains:
-                filters['allowed_domains'] = allowed_domains
-            if blocked_domains:
-                filters['blocked_domains'] = blocked_domains
-            config['filters'] = filters
+        if allowed_domains:
+            config['domains'] = allowed_domains
+        if blocked_domains:
+            config['blocked_domains'] = blocked_domains
 
-        if user_location := tool.get('user_location'):
-            config['user_location'] = self._convert_user_location(user_location)
-
-        # Search context size defaults to medium but allow override
-        config['search_context_size'] = tool.get('search_context_size', 'medium')
+        if search_context_size := tool.get('search_context_size'):
+            config['search_context_size'] = search_context_size
 
         return self._handle_missing_parameters(config)
-
-    def _convert_user_location(self, user_location: Dict[str, Any]) -> Dict[str, Any]:
-        openai_location = {'type': 'approximate', 'approximate': {}}
-        approximate = openai_location['approximate']
-
-        for field in ['country', 'city', 'region', 'timezone']:
-            if value := user_location.get(field):
-                approximate[field] = value
-
-        return openai_location
 
     def _validate_domain_filters(self, tool: Dict[str, Any]) -> None:
         if tool.get('allowed_domains') and tool.get('blocked_domains'):
@@ -349,7 +332,8 @@ class ClaudeOpenAIResponsesRequestTransformer(ProviderRequestTransformer):
 
     def _handle_missing_parameters(self, config: Dict[str, Any]) -> Dict[str, Any]:
         config.setdefault('search_context_size', 'medium')
-        config.setdefault('filters', {})
+        if 'domains' not in config and 'blocked_domains' not in config:
+            config['domains'] = []
         return config
 
     def _convert_tool_choice(self, tool_choice: Any) -> Tuple[Optional[Any], Optional[bool]]:
@@ -612,7 +596,7 @@ class ClaudeOpenAIResponsesResponseTransformer(ProviderResponseTransformer):
         if 'total_tokens' in usage:
             converted['total_tokens'] = usage['total_tokens']
 
-        prompt_details = usage.get('prompt_tokens_details')
+        prompt_details = usage.get('input_tokens_details') or usage.get('prompt_tokens_details')
         if isinstance(prompt_details, dict) and 'cached_tokens' in prompt_details:
             converted['cache_read_input_tokens'] = prompt_details['cached_tokens']
 
