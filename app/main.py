@@ -87,7 +87,8 @@ def create_app(config: Optional[ConfigModel] = None) -> FastAPI:
         try:
             error_msg = f'request validation error: {str(exc.errors())}'
             dumper.write_response_chunk(handles, error_msg)
-            return ORJSONResponse(status_code=400, content={'type': 'error', 'error': {'type': 'invalid_request_error', 'message': error_msg}})
+            error_response = ORJSONResponse(status_code=400, content={'type': 'error', 'error': {'type': 'invalid_request_error', 'message': error_msg}})
+            return error_response
         finally:
             dumper.close(handles)
 

@@ -34,12 +34,11 @@ async def responses(
     if not model:
         return ORJSONResponse({'error': {'type': 'invalid_request_error', 'message': 'Request must include a model field'}}, status_code=400)
 
-    original_stream = bool(payload.get('stream'))
     exchange_request = ExchangeRequest.from_payload(
         payload,
         channel='codex',
         model=model,
-        original_stream=original_stream,
+        original_stream=bool(payload.get('stream')),
         tools=payload.get('tools') or None,
         metadata={},
         extras={},
@@ -60,10 +59,11 @@ async def responses(
     try:
         if not routing_result.provider.supports_operation('responses'):
             logger.warning('Provider %s does not support responses operation', routing_result.provider.config.name)
-            return ORJSONResponse(
+            error_response = ORJSONResponse(
                 {'error': {'type': 'not_supported_error', 'message': f'Provider {routing_result.provider.config.name} does not support responses'}},
                 status_code=501,
             )
+            return error_response
 
         response = await routing_result.provider.execute(
             'responses',
@@ -75,12 +75,14 @@ async def responses(
         )
 
         dumper.write_response_chunk(dumper_handles, orjson.dumps(response.payload))
-        return ORJSONResponse(response.payload)
+        success_response = ORJSONResponse(response.payload)
+        return success_response
 
     except httpx.HTTPStatusError as exc:
         error_type = map_http_status_to_anthropic_error(exc.response.status_code)
         error_message = extract_error_message(exc)
         logger.error('Provider error (HTTP %s): %s', exc.response.status_code, error_message)
-        return ORJSONResponse({'error': {'type': error_type, 'message': error_message}}, status_code=exc.response.status_code)
+        error_response = ORJSONResponse({'error': {'type': error_type, 'message': error_message}}, status_code=exc.response.status_code)
+        return error_response
     finally:
         dumper.close(dumper_handles)

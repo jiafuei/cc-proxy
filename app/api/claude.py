@@ -72,24 +72,28 @@ async def messages(
 
         if not exchange_request.original_stream:
             dumper.write_response_chunk(dumper_handles, orjson.dumps(response.payload))
+            success_response = ORJSONResponse(response.payload)
             dumper.close(dumper_handles)
-            return ORJSONResponse(response.payload)
+            return success_response
 
-        return StreamingResponse(
+        streaming_response = StreamingResponse(
             convert_exchange_to_sse(response, dumper, dumper_handles),
             media_type='text/event-stream',
         )
+        return streaming_response
 
     except httpx.HTTPStatusError as exc:
         error_type = map_http_status_to_anthropic_error(exc.response.status_code)
         error_message = extract_error_message(exc)
         logger.error('Provider error (HTTP %s): %s', exc.response.status_code, error_message)
+        error_response = ORJSONResponse({'error': {'type': error_type, 'message': error_message}}, status_code=exc.response.status_code)
         dumper.close(dumper_handles)
-        return ORJSONResponse({'error': {'type': error_type, 'message': error_message}}, status_code=exc.response.status_code)
+        return error_response
     except Exception as exc:  # pragma: no cover - defensive
         logger.error('Error processing request: %s', exc, exc_info=True)
+        error_response = ORJSONResponse({'error': {'type': 'api_error', 'message': f'Request processing failed: {exc}'}}, status_code=500)
         dumper.close(dumper_handles)
-        return ORJSONResponse({'error': {'type': 'api_error', 'message': f'Request processing failed: {exc}'}}, status_code=500)
+        return error_response
 
 
 @router.post('/messages/count_tokens')
@@ -114,10 +118,11 @@ async def count_tokens(
     try:
         if not routing_result.provider.supports_operation('count_tokens'):
             logger.warning('Provider %s does not support count_tokens', routing_result.provider.config.name)
-            return ORJSONResponse(
+            error_response = ORJSONResponse(
                 {'error': {'type': 'not_supported_error', 'message': f'Provider {routing_result.provider.config.name} does not support token counting'}},
                 status_code=501,
             )
+            return error_response
 
         response = await routing_result.provider.execute(
             'count_tokens',
@@ -129,12 +134,14 @@ async def count_tokens(
         )
 
         dumper.write_response_chunk(dumper_handles, orjson.dumps(response.payload))
-        return ORJSONResponse(response.payload)
+        success_response = ORJSONResponse(response.payload)
+        return success_response
 
     except httpx.HTTPStatusError as exc:
         error_type = map_http_status_to_anthropic_error(exc.response.status_code)
         error_message = extract_error_message(exc)
         logger.error('Provider error (HTTP %s): %s', exc.response.status_code, error_message)
-        return ORJSONResponse({'error': {'type': error_type, 'message': error_message}}, status_code=exc.response.status_code)
+        error_response = ORJSONResponse({'error': {'type': error_type, 'message': error_message}}, status_code=exc.response.status_code)
+        return error_response
     finally:
         dumper.close(dumper_handles)
