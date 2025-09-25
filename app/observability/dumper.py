@@ -42,6 +42,7 @@ class DumpType(Enum):
     TRANSFORMED_HEADERS = 'transformed_headers'
     ORIGINAL_REQUEST = 'original_request'
     TRANSFORMED_REQUEST = 'transformed_request'
+    PRETRANSFORMED_RESPONSE_HEADERS = 'pretransformed_response_headers'
     PRETRANSFORMED_RESPONSE = 'pretransformed_response'
     FINAL_RESPONSE = 'final_response'
 
@@ -54,6 +55,7 @@ class DumpPathGenerator:
         DumpType.TRANSFORMED_HEADERS: '.json',
         DumpType.ORIGINAL_REQUEST: '.json',
         DumpType.TRANSFORMED_REQUEST: '.json',
+        DumpType.PRETRANSFORMED_RESPONSE_HEADERS: '.json',
         DumpType.PRETRANSFORMED_RESPONSE: '.sse',
         DumpType.FINAL_RESPONSE: '.sse',
     }
@@ -63,8 +65,9 @@ class DumpPathGenerator:
         DumpType.TRANSFORMED_HEADERS: 2,
         DumpType.ORIGINAL_REQUEST: 3,
         DumpType.TRANSFORMED_REQUEST: 4,
-        DumpType.PRETRANSFORMED_RESPONSE: 5,
-        DumpType.FINAL_RESPONSE: 6,
+        DumpType.PRETRANSFORMED_RESPONSE_HEADERS: 5,
+        DumpType.PRETRANSFORMED_RESPONSE: 6,
+        DumpType.FINAL_RESPONSE: 7,
     }
 
     def generate_path(self, base_path: str, dump_type: DumpType) -> str:
@@ -81,6 +84,7 @@ class DumpFiles:
     transformed_headers: Optional[str] = None
     original_request: Optional[str] = None
     transformed_request: Optional[str] = None
+    pretransformed_response_headers: Optional[str] = None
     pretransformed_response: Optional[str] = None
     pretransformed_response_file: Optional[BinaryIO] = None
     final_response: Optional[str] = None
@@ -170,6 +174,7 @@ class Dumper:
             DumpType.TRANSFORMED_HEADERS: self.cfg.dump_headers,
             DumpType.ORIGINAL_REQUEST: self.cfg.dump_requests,
             DumpType.TRANSFORMED_REQUEST: self.cfg.dump_requests,
+            DumpType.PRETRANSFORMED_RESPONSE_HEADERS: self.cfg.dump_headers,
             DumpType.PRETRANSFORMED_RESPONSE: self.cfg.dump_responses,
             DumpType.FINAL_RESPONSE: self.cfg.dump_responses,
         }.get(dump_type, False)
@@ -203,6 +208,10 @@ class Dumper:
 
     def write_pretransformed_response(self, handles: DumpHandles, chunk: bytes | str) -> None:
         self._write_streaming_data(handles.files.pretransformed_response_file, chunk)
+
+    def write_pretransformed_response_headers(self, handles: DumpHandles, headers: Dict[str, str]) -> None:
+        sanitized = self._sanitize_headers(headers)
+        self._write_data(handles, DumpType.PRETRANSFORMED_RESPONSE_HEADERS, sanitized)
 
     def write_response_chunk(self, handles: DumpHandles, chunk: bytes | str) -> None:
         self._write_streaming_data(handles.files.final_response_file, chunk)

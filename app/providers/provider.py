@@ -182,6 +182,7 @@ class ProviderClient:
         url = self._build_operation_url(operation, resolved_model)
         response = await self.http_client.post(url, json=current_request, headers=current_headers)
 
+        dumper.write_pretransformed_response_headers(dumper_handles, dict(response.headers))
         try:
             response.raise_for_status()
         except Exception:
