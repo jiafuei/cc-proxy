@@ -57,7 +57,6 @@ class ClaudeOpenAIRequestTransformer(ProviderRequestTransformer):
             'model': request.get('model'),
             'temperature': request.get('temperature'),
             'stream': stream,
-            'store': False,
             'messages': self._convert_messages(request),
             'max_completion_tokens': request.get('max_tokens'),
             'reasoning_effort': self._get_reasoning_effort(request),
